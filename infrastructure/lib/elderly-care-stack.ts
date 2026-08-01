@@ -11,6 +11,7 @@ import * as path from 'node:path';
 import { Api } from './constructs/api';
 import { Auth } from './constructs/auth';
 import { DataStore } from './constructs/data-store';
+import { SearchStore } from './constructs/search-store';
 import { VoiceWorkflow } from './constructs/voice-workflow';
 
 export interface ElderlyCareStackProps extends cdk.StackProps {
@@ -19,6 +20,7 @@ export interface ElderlyCareStackProps extends cdk.StackProps {
 
 export class ElderlyCareStack extends cdk.Stack {
   public readonly dataStore: DataStore;
+  public readonly searchStore: SearchStore;
   public readonly auth: Auth;
   public readonly api: Api;
 
@@ -26,6 +28,7 @@ export class ElderlyCareStack extends cdk.Stack {
     super(scope, id, props);
 
     this.dataStore = new DataStore(this, 'DataStore', { envName: props.envName });
+    this.searchStore = new SearchStore(this, 'SearchStore', { envName: props.envName });
     this.auth = new Auth(this, 'Auth', { envName: props.envName });
 
     // Workflow/component Lambda logs (ASR, Context Composer, Event Extractor,
@@ -37,12 +40,27 @@ export class ElderlyCareStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
+    // Model IDs are injected explicitly rather than left to the `??` defaults in
+    // packages/backend (llm/engine.ts, search/embeddings.ts, ...) so the version
+    // actually in use is recorded in the deployed infrastructure instead of
+    // being implied by application code.
+    //
+    // BEDROCK_GUARDRAIL_ID is deliberately NOT set: no guardrail is provisioned
+    // in this account yet, and guardrail/engine.ts treats a missing ID as
+    // fail-open (allowed: true). Injecting an invalid ID would turn that silent
+    // pass into a hard failure on every turn. Emergency detection in
+    // guardrail/emergency.ts is local and unaffected either way.
     const commonEnv = {
       DYNAMODB_TABLE_NAME: this.dataStore.table.tableName,
       DYNAMODB_GSI1_NAME: 'GSI1',
       DYNAMODB_GSI2_NAME: 'GSI2',
       COGNITO_USER_POOL_ID: this.auth.userPool.userPoolId,
       COGNITO_CLIENT_ID: this.auth.userPoolClient.userPoolClientId,
+      BEDROCK_MODEL_ID: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+      // 1024 dimensions — must stay in sync with the knn_vector dimension in
+      // packages/backend/src/search/index-mappings.ts. Changing the embedding
+      // model means reindexing, not just editing this line.
+      BEDROCK_EMBEDDING_MODEL_ID: 'amazon.titan-embed-text-v2:0',
     };
 
     // REQUEST authorizer (H01) — verifies the Cognito ID token, resolves the
@@ -100,6 +118,13 @@ export class ElderlyCareStack extends cdk.Stack {
     searchHealthFn.addToRolePolicy(
       new iam.PolicyStatement({ actions: ['bedrock:InvokeModel', 'bedrock:Converse'], resources: ['*'] }),
     );
+
+    // Hybrid retrieval (BM25 + kNN) runs in this handler, so it needs both the
+    // endpoint and AOSS access. search/index-management.ts throws outright when
+    // OPENSEARCH_ENDPOINT is absent, so this is the difference between a working
+    // route and a guaranteed 500.
+    searchHealthFn.addEnvironment('OPENSEARCH_ENDPOINT', this.searchStore.endpoint);
+    this.searchStore.grantAccess(searchHealthFn);
 
     // --- Voice-interaction Step Functions workflow (task 25) ----------------
     const voiceWorkflow = new VoiceWorkflow(this, 'VoiceWorkflow', {
@@ -186,6 +211,12 @@ export class ElderlyCareStack extends cdk.Stack {
       // deploys the voice-interaction state machine — see Api's props.
     });
 
+    // Set after `this.api` exists: api/conversations.ts returns this URL to the
+    // client as the socket to connect to, and the WebSocket stage that owns the
+    // URL is only created inside the Api construct above. Without it the handler
+    // falls back to '' and the client gets a conversation it cannot join.
+    startConversationFn.addEnvironment('WEBSOCKET_URL', this.api.webSocketStage.url);
+
     // --- TTL cross-store cleanup (H03.3) -------------------------------------
     // Fires on every DynamoDB Streams record; the handler itself filters to
     // TTL-driven REMOVE events and fans the deletion out to S3/OpenSearch.
@@ -197,6 +228,10 @@ export class ElderlyCareStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
     });
     this.dataStore.audioBucket.grantDelete(ttlCleanupFn);
+    // Expired memories must be purged from the vector index too, not just S3 —
+    // otherwise a deleted memory stays semantically retrievable.
+    ttlCleanupFn.addEnvironment('OPENSEARCH_ENDPOINT', this.searchStore.endpoint);
+    this.searchStore.grantAccess(ttlCleanupFn);
     if (this.dataStore.table.tableStreamArn) {
       ttlCleanupFn.addEventSource(
         new lambdaEventSources.DynamoEventSource(this.dataStore.table, {
@@ -225,6 +260,7 @@ export class ElderlyCareStack extends cdk.Stack {
       description: 'Triggers SummaryGenerator once daily for every elder profile',
     });
 
+    new cdk.CfnOutput(this, 'OpenSearchEndpoint', { value: this.searchStore.endpoint });
     new cdk.CfnOutput(this, 'RestApiUrl', { value: this.api.restApi.url });
     new cdk.CfnOutput(this, 'WebSocketUrl', { value: this.api.webSocketStage.url });
     new cdk.CfnOutput(this, 'UserPoolId', { value: this.auth.userPool.userPoolId });

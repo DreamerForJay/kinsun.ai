@@ -1,4 +1,5 @@
 import { Client } from '@opensearch-project/opensearch';
+import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
 import { HEALTH_KNOWLEDGE_INDEX_MAPPING, HEALTH_KNOWLEDGE_INDEX_NAME, MEMORY_VECTORS_INDEX_MAPPING, MEMORY_VECTORS_INDEX_NAME } from './index-mappings.js';
 
 function getEndpoint(): string {
@@ -8,9 +9,24 @@ function getEndpoint(): string {
 }
 
 let cachedClient: Client | null = null;
+
+/**
+ * OpenSearch Serverless rejects unsigned requests, so every call has to carry a
+ * SigV4 signature — a plain `new Client({ node })` gets 403 regardless of how
+ * permissive the IAM policy and data-access policy are.
+ *
+ * `service: 'aoss'` (not 'es') is what distinguishes Serverless from a managed
+ * domain; signing with the wrong service name produces the same 403 as not
+ * signing at all. Credentials come from the Lambda execution role via the
+ * default provider chain.
+ */
 export function getOpenSearchClient(): Client {
   if (!cachedClient) {
-    cachedClient = new Client({ node: getEndpoint() });
+    const region = process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? 'us-west-2';
+    cachedClient = new Client({
+      ...AwsSigv4Signer({ region, service: 'aoss' }),
+      node: getEndpoint(),
+    });
   }
   return cachedClient;
 }

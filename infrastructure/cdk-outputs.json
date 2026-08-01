@@ -1,0 +1,11 @@
+{
+  "ElderlyCareStack-dev": {
+    "ApiRestApiEndpoint4DEFB5CC": "https://d5jchnnhte.execute-api.us-west-2.amazonaws.com/dev/",
+    "UserPoolClientId": "42mnbqmsprafg7lk5v8i828phk",
+    "TableName": "elderly-care-main-dev",
+    "UserPoolId": "us-west-2_wJJJXdstg",
+    "WebSocketUrl": "wss://hr2x0wvr68.execute-api.us-west-2.amazonaws.com/dev",
+    "OpenSearchEndpoint": "https://iwc2aj0pkyesv1fvtmih.us-west-2.aoss.amazonaws.com",
+    "RestApiUrl": "https://d5jchnnhte.execute-api.us-west-2.amazonaws.com/dev/"
+  }
+}
