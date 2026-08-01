@@ -1,0 +1,7 @@
+{
+  "_why_invalid": "Repeated share scopes are ambiguous and must be rejected rather than silently deduplicated.",
+  "data": {
+    "share_scope": ["REPORT_DAILY", "REPORT_DAILY"],
+    "expires_in_hours": 24
+  }
+}

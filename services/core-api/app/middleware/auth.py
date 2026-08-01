@@ -14,11 +14,16 @@ from __future__ import annotations
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import lru_cache
+from typing import TYPE_CHECKING
 
 from fastapi import Depends, Request
 
 from app.core.config import AppEnv, get_settings
 from app.core.exceptions import AuthenticationError
+
+if TYPE_CHECKING:
+    from app.adapters.auth.cognito import CognitoTokenVerifier
 
 
 @dataclass(frozen=True)
@@ -143,12 +148,62 @@ def get_authenticator() -> Authenticator:
 
 
 def _resolve_production_authenticator(settings) -> Authenticator | None:
-    """Resolve real authenticator from config. Returns None if not configured.
+    """Return Cognito auth only after an explicit server configuration opt-in."""
+    if getattr(settings, "cognito_auth_enabled", False) is not True:
+        return None
 
-    Future: will return CognitoAuthenticator when that spec is implemented.
+    from app.adapters.auth.cognito import CognitoAuthenticator, DatabaseCognitoActorContextResolver
+    from app.db.session import get_db_engine
+
+    verifier = _get_cognito_token_verifier_from_settings(settings)
+    return CognitoAuthenticator(
+        verifier,
+        DatabaseCognitoActorContextResolver(get_db_engine().session_factory),
+    )
+
+
+def get_cognito_token_verifier() -> CognitoTokenVerifier:
+    """FastAPI-overridable dependency for onboarding's separately supplied ID token.
+
+    The protected Core API continues to obtain an ``ActorContext`` through
+    ``get_authenticator`` and Cognito *access* tokens.  An onboarding handler
+    may instead depend on this verifier and call ``verify_id_token``; it gets
+    only a verified subject/email and still cannot mint a role or tenant.
     """
-    # Placeholder — no real authenticator in this foundation spec
-    return None
+    settings = get_settings()
+    if getattr(settings, "cognito_auth_enabled", False) is not True:
+        raise NoAuthenticatorConfiguredError("Cognito authentication is not enabled")
+    return _get_cognito_token_verifier_from_settings(settings)
+
+
+@lru_cache(maxsize=16)
+def _build_cognito_token_verifier(
+    region: str,
+    user_pool_id: str,
+    app_client_id: str,
+    jwks_cache_seconds: int,
+    http_timeout_seconds: float,
+) -> CognitoTokenVerifier:
+    """Keep one JWKS cache per immutable Cognito configuration in this process."""
+    from app.adapters.auth.cognito import CognitoJwtVerifier
+
+    return CognitoJwtVerifier(
+        region=region,
+        user_pool_id=user_pool_id,
+        app_client_id=app_client_id,
+        jwks_cache_seconds=jwks_cache_seconds,
+        http_timeout_seconds=http_timeout_seconds,
+    )
+
+
+def _get_cognito_token_verifier_from_settings(settings) -> CognitoTokenVerifier:
+    return _build_cognito_token_verifier(
+        settings.cognito_region,
+        settings.cognito_user_pool_id,
+        settings.cognito_app_client_id,
+        settings.cognito_jwks_cache_seconds,
+        settings.cognito_http_timeout_seconds,
+    )
 
 
 async def get_actor_context(

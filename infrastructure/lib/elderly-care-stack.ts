@@ -9,13 +9,14 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 import * as path from 'node:path';
 import { Api } from './constructs/api';
-import { Auth } from './constructs/auth';
+import { Auth, GoogleFederationProps } from './constructs/auth';
 import { DataStore } from './constructs/data-store';
 import { VoiceWorkflow } from './constructs/voice-workflow';
 
 export interface ElderlyCareStackProps extends cdk.StackProps {
   envName: string;
   agentRuntimeBaseUrl?: string;
+  googleFederation?: GoogleFederationProps;
 }
 
 export class ElderlyCareStack extends cdk.Stack {
@@ -26,8 +27,14 @@ export class ElderlyCareStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ElderlyCareStackProps) {
     super(scope, id, props);
 
+    if (props.googleFederation && props.envName !== 'staging') {
+      throw new Error('Google federation is enabled only for the staging stack');
+    }
     this.dataStore = new DataStore(this, 'DataStore', { envName: props.envName });
-    this.auth = new Auth(this, 'Auth', { envName: props.envName });
+    this.auth = new Auth(this, 'Auth', {
+      envName: props.envName,
+      googleFederation: props.googleFederation,
+    });
 
     // Workflow/component Lambda logs (ASR, Context Composer, Event Extractor,
     // Memory Manager, ...) all log here so CloudWatch Insights queries can
@@ -56,8 +63,8 @@ export class ElderlyCareStack extends cdk.Stack {
       environment: commonEnv,
       timeout: cdk.Duration.seconds(5),
       description: 'Lambda Authorizer: verifies Cognito JWT + resolves elder-scoped authorization context',
-    });
       projectRoot: path.join(__dirname, '../..'),
+    });
     this.dataStore.table.grantReadData(authorizerFn);
 
     // --- REST API business-logic handlers (task 20) -------------------------
@@ -73,9 +80,9 @@ export class ElderlyCareStack extends cdk.Stack {
         handler: exportName,
         environment: commonEnv,
         timeout: cdk.Duration.seconds(10),
+        projectRoot: path.join(__dirname, '../..'),
       });
       this.dataStore.table.grantReadWriteData(fn);
-        projectRoot: path.join(__dirname, '../..'),
       return fn;
     };
 
@@ -123,9 +130,9 @@ export class ElderlyCareStack extends cdk.Stack {
         handler: 'handler',
         environment: wsEnv,
         timeout: cdk.Duration.seconds(15),
+        projectRoot: path.join(__dirname, '../..'),
       });
       this.dataStore.table.grantReadWriteData(fn);
-        projectRoot: path.join(__dirname, '../..'),
       return fn;
     };
 
@@ -138,9 +145,9 @@ export class ElderlyCareStack extends cdk.Stack {
       handler: 'postProcessingHandler',
       environment: commonEnv,
       timeout: cdk.Duration.seconds(30),
+      projectRoot: path.join(__dirname, '../..'),
     });
     this.dataStore.table.grantReadWriteData(postProcessingFn);
-      projectRoot: path.join(__dirname, '../..'),
     postProcessingFn.addToRolePolicy(new iam.PolicyStatement({ actions: ['bedrock:Converse'], resources: ['*'] }));
 
     const wsConnectFn = makeWsFn('WsConnectFn', 'connect.ts');
@@ -199,9 +206,9 @@ export class ElderlyCareStack extends cdk.Stack {
       handler: 'handler',
       environment: { ...commonEnv, AUDIO_BUCKET_NAME: this.dataStore.audioBucket.bucketName },
       timeout: cdk.Duration.seconds(30),
+      projectRoot: path.join(__dirname, '../..'),
     });
     this.dataStore.audioBucket.grantDelete(ttlCleanupFn);
-      projectRoot: path.join(__dirname, '../..'),
     if (this.dataStore.table.tableStreamArn) {
       ttlCleanupFn.addEventSource(
         new lambdaEventSources.DynamoEventSource(this.dataStore.table, {
@@ -219,9 +226,9 @@ export class ElderlyCareStack extends cdk.Stack {
       handler: 'handler',
       environment: commonEnv,
       timeout: cdk.Duration.minutes(5),
+      projectRoot: path.join(__dirname, '../..'),
     });
     this.dataStore.table.grantReadWriteData(summaryGeneratorFn);
-      projectRoot: path.join(__dirname, '../..'),
     summaryGeneratorFn.addToRolePolicy(
       new iam.PolicyStatement({ actions: ['bedrock:Converse'], resources: ['*'] }),
     );
@@ -235,6 +242,16 @@ export class ElderlyCareStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'WebSocketUrl', { value: this.api.webSocketStage.url });
     new cdk.CfnOutput(this, 'UserPoolId', { value: this.auth.userPool.userPoolId });
     new cdk.CfnOutput(this, 'UserPoolClientId', { value: this.auth.userPoolClient.userPoolClientId });
+    if (this.auth.webBffClient && this.auth.userPoolDomain) {
+      const oauthDomain = this.auth.userPoolDomain.baseUrl();
+      new cdk.CfnOutput(this, 'WebBffClientId', {
+        value: this.auth.webBffClient.userPoolClientId,
+      });
+      new cdk.CfnOutput(this, 'CognitoOAuthDomain', { value: oauthDomain });
+      new cdk.CfnOutput(this, 'GoogleOAuthRedirectUri', {
+        value: `${oauthDomain}/oauth2/idpresponse`,
+      });
+    }
     new cdk.CfnOutput(this, 'TableName', { value: this.dataStore.table.tableName });
   }
 }

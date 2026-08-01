@@ -1,0 +1,7 @@
+{
+  "data": {
+    "invitee_email": "synthetic-family@example.test",
+    "share_scope": ["REPORT_DAILY", "REPORT_WEEKLY"],
+    "expires_in_hours": 24
+  }
+}

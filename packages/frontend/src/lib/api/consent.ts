@@ -37,6 +37,13 @@ export function activeBasicVoiceConsent(items: ConsentRecord[]): ConsentRecord |
   );
 }
 
+export function activeFamilySharingConsent(items: ConsentRecord[]): ConsentRecord | null {
+  return (
+    items.find((item) => item.purpose_code === 'FAMILY_SHARING' && item.status === 'GRANTED') ??
+    null
+  );
+}
+
 export async function grantBasicVoiceConsent(
   config: ApiConfig,
   elderId: string,
@@ -67,6 +74,42 @@ export function revokeBasicVoiceConsent(
     headers: { 'Idempotency-Key': createIdempotencyKey('consent-revoke') },
     body: JSON.stringify({
       reason_code: 'ELDER_REQUESTED_STOP',
+      revoke_scope: [],
+      request_deletion: false,
+    }),
+  });
+}
+
+export async function grantFamilySharingConsent(
+  config: ApiConfig,
+  elderId: string,
+  policyVersion: string,
+): Promise<ConsentRecord> {
+  const result = await apiFetch<ConsentList>(config, `/api/v1/elders/${elderId}/consents`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': createIdempotencyKey('family-sharing-consent') },
+    body: JSON.stringify({
+      purposes: ['FAMILY_SHARING'],
+      share_scopes: ['REPORT_DAILY', 'REPORT_WEEKLY', 'REPORT_MONTHLY'],
+      actor_confirmation: true,
+      policy_version: policyVersion,
+    }),
+  });
+  const consent = activeFamilySharingConsent(result.items);
+  if (!consent) throw new Error('CORE_CONSENT_RESPONSE_MISSING_FAMILY_SHARING');
+  return consent;
+}
+
+export function revokeFamilySharingConsent(
+  config: ApiConfig,
+  elderId: string,
+  consentId: string,
+): Promise<ConsentRecord> {
+  return apiFetch(config, `/api/v1/elders/${elderId}/consents/${consentId}/revoke`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': createIdempotencyKey('family-sharing-revoke') },
+    body: JSON.stringify({
+      reason_code: 'ELDER_REQUESTED_FAMILY_SHARING_STOP',
       revoke_scope: [],
       request_deletion: false,
     }),

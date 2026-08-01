@@ -9,6 +9,12 @@ import { bffError } from '@/lib/server/bff-response';
 
 export const dynamic = 'force-dynamic';
 
+function isLocalDevelopmentRequest(request: NextRequest): boolean {
+  if (process.env.NODE_ENV !== 'development') return false;
+  const host = request.nextUrl.hostname.toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+}
+
 function noStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'no-store');
   response.headers.set('X-Content-Type-Options', 'nosniff');
@@ -26,7 +32,7 @@ export function GET(request: NextRequest): Response {
  * stays disabled in production.
  */
 export async function POST(request: NextRequest): Promise<Response> {
-  if (process.env.NODE_ENV === 'production') {
+  if (!isLocalDevelopmentRequest(request)) {
     return bffError(404, 'not_found', 'Resource not found', 'RESOURCE_NOT_FOUND');
   }
   if (!isTrustedRequestOrigin(request)) {

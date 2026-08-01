@@ -10,13 +10,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.envelopes import ResponseMeta, SuccessEnvelope
+from app.core.exceptions import AuthorizationDeniedError
 from app.db.session import get_db_session
 from app.middleware.actor_guard import require_active_actor
 from app.middleware.auth import ActorContext
 from app.middleware.logging import correlation_id_var
+from app.models.elder import Elder
 from app.repositories.actor_repo import ActorRepository
 from app.repositories.care_assignment_repo import CareAssignmentRepository
 from app.repositories.care_relationship_repo import CareRelationshipRepository
@@ -68,6 +71,25 @@ async def get_me(
     service = _build_identity_service(session, actor_context)
     profile = await service.get_actor_profile(actor_context, datetime.now(UTC))
 
+    elder_id = None
+    if profile.actor_type == "ELDER":
+        elder_ids = list(
+            (
+                await session.execute(
+                    select(Elder.id).where(
+                        Elder.actor_id == actor_context.actor_id,
+                        Elder.tenant_id == actor_context.tenant_id,
+                        Elder.status == "ACTIVE",
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if len(elder_ids) != 1:
+            raise AuthorizationDeniedError("Resource not found")
+        elder_id = elder_ids[0]
+
     me_response = MeResponse(
         actor_id=profile.actor_id,
         actor_type=profile.actor_type,
@@ -75,6 +97,7 @@ async def get_me(
         tenant_id=profile.tenant_id,
         role=profile.role,
         care_unit_ids=profile.care_unit_ids,
+        elder_id=elder_id,
     )
 
     return SuccessEnvelope(

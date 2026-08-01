@@ -1,16 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { FamilySharingConsentPanel } from '@/components/FamilySharingConsentPanel';
 import { ConsentPanel } from '@/components/voice/ConsentPanel';
-import { activeBasicVoiceConsent, listConsents, type ConsentRecord } from '@/lib/api/consent';
+import {
+  activeBasicVoiceConsent,
+  activeFamilySharingConsent,
+  listConsents,
+  type ConsentRecord,
+} from '@/lib/api/consent';
 import { getRuntimeConfig, type RuntimeConfig } from '@/lib/runtime-config';
 
 export default function ConsentPage() {
-  const router = useRouter();
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
   const [consent, setConsent] = useState<ConsentRecord | null | undefined>(undefined);
+  const [familyConsent, setFamilyConsent] = useState<ConsentRecord | null | undefined>(undefined);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
@@ -28,7 +33,10 @@ export default function ConsentPage() {
     let cancelled = false;
     listConsents(config, config.elderId)
       .then((items) => {
-        if (!cancelled) setConsent(activeBasicVoiceConsent(items));
+        if (!cancelled) {
+          setConsent(activeBasicVoiceConsent(items));
+          setFamilyConsent(activeFamilySharingConsent(items));
+        }
       })
       .catch(() => {
         if (!cancelled) setLoadError(true);
@@ -48,28 +56,29 @@ export default function ConsentPage() {
   if (loadError) {
     return <NotLoggedIn reason="無法向 Core API 讀取同意狀態；系統已停止，不會推測結果" />;
   }
-  if (consent === undefined)
+  if (consent === undefined || familyConsent === undefined)
     return <main style={{ padding: 24 }}>正在向 Core API 查詢同意狀態…</main>;
 
   return (
-    <main
-      style={{
-        minHeight: '100dvh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <main style={{ margin: '0 auto', maxWidth: 640, minHeight: '100dvh' }}>
       <ConsentPanel
         apiConfig={config}
         elderId={config.elderId}
         policyVersion={config.consentPolicyVersion}
         initialConsent={consent}
-        onChange={(nextConsent) => {
-          setConsent(nextConsent);
-          if (nextConsent) router.push('/');
-        }}
+        onChange={setConsent}
       />
+      <FamilySharingConsentPanel
+        apiConfig={config}
+        elderId={config.elderId}
+        policyVersion={config.consentPolicyVersion}
+        initialConsent={familyConsent}
+        onChange={setFamilyConsent}
+      />
+      <nav style={{ display: 'flex', gap: 16, justifyContent: 'center', padding: 24 }}>
+        <a href="/">返回首頁</a>
+        <a href="/elder/family-access">管理家屬邀請</a>
+      </nav>
     </main>
   );
 }

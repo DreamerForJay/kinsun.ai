@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/common/ResolveOnboardingEnvelopeV1.json",
+  "title": "ResolveOnboardingEnvelopeV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["data", "meta"],
+  "properties": {
+    "data": { "$ref": "https://kinsun.ai/contracts/schemas/domain/ResolveOnboardingV1.json" },
+    "meta": { "$ref": "https://kinsun.ai/contracts/schemas/common/ResponseMetaV1.json" }
+  }
+}

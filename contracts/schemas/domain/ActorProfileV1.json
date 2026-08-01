@@ -38,6 +38,19 @@
       "type": "string",
       "description": "Role the actor is acting as for this request."
     },
+    "elder_id": {
+      "description": "The actor's unique active elder profile when actor_type is ELDER; null or omitted for non-elder actors.",
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "care_unit_ids": {
       "type": "array",
       "description": "Care units the actor actively belongs to within the tenant. Empty for actors with no care-unit-scoped membership.",

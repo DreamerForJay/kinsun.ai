@@ -30,3 +30,18 @@ class ActorRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def get_active_by_cognito_sub(self, cognito_sub: str) -> Actor | None:
+        """Return the one active Actor bound to a verified Cognito subject.
+
+        The database unique constraint on ``actor.cognito_sub`` is the source
+        of identity uniqueness.  Authentication callers must still fail closed
+        if no active local actor has been provisioned.
+        """
+        result = await self._session.execute(
+            select(Actor).where(
+                Actor.cognito_sub == cognito_sub,
+                Actor.status == "ACTIVE",
+            )
+        )
+        return result.scalar_one_or_none()

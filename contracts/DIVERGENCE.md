@@ -61,15 +61,22 @@
 
 ### Authentication
 
-OpenAPI 的 `bearerAuth` 描述目標 JWT 形狀，但正式 Cognito verifier 尚未實作：
+Core 已實作 Cognito JWT verifier，且以兩條明確分離的路徑使用：
 
-- Development 只有在 `FAKE_AUTH_ENABLED=true` 時使用明確 fake actor。
-- 其他情況所有 protected endpoint 都回 401，fail closed。
-- Browser 目前透過 Next.js BFF 的 HttpOnly Cookie 傳遞 Access Token；BFF 在 server-side
-  轉成此契約的 Bearer Header。production Cognito callback、Refresh Token 與 rotation
-  尚未實作，本機任意 Token setter 在 production 關閉。
+- 一般 protected endpoint 只接受 Cognito Access Token，驗證 RS256／JWKS、issuer、expiry、
+  `token_use=access` 與 `client_id`，再以 live Core DB 解析 actor、tenant 與 role；JWT claim
+  不直接授權 elder scope。
+- `POST /api/v1/onboarding/resolve` 只接受 Cognito ID Token，驗證 audience、
+  `token_use=id` 與 verified email，再依 ELDER／FAMILY intent 建立或兌換正式 Core state。
+  FAMILY intent 沒有有效一次性邀請碼時不會取得任何 elder access。
+- Browser 透過 Next.js BFF 的 HttpOnly Cookie 傳遞 Access Token；OAuth callback 使用
+  Authorization Code + PKCE，ID Token 只在 callback server-side 呼叫 onboarding resolver，
+  不寫入 browser cookie。
+- Development 仍只有在 `FAKE_AUTH_ENABLED=true` 時使用明確 fake actor；Cognito 關閉或
+  設定不完整時 fail closed。
 
-在 Cognito User Pool、Region 與環境策略核准前，不得把 security block 解讀成 JWT 已完成驗證。
+目前 contract 不代表 staging Cognito domain、Google provider secret、callback URL 或正式
+Refresh Token rotation 已部署／驗證；這些仍須由環境設定與部署證據確認。
 
 ### Voice transport
 
@@ -143,6 +150,5 @@ Core 已實作 `POST /api/v1/internal/tools/execute`，因此 `ToolRequestV1` �
 - Notification delivery API／LINE／Email Adapter。
 - 正式 Agent Handoff 與多步 Agent Tool 迴圈。
 - Graph／正式 OpenSearch projection endpoint。
-- Cognito JWT verifier。
 
 上述項目應留在 `docs/` 或各 Owner 的設計產物；只有已存在的 model/schema 例外必須在本文件明示，完成實作與 live verification 後才可升格為 executable contract。

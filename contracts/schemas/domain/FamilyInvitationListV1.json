@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/domain/FamilyInvitationListV1.json",
+  "title": "FamilyInvitationListV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "https://kinsun.ai/contracts/schemas/domain/FamilyInvitationStatusV1.json"
+      }
+    }
+  }
+}

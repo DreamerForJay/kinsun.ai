@@ -1,0 +1,10 @@
+{
+  "_why_invalid": "A returned invitation code must use four groups of four uppercase alphanumeric characters.",
+  "data": {
+    "invitation_id": "41000000-0000-4000-8000-000000000001",
+    "invitation_code": "too-short",
+    "status": "ISSUED",
+    "share_scope": ["REPORT_DAILY"],
+    "expires_at": "2026-08-02T04:00:00Z"
+  }
+}

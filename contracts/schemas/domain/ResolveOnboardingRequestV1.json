@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/domain/ResolveOnboardingRequestV1.json",
+  "title": "ResolveOnboardingRequestV1",
+  "description": "Persona intent supplied by the BFF after Cognito ID-token verification. Intent never grants authorization by itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["intent"],
+  "properties": {
+    "intent": {
+      "type": "string",
+      "enum": ["ELDER", "FAMILY"]
+    },
+    "invitation_code": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 24
+        },
+        { "type": "null" }
+      ],
+      "default": null
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "intent": { "const": "FAMILY" } },
+        "required": ["intent"]
+      },
+      "then": {
+        "required": ["invitation_code"],
+        "properties": { "invitation_code": { "type": "string" } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "intent": { "const": "ELDER" } },
+        "required": ["intent"]
+      },
+      "then": {
+        "properties": { "invitation_code": { "type": "null" } }
+      }
+    }
+  ]
+}

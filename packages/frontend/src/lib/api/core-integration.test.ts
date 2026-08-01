@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError, apiFetch, type ApiConfig } from './client';
 import { createTextSession, runCompanionTurn } from './companion';
-import { activeBasicVoiceConsent, listConsents } from './consent';
+import {
+  activeBasicVoiceConsent,
+  activeFamilySharingConsent,
+  grantFamilySharingConsent,
+  listConsents,
+} from './consent';
+import { createFamilyInvitation } from './family-invitations';
 
 const config: ApiConfig = {
   apiBaseUrl: '/backend/core/',
@@ -97,6 +103,72 @@ describe('Core API integration clients', () => {
     expect(fetchMock.mock.calls[0][0]).toBe(
       '/backend/core/api/v1/elders/40000000-0000-4000-8000-000000000001/consents',
     );
+  });
+
+  it('grants FAMILY_SHARING only with explicit report scopes', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => '00000000-0000-4000-8000-000000000002' });
+    const familyConsent = {
+      consent_id: '81000000-0000-4000-8000-000000000002',
+      purpose_code: 'FAMILY_SHARING' as const,
+      consent_version: 1,
+      status: 'GRANTED' as const,
+      policy_version: 'demo-consent-v1',
+      effective_at: '2026-08-01T00:00:00Z',
+      expires_at: null,
+      revoked_at: null,
+      affected_capabilities: ['family_report'],
+      deletion_request_id: null,
+    };
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      success({ items: [familyConsent] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await grantFamilySharingConsent(
+      config,
+      '40000000-0000-4000-8000-000000000001',
+      'demo-consent-v1',
+    );
+
+    expect(activeFamilySharingConsent([result])).toEqual(familyConsent);
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(body).toEqual({
+      purposes: ['FAMILY_SHARING'],
+      share_scopes: ['REPORT_DAILY', 'REPORT_WEEKLY', 'REPORT_MONTHLY'],
+      actor_confirmation: true,
+      policy_version: 'demo-consent-v1',
+    });
+  });
+
+  it('creates a one-time family invitation through the authenticated BFF', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => '00000000-0000-4000-8000-000000000003' });
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      success({
+        invitation_id: '82000000-0000-4000-8000-000000000001',
+        invitation_code: 'ABCD-2345-EFGH-6789',
+        status: 'ISSUED',
+        share_scope: ['REPORT_DAILY', 'REPORT_WEEKLY', 'REPORT_MONTHLY'],
+        expires_at: '2026-08-02T00:00:00Z',
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const invitation = await createFamilyInvitation(
+      config,
+      '40000000-0000-4000-8000-000000000001',
+      'family@example.com',
+    );
+
+    expect(invitation.invitation_code).toBe('ABCD-2345-EFGH-6789');
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(
+      '/backend/core/api/v1/elders/40000000-0000-4000-8000-000000000001/family-invitations',
+    );
+    expect(new Headers(init?.headers).get('Idempotency-Key')).toContain('family-invitation-');
+    expect(JSON.parse(String(init?.body))).toMatchObject({
+      invitee_email: 'family@example.com',
+      expires_in_hours: 24,
+    });
   });
 
   it('creates a text session before sending a companion turn', async () => {

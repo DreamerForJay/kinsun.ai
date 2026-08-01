@@ -5,6 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/auth.test.ts",
     "synth": "cdk synth",
     "diff": "cdk diff",
     "deploy": "cdk deploy"

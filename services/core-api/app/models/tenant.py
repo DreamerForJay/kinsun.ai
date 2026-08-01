@@ -22,6 +22,7 @@ TENANT_TYPE_ENUM = pg_enum(
     "COMMUNITY_ORGANIZATION",
     "HOME_CARE_PROVIDER",
     "DEMO",
+    "HOUSEHOLD",
 )
 
 

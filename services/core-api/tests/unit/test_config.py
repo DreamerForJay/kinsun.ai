@@ -59,6 +59,13 @@ class TestSettingsConstruction:
             FAKE_AUTH_ACTOR_ID="20000000-0000-4000-8000-000000000001",
             FAKE_AUTH_TENANT_ID="10000000-0000-4000-8000-000000000001",
             FAKE_AUTH_ACTOR_ROLE="ELDER",
+            COGNITO_AUTH_ENABLED="true",
+            COGNITO_REGION="ap-northeast-1",
+            COGNITO_USER_POOL_ID="ap-northeast-1_example",
+            COGNITO_APP_CLIENT_ID="client-id",
+            COGNITO_JWKS_CACHE_SECONDS="120",
+            COGNITO_HTTP_TIMEOUT_SECONDS="4",
+            FAMILY_INVITATION_HMAC_SECRET="test-family-invitation-secret-32-bytes",
             AGENT_RUNTIME_URL="http://127.0.0.1:8001",
             AGENT_RUNTIME_TIMEOUT_SECONDS="8",
             AGENT_RUNTIME_MODEL_ID="mock-v1",
@@ -76,6 +83,13 @@ class TestSettingsConstruction:
         assert str(s.fake_auth_actor_id) == "20000000-0000-4000-8000-000000000001"
         assert str(s.fake_auth_tenant_id) == "10000000-0000-4000-8000-000000000001"
         assert s.fake_auth_actor_role == "ELDER"
+        assert s.cognito_auth_enabled is True
+        assert s.cognito_region == "ap-northeast-1"
+        assert s.cognito_user_pool_id == "ap-northeast-1_example"
+        assert s.cognito_app_client_id == "client-id"
+        assert s.cognito_jwks_cache_seconds == 120
+        assert s.cognito_http_timeout_seconds == 4
+        assert s.family_invitation_hmac_secret == "test-family-invitation-secret-32-bytes"
         assert s.agent_runtime_url == "http://127.0.0.1:8001"
         assert s.agent_runtime_timeout_seconds == 8
         assert s.agent_runtime_model_id == "mock-v1"
@@ -128,6 +142,19 @@ class TestValidation:
         with pytest.raises(ValidationError):
             _make_settings(DB_MAX_OVERFLOW="-1")
 
+    def test_enabled_cognito_requires_complete_server_configuration(self) -> None:
+        with pytest.raises(ValidationError, match="COGNITO_REGION"):
+            _make_settings(COGNITO_AUTH_ENABLED="true")
+
+    def test_enabled_cognito_requires_family_invitation_secret(self) -> None:
+        with pytest.raises(ValidationError, match="FAMILY_INVITATION_HMAC_SECRET"):
+            _make_settings(
+                COGNITO_AUTH_ENABLED="true",
+                COGNITO_REGION="us-west-2",
+                COGNITO_USER_POOL_ID="us-west-2_example",
+                COGNITO_APP_CLIENT_ID="client-id",
+            )
+
 
 # ─── Secret redaction ────────────────────────────────────────────────────────
 
@@ -155,6 +182,12 @@ class TestSecretRedaction:
         dumped = s.model_dump()
         assert dumped["database_url"] == _VALID_DB_URL
         assert dumped["app_title"] == "kinsun.ai Core API"
+
+    def test_family_invitation_secret_is_redacted(self) -> None:
+        secret = "test-family-invitation-secret-32-bytes"
+        settings = _make_settings(FAMILY_INVITATION_HMAC_SECRET=secret)
+        assert settings.model_dump()["family_invitation_hmac_secret"] == "***"
+        assert secret not in repr(settings)
 
 
 # ─── Singleton pattern ───────────────────────────────────────────────────────

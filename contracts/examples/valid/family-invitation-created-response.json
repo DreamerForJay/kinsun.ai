@@ -1,0 +1,14 @@
+{
+  "data": {
+    "invitation_id": "41000000-0000-4000-8000-000000000001",
+    "invitation_code": "7K3M-X9PR-2WQA-6HDT",
+    "status": "ISSUED",
+    "share_scope": ["REPORT_DAILY", "REPORT_WEEKLY"],
+    "expires_at": "2026-08-02T04:00:00Z"
+  },
+  "meta": {
+    "correlation_id": "91000000-0000-4000-8000-000000000002",
+    "timestamp": "2026-08-01T04:00:00Z",
+    "schema_version": "1.0"
+  }
+}

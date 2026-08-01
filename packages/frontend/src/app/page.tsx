@@ -79,7 +79,8 @@ export default function HomePage() {
 
       <nav style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>
         <a href="/consent">同意設定</a>
-        <a href="/dev-login">Demo 身分</a>
+        <a href="/elder/family-access">家屬分享</a>
+        <a href="/sign-in">登入</a>
       </nav>
     </main>
   );

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/domain/ResolveOnboardingV1.json",
+  "title": "ResolveOnboardingV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["intent", "actor_id", "tenant_id", "elder_id", "status", "replayed"],
+  "properties": {
+    "intent": { "type": "string", "enum": ["ELDER", "FAMILY"] },
+    "actor_id": { "type": "string", "format": "uuid" },
+    "tenant_id": { "type": "string", "format": "uuid" },
+    "elder_id": { "type": "string", "format": "uuid" },
+    "status": { "type": "string", "enum": ["ACTIVE", "REDEEMED"] },
+    "replayed": { "type": "boolean", "default": false }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "intent": { "const": "ELDER" } } },
+      "then": { "properties": { "status": { "const": "ACTIVE" } } }
+    },
+    {
+      "if": { "properties": { "intent": { "const": "FAMILY" } } },
+      "then": { "properties": { "status": { "const": "REDEEMED" } } }
+    }
+  ]
+}

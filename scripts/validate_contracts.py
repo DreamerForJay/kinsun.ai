@@ -88,6 +88,28 @@ DATA_SCHEMA_FOR = {
     "retrieval-request-top-k-ten.json": "rag/retrieval-request.schema.json",
     "retrieval-response.json": "rag/retrieval-response.schema.json",
     "retrieval-response-missing-source-url.json": "rag/retrieval-response.schema.json",
+    "onboarding-resolve-elder-request.json": "domain/ResolveOnboardingRequestV1.json",
+    "onboarding-resolve-family-request.json": "domain/ResolveOnboardingRequestV1.json",
+    "onboarding-resolve-response.json": "domain/ResolveOnboardingV1.json",
+    "onboarding-resolve-family-response.json": "domain/ResolveOnboardingV1.json",
+    "onboarding-family-without-invitation-code.json": (
+        "domain/ResolveOnboardingRequestV1.json"
+    ),
+    "onboarding-response-mismatched-status.json": "domain/ResolveOnboardingV1.json",
+    "family-invitation-create-request.json": (
+        "domain/CreateFamilyInvitationRequestV1.json"
+    ),
+    "family-invitation-create-duplicate-scope.json": (
+        "domain/CreateFamilyInvitationRequestV1.json"
+    ),
+    "family-invitation-created-response.json": "domain/FamilyInvitationCreatedV1.json",
+    "family-invitation-created-bad-code.json": "domain/FamilyInvitationCreatedV1.json",
+    "family-invitation-list-response.json": "domain/FamilyInvitationListV1.json",
+    "family-invitation-list-leaks-code.json": "domain/FamilyInvitationListV1.json",
+    "family-invitation-revoked-response.json": "domain/FamilyInvitationStatusV1.json",
+    "family-invitation-revoke-leaks-redeemer.json": (
+        "domain/FamilyInvitationStatusV1.json"
+    ),
 }
 
 failures: list[str] = []
