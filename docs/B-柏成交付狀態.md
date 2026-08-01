@@ -64,7 +64,7 @@ Synthetic Seed reset 列為本次結果。需要重建 Demo 時，必須另外�
 ## Core Gate Evidence｜2026-08-01T14:08:24+08:00
 
 - `release_candidate`：`feature/member-b-core-hardening`
-- `source_revision`：工作樹基於 `fef3009aa5289bcf6f4070661633bbe130bfc176`；最終 revision 以 PR head 為準。
+- `git_commit`：`585a9990e7cf07daee25bad3d7d3cf52ed3f4603`（已通過本文件所列 Core Gate；後續僅有本證據紀錄 commit）。
 - `infrastructure_version`：PostgreSQL 16 Alpine，Docker Compose 本機環境，host port `15432`。
 - `contract_version`：Core API v1、Agent Runtime v1、Domain Event Envelope v1。
 - `policy_version`：目前 branch 的 Core authorization／consent policy；model、prompt 與 dataset 不屬本次 Core Gate。
