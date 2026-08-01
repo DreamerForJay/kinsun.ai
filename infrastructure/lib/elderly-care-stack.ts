@@ -57,6 +57,7 @@ export class ElderlyCareStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(5),
       description: 'Lambda Authorizer: verifies Cognito JWT + resolves elder-scoped authorization context',
     });
+      projectRoot: path.join(__dirname, '../..'),
     this.dataStore.table.grantReadData(authorizerFn);
 
     // --- REST API business-logic handlers (task 20) -------------------------
@@ -74,6 +75,7 @@ export class ElderlyCareStack extends cdk.Stack {
         timeout: cdk.Duration.seconds(10),
       });
       this.dataStore.table.grantReadWriteData(fn);
+        projectRoot: path.join(__dirname, '../..'),
       return fn;
     };
 
@@ -123,6 +125,7 @@ export class ElderlyCareStack extends cdk.Stack {
         timeout: cdk.Duration.seconds(15),
       });
       this.dataStore.table.grantReadWriteData(fn);
+        projectRoot: path.join(__dirname, '../..'),
       return fn;
     };
 
@@ -137,6 +140,7 @@ export class ElderlyCareStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
     });
     this.dataStore.table.grantReadWriteData(postProcessingFn);
+      projectRoot: path.join(__dirname, '../..'),
     postProcessingFn.addToRolePolicy(new iam.PolicyStatement({ actions: ['bedrock:Converse'], resources: ['*'] }));
 
     const wsConnectFn = makeWsFn('WsConnectFn', 'connect.ts');
@@ -197,6 +201,7 @@ export class ElderlyCareStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
     });
     this.dataStore.audioBucket.grantDelete(ttlCleanupFn);
+      projectRoot: path.join(__dirname, '../..'),
     if (this.dataStore.table.tableStreamArn) {
       ttlCleanupFn.addEventSource(
         new lambdaEventSources.DynamoEventSource(this.dataStore.table, {
@@ -216,6 +221,7 @@ export class ElderlyCareStack extends cdk.Stack {
       timeout: cdk.Duration.minutes(5),
     });
     this.dataStore.table.grantReadWriteData(summaryGeneratorFn);
+      projectRoot: path.join(__dirname, '../..'),
     summaryGeneratorFn.addToRolePolicy(
       new iam.PolicyStatement({ actions: ['bedrock:Converse'], resources: ['*'] }),
     );

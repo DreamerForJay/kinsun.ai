@@ -38,6 +38,7 @@ export class VoiceWorkflow extends Construct {
 
     const makeStageFn = (fnId: string, exportName: string, extraEnv: Record<string, string> = {}): lambdaNodejs.NodejsFunction => {
       const fn = new lambdaNodejs.NodejsFunction(this, fnId, {
+        projectRoot: path.join(__dirname, '../../..'),
         runtime: lambda.Runtime.NODEJS_22_X,
         entry: backendSrc('workflow/stage-handlers/index.ts'),
         handler: exportName,
