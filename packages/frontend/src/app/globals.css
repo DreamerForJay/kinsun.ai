@@ -7,8 +7,8 @@
    added under /public/fonts, rendering falls back to the system faces below.
    Do not add a Google Fonts CDN link to "fix" this. */
 :root {
-  --font-sans: 'Figtree', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei',
-    system-ui, sans-serif;
+  --font-sans:
+    'Figtree', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
 }
 
 * {

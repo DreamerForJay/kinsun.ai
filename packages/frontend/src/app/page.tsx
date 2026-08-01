@@ -6,7 +6,12 @@ import { NotLoggedIn } from '@/components/NotLoggedIn';
 import { readDevPreviewState } from '@/components/voice/dev-preview';
 import { VoiceInteractionPanel } from '@/components/voice/VoiceInteractionPanel';
 import { activeBasicVoiceConsent, listConsents } from '@/lib/api/consent';
-import { getRuntimeConfig, getVoiceSessionConfig, type RuntimeConfig, type VoiceSessionConfig } from '@/lib/runtime-config';
+import {
+  getRuntimeConfig,
+  getVoiceSessionConfig,
+  type RuntimeConfig,
+  type VoiceSessionConfig,
+} from '@/lib/runtime-config';
 
 export default function HomePage() {
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
@@ -110,7 +115,11 @@ export default function HomePage() {
         </p>
       )}
       {!consentError && consentGranted === true && voiceSession?.wsUrl && voiceSession.token && (
-        <VoiceInteractionPanel wsUrl={voiceSession.wsUrl} token={voiceSession.token} consentGranted={consentGranted} />
+        <VoiceInteractionPanel
+          wsUrl={voiceSession.wsUrl}
+          token={voiceSession.token}
+          consentGranted={consentGranted}
+        />
       )}
       {!consentError && consentGranted === true && !(voiceSession?.wsUrl && voiceSession.token) && (
         <CompanionTextPanel apiConfig={config} elderId={config.elderId} />
