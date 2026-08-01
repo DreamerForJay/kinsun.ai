@@ -1,12 +1,21 @@
+import logging
+from pathlib import Path
+
 from fastapi import FastAPI
 
 from agent_runtime.api.agent_runs import router as agent_runs_router
 from agent_runtime.api.error_handlers import register_exception_handlers
 from agent_runtime.api.health import router as health_router
+from agent_runtime.api.rag_retrievals import router as rag_retrievals_router
 from agent_runtime.middleware.correlation import CorrelationIdMiddleware
 from agent_runtime.models.mock_provider import MockModelProvider
 from agent_runtime.orchestration.orchestrator import AgentOrchestrator
+from agent_runtime.rag.models import RagRuntimeSettings
+from agent_runtime.rag.retriever import build_retriever
 from agent_runtime.settings import get_settings
+
+logger = logging.getLogger(__name__)
+REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 
 
 def build_provider():
@@ -17,6 +26,55 @@ def build_provider():
     raise ValueError(f"Unsupported MODEL_PROVIDER: {settings.MODEL_PROVIDER}")
 
 
+def build_configured_rag_retriever():
+    """Build staging-only adapters, or leave retrieval explicitly unavailable."""
+
+    settings = get_settings()
+    if settings.RAG_MODE.casefold() != "staging":
+        return None
+    try:
+        provider_environment = {
+            key: str(value)
+            for key, value in {
+                "AWS_REGION": settings.AWS_REGION,
+                "BEDROCK_EMBEDDING_MODEL_ID": settings.BEDROCK_EMBEDDING_MODEL_ID,
+                "BEDROCK_EMBEDDING_DIMENSION": settings.BEDROCK_EMBEDDING_DIMENSION,
+                "OPENSEARCH_HOST": settings.OPENSEARCH_HOST,
+                "OPENSEARCH_INDEX": settings.OPENSEARCH_INDEX,
+                "OPENSEARCH_ALIAS": settings.OPENSEARCH_ALIAS,
+                "RAG_MODE": settings.RAG_MODE,
+            }.items()
+            if value is not None and str(value).strip()
+        }
+        rag_settings = RagRuntimeSettings.from_config_files(
+            embedding_config_path=_resolve_config_path(settings.RAG_EMBEDDING_CONFIG_PATH),
+            index_config_path=_resolve_config_path(settings.RAG_OPENSEARCH_INDEX_CONFIG_PATH),
+            natural_profile_path=_resolve_config_path(settings.RAG_HYBRID_NATURAL_CONFIG_PATH),
+            legal_profile_path=_resolve_config_path(settings.RAG_HYBRID_LEGAL_CONFIG_PATH),
+            environ=provider_environment,
+        )
+        return build_retriever(rag_settings)
+    except Exception as exc:
+        # Never include provider messages: they can contain endpoint/account details.
+        logger.warning(
+            "staging_rag_unavailable",
+            extra={"exception_type": type(exc).__name__},
+        )
+        return None
+
+
+def _resolve_config_path(configured_path: str) -> Path:
+    """Resolve an environment-provided path from cwd or the repository root."""
+
+    path = Path(configured_path).expanduser()
+    if path.is_absolute():
+        return path.resolve()
+    cwd_candidate = (Path.cwd() / path).resolve()
+    if cwd_candidate.is_file():
+        return cwd_candidate
+    return (REPOSITORY_ROOT / path).resolve()
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(title="Eldercare Agent Runtime", version=settings.API_VERSION)
@@ -24,6 +82,7 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(health_router)
     app.include_router(agent_runs_router)
+    app.include_router(rag_retrievals_router)
     app.state.provider = build_provider()
     app.state.orchestrator = AgentOrchestrator(
         provider=app.state.provider,
@@ -32,6 +91,7 @@ def create_app() -> FastAPI:
         max_tool_rounds=settings.MAX_TOOL_ROUNDS,
         max_total_tools=settings.MAX_TOTAL_TOOLS,
     )
+    app.state.rag_retriever = build_configured_rag_retriever()
     return app
 
 

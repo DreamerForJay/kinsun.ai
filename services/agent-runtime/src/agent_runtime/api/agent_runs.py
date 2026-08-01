@@ -26,13 +26,16 @@ async def run_agent(
     if payload.trace_id is None:
         payload.trace_id = new_trace_id()
 
+    run_arguments = {
+        "rag_retriever": getattr(request.app.state, "rag_retriever", None),
+    }
     if CREATE_EVENT_CANDIDATE_TOOL not in payload.allowed_tools:
-        response = await orchestrator.run(payload)
+        response = await orchestrator.run(payload, **run_arguments)
         return _envelope(response)
 
     settings = get_settings()
     if settings.CORE_API_BASE_URL is None:
-        response = await orchestrator.run(payload)
+        response = await orchestrator.run(payload, **run_arguments)
         return _envelope(response)
 
     authorization_values = request.headers.getlist("authorization")
@@ -47,6 +50,7 @@ async def run_agent(
     ) as core_http_client:
         response = await orchestrator.run(
             payload,
+            **run_arguments,
             agent_run_registrar=CoreAgentRunHttpClient(core_http_client),
             tool_executor=CoreToolHttpClient(core_http_client),
         )

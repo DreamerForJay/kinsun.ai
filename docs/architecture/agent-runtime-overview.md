@@ -8,11 +8,22 @@ HTTP Request
   → CorrelationIdMiddleware
   → Contract validation (Pydantic + JSON Schema)
   → Orchestrator
-  → Companion Agent  → ModelProvider
+      → explicit knowledge purpose? → staging Retriever
+          → SUCCESS: 3–5 個限長、帶引用 chunk → Context Manifest
+          → NO_DATA/FAILED: no-guess SAFE_FALLBACK（不呼叫 ModelProvider）
+      → Companion Agent → ModelProvider
   → Safety Evaluator
+  → allowed RAG reply: deterministic citation append
   → SuccessEnvelope
 
 例外路徑：DomainError → error_handlers → ErrorEnvelope
+
+Staging RAG Request
+  → RetrievalRequestV1
+  → BedrockQueryEmbedder (`search_query`)
+  → 受控 HybridSearch plan（固定 filter＋設定化權重）
+  → OpenSearchClient
+  → 3–5 個帶完整引用的 chunk，或明確 no-guess fallback
 ```
 
 ## 分層
@@ -20,7 +31,7 @@ HTTP Request
 | 層 | 內容 | 位置 |
 | --- | --- | --- |
 | Middleware | Correlation ID 產生與回傳 | `src/agent_runtime/middleware/` |
-| API | `GET /health`、`POST /api/v1/agent/runs`、例外處理 | `src/agent_runtime/api/` |
+| API | `GET /health`、Agent Run、staging RAG Retrieval、例外處理 | `src/agent_runtime/api/` |
 | Envelope | `SuccessEnvelope`／`ErrorEnvelope`（對應 `contracts/schemas/common/`） | `src/agent_runtime/core/envelopes.py` |
 | Contract | Pydantic model；對應 `contracts/schemas/{agent,tools}/` 的 JSON Schema | `src/agent_runtime/contracts/models.py` |
 | Orchestration | Agent 選擇、step 控制、Safety gate、狀態組裝 | `src/agent_runtime/orchestration/` |
@@ -28,6 +39,12 @@ HTTP Request
 | Context | Context Manifest 建構（僅記憶體，無持久化） | `src/agent_runtime/context/` |
 | Model | Provider 介面與 Mock 實作 | `src/agent_runtime/models/` |
 | Tracing | `trace_id`、`agent_run_id` 產生器 | `src/agent_runtime/tracing/` |
+| RAG | Bedrock query embedding、受控 hybrid plan、OpenSearch adapter、引用與 fallback | `src/agent_runtime/rag/` |
+
+Agent Run 的 RAG intent gate 目前只接受明確的 `general_information` 或 `legal_reference`
+purpose，不以自由文字猜測意圖。這讓一般 `conversation` 維持原流程，也讓知識檢索不可用時
+能明確 fail closed。現有 Mock Model 不會理解 RAG context；測試只證明 chunk 已進入 provider
+邊界、引用一定附在允許送出的回覆，以及 fallback 不會呼叫 provider 亂答。
 
 ## 為什麼沒有迴圈
 
@@ -45,9 +62,11 @@ deterministic 流程，不可能改變結果，所以 orchestrator 是明確的�
 
 - `models/provider.py` — `ModelProvider` 介面
 - `models/mock_provider.py` — 目前唯一實作，規則式輸出，不呼叫外部 LLM
+- `rag/query_embedder.py` — Bedrock query embedding adapter
+- `rag/client.py` — SigV4 OpenSearch adapter
 
-接 Bedrock／AgentCore、OpenSearch、Neptune 時新增 Provider／Adapter 實作，
-由 `settings.MODEL_PROVIDER` 之類的設定切換。**不要把 SDK 呼叫散進 orchestration
+接其他 Bedrock／AgentCore 模型或 Neptune 時新增 Provider／Adapter 實作，
+由設定切換。**不要把 SDK 呼叫散進 orchestration
 或 agent 層**，否則之後無法在沒有 AWS 憑證的環境跑測試。
 
 ## Context Manifest 的資料敏感度
@@ -62,7 +81,15 @@ deterministic 流程，不可能改變結果，所以 orchestrator 是明確的�
 
 ## 目前不存在的東西
 
-Tool 執行引擎、Event Extractor、Memory Candidate、RAG／Graph 實際查詢、
-Prompt Registry、Model Router、Agent Trace 持久化、Evaluation runner。
+Tool 執行引擎、Event Extractor、Memory Candidate、Graph 實際查詢、
+Prompt Registry、Model Router、Agent Trace 持久化、Evaluation runner，以及 production RAG。
+Staging RAG 的程式路徑已存在，但 supplied Allowlist 尚未簽署、Human Review 未完成。
+Staging 只有在 `RAG_REQUIRE_OWNER_SIGNATURE=false` 時可採 unsigned development override；
+`RAG_ALLOWLIST_EXPECTED_SHA256` 必須由外部提供且完全相符，來源、Chunk、數量與完整
+Allowlist 驗證仍不可略過。此路徑的 receipt／log 必須記錄
+`governance_status=UNSIGNED_DEVELOPMENT_OVERRIDE` 與 `production_approved=false`。
+Override 永不構成 production 核准；production 仍要求正式簽署，並須明確啟用
+`RAG_PRODUCTION_ENABLED=true`。目前也沒有可驗證的 AWS/OpenSearch 環境，因此不得描述成
+Human Review 或外部部署已完成。
 
 `contracts/schemas/tools/` 已有 `ToolRequestV1`／`ToolResponseV1`，但**沒有任何程式使用它們**。

@@ -88,6 +88,36 @@ Core 已實作 Voice Session metadata 與受控狀態轉移，但 WebSocket bina
 
 `AgentRunResponseV1` 是 Agent Runtime 的 HTTP 回應，不是文件 10 的 Handoff Result，不能用它代替 Handoff Result。現有 result status 只有 `SUCCESS`、`SAFE_FALLBACK`、`BLOCKED`、`FAILED`，尚未涵蓋文件 10 的 `NEEDS_CLARIFICATION`、`HUMAN_REVIEW`、`NO_DATA` 等狀態。
 
+### Staging RAG retrieval
+
+Agent Runtime 已實作 `POST /api/v1/rag/retrievals` 的 staging-only HTTP boundary，並使用
+`SuccessEnvelope` 回傳 `RetrievalResponseV1`。未設定 Bedrock／OpenSearch、provider 失敗或
+沒有足夠合格來源時，介面會 fail closed：HTTP 200 的 `data.status` 為 `FAILED` 或
+`NO_DATA`、`results` 為空，並提供明確 fallback；不得由 Agent 猜測或把查詢字串回填到回應。
+
+這個可執行 retrieval contract 不代表資料治理與 AWS 環境已完成：
+
+- 現有 allowlist 狀態是 `DRAFT_FIXED_HASH_NOT_EFFECTIVE_UNTIL_PROJECT_OWNER_SIGNATURE`，
+  `project_owner_risk_acceptance` 為 `NOT_SIGNED`。只有 staging 明確設定
+  `RAG_REQUIRE_OWNER_SIGNATURE=false` 時，才允許以 unsigned development override 執行；
+  外部提供且完全相符的 `RAG_ALLOWLIST_EXPECTED_SHA256`，以及來源、Chunk、數量與完整
+  Allowlist 驗證仍全部強制執行。Override 的 receipt／log 必須標示
+  `governance_status=UNSIGNED_DEVELOPMENT_OVERRIDE`、`production_approved=false`。
+- `human_source_review` 仍是 `NOT_COMPLETED`；unsigned development override 不等於 Human
+  Review，也不得宣稱 Human Review 已完成。
+- Repository 不保存真實 AWS 金鑰，且目前沒有可供本次驗證的 AWS Account／Bedrock／
+  OpenSearch staging 連線資訊，因此 executable contract 測試只驗證無設定時的安全 fallback，
+  不宣稱已建立或驗證真實 index、alias、embedding 或文件數。
+- allowlist 的 `production_status` 仍是 `BLOCKED`；unsigned development override 不得用於
+  production。任何 production 執行仍須正式簽署 Allowlist，並明確設定
+  `RAG_PRODUCTION_ENABLED=true`；此 endpoint 與目前相關設定不得當作 production RAG。
+- Agent Runtime 尚未有服務對服務身分驗證；在 IAM／mTLS／service-token contract 定案前，
+  這個 staging endpoint 只能置於受控私網，不能直接暴露到公網。`audience` 與 `purpose`
+  目前只可信任已授權的內部 caller。
+- Retrieval 是 staging knowledge read path，不是 Aurora outbox 驅動、可重建的正式
+  OpenSearch projection，也不是 deletion workflow 的 OpenSearch 清理 handler。下方列出的
+  projection endpoint 與上方 deletion 外部 store verification 仍未完成。
+
 ### Core Tool 與 Agent Tool schema
 
 Core 已實作 `POST /api/v1/internal/tools/execute`，因此 `ToolRequestV1` 與 `ToolResultV1` 以 Core 的 Pydantic model 為 executable contract：
@@ -104,7 +134,7 @@ Core 已實作 `POST /api/v1/internal/tools/execute`，因此 `ToolRequestV1` �
 - Care Action API。
 - Notification delivery API／LINE／Email Adapter。
 - 正式 Agent Handoff 與多步 Agent Tool 迴圈。
-- Graph／OpenSearch projection endpoint。
+- Graph／正式 OpenSearch projection endpoint。
 - Cognito JWT verifier。
 
 上述項目應留在 `docs/` 或各 Owner 的設計產物；只有已存在的 model/schema 例外必須在本文件明示，完成實作與 live verification 後才可升格為 executable contract。

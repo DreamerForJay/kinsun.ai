@@ -7,18 +7,29 @@
 
 ## 目前狀態
 
-M0 Foundation。可執行的最小閉環：HTTP → contract 驗證 → Orchestrator → Companion Agent
-→ Safety Evaluator → 回應。模型走 `MockModelProvider`，**不呼叫任何外部 LLM**。
+M0 Agent Foundation。可執行的最小 Agent 閉環：HTTP → contract 驗證 → Orchestrator
+→ Companion Agent → Safety Evaluator → 回應。Agent 模型仍走 `MockModelProvider`。
+
+另有第一版 **staging-only** RAG endpoint、Bedrock query embedding 與 OpenSearch Hybrid
+Retrieval adapter，以及正式 Agent Run 的最小安全整合。只有明確標示
+`general_information`／`legal_reference` purpose 的回合會檢索；成功時 3–5 個帶引用 chunk
+進入 Context Manifest，無資料或 provider 失敗時直接 no-guess fallback。未設定 provider
+時明確 fail closed。Supplied Allowlist 尚未簽署；只有 staging 明確設定
+`RAG_REQUIRE_OWNER_SIGNATURE=false` 時，才允許 unsigned development override。Override
+不得關閉外部 `RAG_ALLOWLIST_EXPECTED_SHA256` 精確比對，也不得略過來源、Chunk、數量或
+完整 Allowlist 驗證；receipt／log 必須標示
+`governance_status=UNSIGNED_DEVELOPMENT_OVERRIDE`、`production_approved=false`。
+Production 仍須正式簽署 Allowlist，並明確設定 `RAG_PRODUCTION_ENABLED=true`。Human Review
+未完成，且尚未對真實 AWS/OpenSearch 環境完成驗證，因此不得描述成已部署或可用於
+production。
 
 目前只接通一條受控 Tool 路徑：request `allowed_tools` 明確包含
 `create_event_candidate`、Safety 為 `ALLOW` 且 deterministic Event Extractor 產生 Candidate
 時，Runtime 先向 Core 註冊正式 UUID AgentRun，再以同一 UUID 呼叫 Core Tool。這不是通用
 Tool loop；Runtime 不建立 service credential，只轉交呼叫端既有 Authorization，由 Core
-重新驗證所有正式 scope。
-
-尚未實作（不要描述成已完成）：Memory Candidate、Knowledge Retrieval Planner、Model Router、
-Prompt Registry、Agent Trace 終態持久化、OpenSearch、Neptune、通用 Tool 執行迴圈、
-Evaluation。
+重新驗證所有正式 scope。尚未實作（不要描述成已完成）：Memory Candidate、Model Router、
+Prompt Registry、Agent Trace 終態持久化、Neptune、通用 Tool 執行迴圈、RAG／Graph
+Evaluation，以及能實際使用 RAG context 生成回答的外部 Model Provider。
 
 ## 硬性規則
 

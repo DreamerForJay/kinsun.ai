@@ -15,7 +15,10 @@ from agent_runtime.common.errors import (
     InvalidRequestError,
     StepLimitError,
 )
-from agent_runtime.context.builder import build_minimal_context_manifest
+from agent_runtime.context.builder import (
+    build_minimal_context_manifest,
+    build_rag_context_manifest,
+)
 from agent_runtime.contracts.models import (
     AgentRunRequest,
     AgentRunResponse,
@@ -30,7 +33,16 @@ from agent_runtime.core.agent_runs import (
 from agent_runtime.models.provider import ModelProvider
 from agent_runtime.orchestration.fallback import fallback_reply
 from agent_runtime.orchestration.loop_controller import LoopController
+from agent_runtime.orchestration.rag_integration import (
+    RagRetriever,
+    is_rag_request,
+    retrieval_fallback_safety,
+    retrieve_for_agent,
+)
 from agent_runtime.orchestration.stop_conditions import map_to_status
+from agent_runtime.rag.citations import append_citations
+from agent_runtime.rag.fallback import failed_response
+from agent_runtime.rag.models import RetrievalResponseV1
 from agent_runtime.tools.errors import CoreToolClientError
 from agent_runtime.tools.executor import ToolExecutor
 from agent_runtime.tools.requests import (
@@ -41,7 +53,7 @@ from agent_runtime.tracing.trace import new_agent_run_id, new_trace_id
 
 
 class AgentOrchestrator:
-    """Bounded orchestrator for companion and one safe Tool write."""
+    """Bounded orchestrator for companion, retrieval, and one safe Tool write."""
 
     def __init__(
         self,
@@ -73,6 +85,7 @@ class AgentOrchestrator:
         self,
         request: AgentRunRequest,
         *,
+        rag_retriever: RagRetriever | None = None,
         agent_run_registrar: AgentRunRegistrar | None = None,
         tool_executor: ToolExecutor | None = None,
     ) -> AgentRunResponse:
@@ -90,12 +103,54 @@ class AgentOrchestrator:
         if not LoopController(self.max_steps).can_execute(request.max_steps, step_count):
             raise StepLimitError("max_steps does not allow a single decision step")
 
+        retrieval: RetrievalResponseV1 | None = None
+        if is_rag_request(request):
+            input_safety = self.safety_evaluator.evaluate(request, "")
+            if input_safety.decision == SafetyDecision.ALLOW:
+                retrieval = await retrieve_for_agent(request, rag_retriever)
+                if retrieval.status != "SUCCESS":
+                    safety_result = retrieval_fallback_safety(retrieval)
+                    return self._response(
+                        request=request,
+                        trace_id=trace_id,
+                        selected_agent=selected_agent,
+                        context_manifest=context_manifest,
+                        step_count=step_count,
+                        safety_result=safety_result,
+                        reply_text=fallback_reply(safety_result, ""),
+                    )
+                try:
+                    context_manifest = build_rag_context_manifest(
+                        request,
+                        selected_agent,
+                        retrieval.results,
+                    )
+                except ValueError:
+                    retrieval = failed_response(request.request_id)
+                    safety_result = retrieval_fallback_safety(retrieval)
+                    return self._response(
+                        request=request,
+                        trace_id=trace_id,
+                        selected_agent=selected_agent,
+                        context_manifest=context_manifest,
+                        step_count=step_count,
+                        safety_result=safety_result,
+                        reply_text=fallback_reply(safety_result, ""),
+                    )
+
         companion_output = (
             await self.companion.run(request, context_manifest, request.language)
         ).reply_text
         safety_result = self.safety_evaluator.evaluate(request, companion_output)
 
         reply_text = fallback_reply(safety_result, companion_output)
+        if retrieval is not None and safety_result.decision == SafetyDecision.ALLOW:
+            try:
+                reply_text = append_citations(reply_text, retrieval.results)
+            except ValueError:
+                retrieval = failed_response(request.request_id)
+                safety_result = retrieval_fallback_safety(retrieval)
+                reply_text = fallback_reply(safety_result, "")
 
         agent_run_id: str | None = None
         result_status_override: ResultStatus | None = None

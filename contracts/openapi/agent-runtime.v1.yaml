@@ -3,18 +3,26 @@ openapi: 3.1.0
 info:
   title: kinsun.ai Agent Runtime
   version: "1.0.0"
-  summary: Agent run endpoint for the smart eldercare AI companion system.
+  summary: Agent execution and staging RAG retrieval for the smart eldercare AI companion system.
   description: |
     Contract for the endpoints that are ACTUALLY IMPLEMENTED in
-    `services/agent-runtime`. Every path, field and status code below can be
-    exercised against a running instance with no database, AWS credentials or
-    network access.
+    `services/agent-runtime`. Every path can be exercised against a running
+    instance with no database, AWS credentials or network access: the local
+    agent path is deterministic, while unconfigured retrieval fails closed with
+    an explicit no-guess fallback. A successful AWS-backed retrieval requires
+    separately supplied staging configuration and credentials.
 
     What this service does NOT do yet, despite `contracts/schemas/` containing
     shapes for them: execute tools, extract care events, create memory
-    candidates, query OpenSearch or Neptune, or hand off between agents.
+    candidates, query Neptune, or hand off between agents.
     `HandoffEnvelopeV1`, `ToolRequestV1` and `ToolResponseV1` are target shapes
     and are deliberately absent from this document.
+
+    `POST /api/v1/rag/retrievals` is staging-only. When its Bedrock and
+    OpenSearch adapters are configured it retrieves approved chunks; when they
+    are unavailable it returns HTTP 200 with `data.status = FAILED`, no partial
+    results, and an explicit fallback message. It does not make the staging
+    index a production projection or evidence that source review is complete.
 
     Model output comes from `MockModelProvider` — deterministic, local, and not
     a language model. Nothing here is evidence that a Bedrock-backed runtime
@@ -34,6 +42,8 @@ tags:
     description: Liveness probe. Unauthenticated.
   - name: agent
     description: Agent execution.
+  - name: rag
+    description: Fail-closed retrieval from the approved staging knowledge index.
 
 paths:
   /health:
@@ -77,6 +87,12 @@ paths:
       description: |
         Builds a context manifest, produces a companion reply, evaluates it
         against the safety rules, and returns the result.
+
+        An explicit `purpose` of `general_information` or `legal_reference`
+        first runs staging RAG. Three to five complete cited chunks are added
+        to the in-memory context and every source is appended to an allowed
+        reply. `NO_DATA`, provider failure, or missing retrieval configuration
+        returns `SAFE_FALLBACK` without asking the model to guess.
 
         `max_steps` is the caller's own ceiling. It must not exceed the server's
         `MAX_AGENT_DECISIONS`; asking for more is a 422, not a silent clamp.
@@ -168,6 +184,73 @@ paths:
                   retryable: true
                   details: null
 
+  /api/v1/rag/retrievals:
+    post:
+      tags: [rag]
+      operationId: retrieveRagKnowledge
+      summary: Retrieve approved staging knowledge chunks
+      description: |
+        Runs bounded staging retrieval and returns three to five cited chunks
+        only when enough eligible evidence is available. The retrieval layer
+        applies its fixed current-status and normal-RAG safety filters; callers
+        cannot submit OpenSearch DSL or bypass those filters.
+
+        Provider absence, provider failure, or insufficient evidence is a
+        knowledge outcome rather than permission for the Agent to improvise.
+        It is therefore returned as HTTP 200 in the standard success envelope,
+        with `data.status` set to `FAILED` or `NO_DATA`, `data.results` empty,
+        and a non-empty `data.fallback_message`. The query is never copied into
+        the fallback or validation response.
+
+        This endpoint is staging-only. It does not execute production indexing
+        and does not prove that Human Review, projection, or deletion workflows
+        are complete.
+
+        Service-to-service authentication is not implemented yet. Until an
+        IAM, mTLS, or token contract is approved, deploy this endpoint only on
+        a controlled private network and accept `audience`/`purpose` only from
+        an already-authorized internal caller.
+      parameters:
+        - $ref: "#/components/parameters/CorrelationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetrievalRequestV1"
+      responses:
+        "200":
+          description: |
+            Retrieval completed, found no eligible data, or failed closed.
+            Consumers must inspect `data.status`; only `SUCCESS` contains cited
+            chunks. `NO_DATA` and `FAILED` contain no partial results.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data, meta]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/RetrievalResponseV1"
+                  meta:
+                    $ref: "#/components/schemas/ResponseMetaV1"
+              example:
+                data:
+                  schema_version: "1.0.0"
+                  request_id: req-rag-001
+                  status: FAILED
+                  fallback_message: 知識檢索服務目前無法使用，因此不產生知識庫回答。請稍後再試或改由人工查證。
+                  results: []
+                meta:
+                  correlation_id: 4d9f2a71-6c38-4e5b-9a02-1f7d3e8c5b64
+                  timestamp: "2026-08-01T04:12:09.482714Z"
+                  schema_version: "1.0"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
 components:
   parameters:
     CorrelationId:
@@ -228,5 +311,9 @@ components:
       $ref: "../schemas/agent/AgentRunRequestV1.json"
     AgentRunResponseV1:
       $ref: "../schemas/agent/AgentRunResponseV1.json"
+    RetrievalRequestV1:
+      $ref: "../schemas/rag/retrieval-request.schema.json"
+    RetrievalResponseV1:
+      $ref: "../schemas/rag/retrieval-response.schema.json"
 
 security: []

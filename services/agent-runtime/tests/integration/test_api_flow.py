@@ -7,6 +7,7 @@ from jsonschema import Draft202012Validator, ValidationError, validate
 
 from agent_runtime.app import app
 from agent_runtime.contracts.models import AgentRunResponse
+from agent_runtime.rag.models import RetrievalRequestV1, RetrievalResponseV1, RetrievalResultV1
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SCHEMA_DIR = REPO_ROOT / "contracts" / "schemas"
@@ -67,6 +68,50 @@ async def test_agent_run_success_returns_envelope():
     assert body["data"]["selected_agent"] == "companion-agent"
     assert body["data"]["reply_text"]
     assert body["meta"]["correlation_id"]
+
+
+@pytest.mark.asyncio
+async def test_agent_run_uses_app_state_rag_and_returns_cited_reply():
+    class AppStateRetriever:
+        async def retrieve(self, request: RetrievalRequestV1) -> RetrievalResponseV1:
+            results = [
+                RetrievalResultV1(
+                    chunk_id=f"SYNTHETIC-API-{position:03d}",
+                    text=f"第 {position} 筆合成長照資料。",
+                    score=0.9,
+                    document_name=f"合成 API 指引 {position}",
+                    section="申請",
+                    page_start=position,
+                    page_end=position,
+                    source_url=f"https://example.invalid/api-source/{position}",
+                )
+                for position in range(1, 4)
+            ]
+            return RetrievalResponseV1(
+                schema_version="1.0.0",
+                request_id=request.request_id,
+                status="SUCCESS",
+                fallback_message=None,
+                results=results,
+            )
+
+    original_retriever = app.state.rag_retriever
+    app.state.rag_retriever = AppStateRetriever()
+    try:
+        status, body, _ = await _post(
+            make_payload(
+                request_id="req-rag-api-001",
+                purpose="general_information",
+                input_text="長照服務如何申請？",
+            )
+        )
+    finally:
+        app.state.rag_retriever = original_retriever
+
+    assert status == 200
+    assert body["data"]["result_status"] == "SUCCESS"
+    assert "引用來源：" in body["data"]["reply_text"]
+    assert "https://example.invalid/api-source/1" in body["data"]["reply_text"]
 
 
 @pytest.mark.asyncio

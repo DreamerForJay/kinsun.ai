@@ -69,6 +69,16 @@ DATA_SCHEMA_FOR = {
     "event-consumer-failure.json": "events/EventDeliveryFailureV1.json",
     "event-delivery-failure-with-raw-error.json": "events/EventDeliveryFailureV1.json",
     "event-delivery-failure-retry-at-limit.json": "events/EventDeliveryFailureV1.json",
+    "rag-metadata.json": "rag/rag-metadata.schema.json",
+    "rag-metadata-stop-normal-rag-string.json": "rag/rag-metadata.schema.json",
+    "rag-chunk.json": "rag/rag-chunk.schema.json",
+    "rag-chunk-missing-embedding-text.json": "rag/rag-chunk.schema.json",
+    "ingestion-receipt.json": "rag/ingestion-receipt.schema.json",
+    "ingestion-receipt-with-vectors.json": "rag/ingestion-receipt.schema.json",
+    "retrieval-request.json": "rag/retrieval-request.schema.json",
+    "retrieval-request-top-k-ten.json": "rag/retrieval-request.schema.json",
+    "retrieval-response.json": "rag/retrieval-response.schema.json",
+    "retrieval-response-missing-source-url.json": "rag/retrieval-response.schema.json",
 }
 
 failures: list[str] = []
