@@ -1,43 +1,60 @@
-export interface RuntimeConfig {
+import { hasAuthCredential } from './auth-session';
+import type { ApiConfig } from './api/client';
+
+export interface RuntimeConfig extends ApiConfig {
   apiBaseUrl: string;
-  wsUrl: string;
-  token: string;
   elderId: string;
   caregiverId: string;
+  consentPolicyVersion: string;
+  credentialStatus: 'present' | 'missing' | 'unavailable';
 }
 
 /**
- * Single source of truth for the localStorage keys every page reads/writes
- * auth state through — /dev-login is the only place that sets them, every
- * other page only reads. Keeping the key strings here (not re-typed at each
- * call site) avoids the class of bug where a page reads a typo'd key and
- * silently sees "not logged in" instead of a real value.
+ * Elder/caregiver IDs select a resource; they are not trusted credentials.
+ * Core reauthorizes their scope on every request. Authentication tokens never
+ * appear here and are never readable by browser JavaScript.
  */
 export const AUTH_STORAGE_KEYS = {
-  token: 'elderly_care_id_token',
   elderId: 'elderly_care_elder_id',
   caregiverId: 'elderly_care_caregiver_id',
-  consentGranted: 'elderly_care_consent_granted',
 } as const;
 
+const LEGACY_TOKEN_STORAGE_KEY = 'elderly_care_id_token';
+
+export function clearLegacyBrowserCredential(): void {
+  if (typeof window !== 'undefined') window.localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
+}
+
 /**
- * Reads the values the voice UI needs to talk to the backend. Cognito
- * sign-in (Hosted UI / Amplify) isn't part of this task list — until it's
- * wired in, the ID token and elderId are expected in localStorage (set via
- * /dev-login) or NEXT_PUBLIC_* env vars for local demo/dev use. This is
- * intentionally the one seam a real auth integration should replace, rather
- * than something scattered across components.
+ * Reads non-secret target IDs locally, then asks the same-origin BFF whether
+ * an HttpOnly credential cookie exists. Presence is not proof that the token
+ * is valid; Core remains the authentication and authorization authority.
  */
-export function getRuntimeConfig(): RuntimeConfig {
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL ?? '';
+export async function getRuntimeConfig(): Promise<RuntimeConfig> {
+  const apiBaseUrl = '/backend/core';
+  const consentPolicyVersion = process.env.NEXT_PUBLIC_CONSENT_POLICY_VERSION ?? '';
 
   if (typeof window === 'undefined') {
-    return { apiBaseUrl, wsUrl, token: '', elderId: '', caregiverId: '' };
+    return {
+      apiBaseUrl,
+      elderId: '',
+      caregiverId: '',
+      consentPolicyVersion,
+      credentialStatus: 'unavailable',
+    };
   }
 
-  const token = window.localStorage.getItem(AUTH_STORAGE_KEYS.token) ?? '';
+  // Do not silently migrate a JavaScript-readable credential into the new
+  // session. Remove the legacy copy and require an explicit new login.
+  clearLegacyBrowserCredential();
   const elderId = window.localStorage.getItem(AUTH_STORAGE_KEYS.elderId) ?? '';
   const caregiverId = window.localStorage.getItem(AUTH_STORAGE_KEYS.caregiverId) ?? '';
-  return { apiBaseUrl, wsUrl, token, elderId, caregiverId };
+  let credentialStatus: RuntimeConfig['credentialStatus'] = 'unavailable';
+  try {
+    credentialStatus = (await hasAuthCredential()) ? 'present' : 'missing';
+  } catch {
+    // Fail closed without claiming that the user is logged out when the BFF
+    // itself is unavailable.
+  }
+  return { apiBaseUrl, elderId, caregiverId, consentPolicyVersion, credentialStatus };
 }

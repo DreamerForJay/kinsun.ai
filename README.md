@@ -109,7 +109,7 @@ cd services/agent-runtime
 uv sync --extra test --extra dev
 uv run pytest              # 不需資料庫、AWS 憑證或網路
 uv run ruff check .
-uvicorn --app-dir src agent_runtime.app:app --reload --port 8000
+uvicorn --app-dir src agent_runtime.app:app --reload --port 8001
 ```
 
 可執行的閉環：`POST /api/v1/agent/runs` → contract 驗證 → Orchestrator → Companion
@@ -128,6 +128,20 @@ Safety Evaluator 目前是 deterministic 的關鍵字規則（停藥、改藥、
 併入 monorepo 的決策見 [ADR 0004](docs/adr/0004-agent-runtime-into-monorepo.md)。
 
 兩個服務各自維護 `pyproject.toml` 與 `uv.lock`，不共用虛擬環境。
+
+## Frontend → Core → Agent 文字閉環
+
+目前可執行的前端是 [`packages/frontend/`](packages/frontend/)。瀏覽器只呼叫
+Next.js 的同源 `/backend/core/*`；BFF 從 `HttpOnly` Cookie 取得 Access Token，才在
+伺服器端轉成 Core API 要求的 Bearer Header。瀏覽器 JavaScript 不讀取 Token，寫入
+請求另有同源 Origin／CSRF gate。Core 會從可信認證 context 取得 actor／tenant，重新檢查 elder scope 與 `BASIC_VOICE` consent，建立
+Voice Session，才以 server-to-server 方式呼叫 Agent Runtime `:8001`。Agent 的
+安全結果由 Core 寫入稽核 metadata，再以統一 envelope 回給前端。
+
+這一條目前是 **TEXT_ONLY fallback**。麥克風、ASR、WebSocket 與 TTS 尚未實作，
+前端會明確顯示不可用，不會把文字輸入冒充成語音辨識結果。設定、啟動方式、
+安全邊界與 E2E 證據見
+[`docs/handover/2026-08-01-frontend-core-agent-integration.md`](docs/handover/2026-08-01-frontend-core-agent-integration.md)。
 
 ## API Contract
 

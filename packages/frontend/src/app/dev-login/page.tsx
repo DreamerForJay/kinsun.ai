@@ -1,64 +1,106 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AUTH_STORAGE_KEYS } from '@/lib/runtime-config';
+import {
+  clearAuthSession,
+  createDevelopmentAuthSession,
+  hasAuthCredential,
+} from '@/lib/auth-session';
+import { AUTH_STORAGE_KEYS, clearLegacyBrowserCredential } from '@/lib/runtime-config';
 
 /**
- * Stand-in for Cognito Hosted UI sign-in, which isn't built (see
- * runtime-config.ts). Every other page reads token/elderId/caregiverId
- * straight out of localStorage — this is the only page that writes them.
- * Paste a real ID token for a seeded demo/test Cognito account (never a
- * real elder's identifiers — 競賽個資規則禁止使用真實長者個資).
+ * Development-only stand-in for the future Cognito authorization-code
+ * callback. The submitted token is handed to a same-origin BFF route and then
+ * kept only in an HttpOnly cookie; it is never persisted in browser storage.
  */
 export default function DevLoginPage() {
   const [token, setToken] = useState('');
   const [elderId, setElderId] = useState('');
   const [caregiverId, setCaregiverId] = useState('');
-  const [saved, setSaved] = useState(false);
+  const [credentialPresent, setCredentialPresent] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setToken(window.localStorage.getItem(AUTH_STORAGE_KEYS.token) ?? '');
+    clearLegacyBrowserCredential();
     setElderId(window.localStorage.getItem(AUTH_STORAGE_KEYS.elderId) ?? '');
     setCaregiverId(window.localStorage.getItem(AUTH_STORAGE_KEYS.caregiverId) ?? '');
+    void hasAuthCredential()
+      .then(setCredentialPresent)
+      .catch(() => setCredentialPresent(null));
   }, []);
 
-  function handleSave(e: React.FormEvent) {
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    window.localStorage.setItem(AUTH_STORAGE_KEYS.token, token.trim());
-    window.localStorage.setItem(AUTH_STORAGE_KEYS.elderId, elderId.trim());
-    window.localStorage.setItem(AUTH_STORAGE_KEYS.caregiverId, caregiverId.trim());
-    setSaved(true);
+    if (!token.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await createDevelopmentAuthSession(token.trim());
+      window.localStorage.setItem(AUTH_STORAGE_KEYS.elderId, elderId.trim());
+      window.localStorage.setItem(AUTH_STORAGE_KEYS.caregiverId, caregiverId.trim());
+      setToken('');
+      setCredentialPresent(true);
+    } catch {
+      setError('無法建立安全登入 Cookie；憑證與目標設定都沒有更新。');
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function handleClear() {
-    window.localStorage.removeItem(AUTH_STORAGE_KEYS.token);
-    window.localStorage.removeItem(AUTH_STORAGE_KEYS.elderId);
-    window.localStorage.removeItem(AUTH_STORAGE_KEYS.caregiverId);
-    window.localStorage.removeItem(AUTH_STORAGE_KEYS.consentGranted);
-    setToken('');
-    setElderId('');
+  async function handleClear() {
+    setBusy(true);
+    setError(null);
+    try {
+      await clearAuthSession();
+      clearLegacyBrowserCredential();
+      window.localStorage.removeItem(AUTH_STORAGE_KEYS.elderId);
+      window.localStorage.removeItem(AUTH_STORAGE_KEYS.caregiverId);
+      setToken('');
+      setElderId('');
+      setCaregiverId('');
+      setCredentialPresent(false);
+    } catch {
+      setError('登出失敗，安全 Cookie 可能仍存在；請勿將此裝置視為已登出。');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function loadSyntheticLocalDemo() {
+    setToken('local-development-only');
+    setElderId('40000000-0000-4000-8000-000000000001');
     setCaregiverId('');
-    setSaved(false);
+    setError(null);
   }
 
   return (
     <main style={{ maxWidth: 560, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontSize: 22, marginBottom: 8 }}>登入設定（Demo 用）</h1>
       <p style={{ color: '#718096', marginBottom: 20, fontSize: 14, lineHeight: 1.6 }}>
-        系統還沒有正式的登入畫面（Cognito Hosted UI 尚未串接）。請貼上一組測試帳號的 Cognito ID
-        Token（由有 AWS 權限的人在 Cognito 建立模擬帳號後換發），以及要用哪個長者/照護者身分操作。
-        請勿使用真實長者的個資。
+        正式 Cognito 尚未串接。本頁只在開發環境建立 HttpOnly Cookie；Token 不會存入
+        localStorage，也不會回傳給前端程式。本機 Demo 的 actor 與 tenant 只由 Core API 的
+        FAKE_AUTH_* 環境變數決定。請勿使用真實長者資料。
       </p>
 
       <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <label>
-          Cognito ID Token
+          Bearer Token（本機 Fake Auth 可使用固定測試字串）
           <textarea
             value={token}
             onChange={(e) => setToken(e.target.value)}
             rows={5}
             placeholder="eyJhbGciOi..."
-            style={{ display: 'block', width: '100%', padding: 8, marginTop: 4, fontFamily: 'monospace', fontSize: 12 }}
+            autoComplete="off"
+            spellCheck={false}
+            style={{
+              display: 'block',
+              width: '100%',
+              padding: 8,
+              marginTop: 4,
+              fontFamily: 'monospace',
+              fontSize: 12,
+            }}
           />
         </label>
 
@@ -85,16 +127,25 @@ export default function DevLoginPage() {
         </label>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button type="submit">儲存</button>
-          <button type="button" onClick={handleClear}>
-            清除全部
+          <button type="submit" disabled={busy || !token.trim()}>
+            建立安全登入
           </button>
-          {saved && <span style={{ color: '#2f855a', fontSize: 14 }}>已儲存</span>}
+          <button type="button" onClick={loadSyntheticLocalDemo} disabled={busy}>
+            載入林阿嬤合成 Demo
+          </button>
+          <button type="button" onClick={() => void handleClear()} disabled={busy}>
+            登出並清除
+          </button>
+          {credentialPresent === true && (
+            <span style={{ color: '#2f855a', fontSize: 14 }}>安全 Cookie 已設定</span>
+          )}
+          {credentialPresent === false && <span style={{ fontSize: 14 }}>尚未登入</span>}
         </div>
+        {error && <p style={{ color: '#c53030', margin: 0 }}>{error}</p>}
       </form>
 
       <div style={{ marginTop: 24, display: 'flex', gap: 16, fontSize: 14 }}>
-        <a href="/">語音首頁</a>
+        <a href="/">陪伴首頁</a>
         <a href="/dashboard">照護者總覽</a>
         <a href="/family">家屬首頁</a>
       </div>

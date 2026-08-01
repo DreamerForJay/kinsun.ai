@@ -4,7 +4,7 @@ interface NotLoggedInProps {
 
 /**
  * Shown instead of a bare error string whenever a page has no usable
- * token/elderId, or the API rejects them with 403 — both cases point
+ * credential/elderId, or the API rejects them with 403 — both cases point
  * somewhere actionable (there is no Cognito Hosted UI yet, see
  * lib/runtime-config.ts) rather than leaving the user stuck on "讀取失敗".
  */

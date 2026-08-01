@@ -1,53 +1,70 @@
 'use client';
 
 import { useState } from 'react';
-import type { EventSummary, EventType, ReviewStatus } from '@elderly-care/shared';
+import type { CareEventDecision, EventView } from '@/lib/api/events';
 
-const EVENT_TYPE_LABEL: Record<EventType, string> = {
-  meal: '飲食',
-  activity: '活動',
-  sleep: '睡眠',
-  medication_statement: '用藥陳述',
-  emotion: '情緒',
-  important_event: '重要事件',
+const EVENT_TYPE_LABEL: Record<EventView['eventType'], string> = {
+  MEAL: '飲食',
+  ACTIVITY: '活動',
+  SLEEP: '睡眠',
+  MEDICATION_STATEMENT: '用藥陳述',
+  EMOTION_EXPRESSION: '情緒表達',
+  SOCIAL_CONTACT: '社交聯繫',
+  EXPECTED_CONTACT_MISSED: '未如期聯繫',
+  ACTIVITY_PARTICIPATION: '活動參與',
+  ACTIVITY_CANCELLED: '活動取消',
+  COMPANIONSHIP_NEED: '陪伴需求',
 };
 
-const REVIEW_STATUS_LABEL: Record<ReviewStatus, string> = {
-  auto_approved: '自動核可',
-  needs_review: '待覆核',
-  caregiver_confirmed: '已確認',
-  caregiver_rejected: '已拒絕',
+const STATUS_LABEL: Record<EventView['status'], string> = {
+  CANDIDATE: '候選',
+  NEEDS_REVIEW: '待覆核',
+  VERIFIED: '已驗證',
+  CORRECTED: '已修正',
+  REJECTED: '已拒絕',
+  EXCLUDED: '已排除',
+};
+
+const CONFIDENCE_LABEL: Record<EventView['confidenceBand'], string> = {
+  LOW: '低',
+  MEDIUM: '中',
+  HIGH: '高',
 };
 
 export interface EventTableProps {
-  events: EventSummary[];
-  onSave: (eventId: string, eventDate: string, content: string, reviewStatus: ReviewStatus) => Promise<void>;
+  events: EventView[];
+  onReview: (
+    event: EventView,
+    decision: CareEventDecision,
+    correctedContent?: string,
+  ) => Promise<void>;
 }
 
-/** Event review/correction table (B03.1, B03.4, B04.1-B04.4). Inline-editable content + review status. */
-export function EventTable({ events, onSave }: EventTableProps) {
+export function EventTable({ events, onReview }: EventTableProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftContent, setDraftContent] = useState('');
-  const [draftStatus, setDraftStatus] = useState<ReviewStatus>('needs_review');
+  const [decision, setDecision] = useState<CareEventDecision>('VERIFY');
   const [saving, setSaving] = useState(false);
 
-  function startEdit(event: EventSummary) {
+  function startReview(event: EventView) {
     setEditingId(event.eventId);
     setDraftContent(event.content);
-    setDraftStatus(event.reviewStatus);
+    setDecision('VERIFY');
   }
 
-  async function save(event: EventSummary) {
+  async function save(event: EventView) {
     setSaving(true);
     try {
-      await onSave(event.eventId, event.eventDate, draftContent, draftStatus);
+      await onReview(event, decision, decision === 'CORRECT' ? draftContent : undefined);
       setEditingId(null);
     } finally {
       setSaving(false);
     }
   }
 
-  if (events.length === 0) return <p style={{ color: '#718096' }}>沒有符合條件的事件紀錄。</p>;
+  if (events.length === 0) {
+    return <p style={{ color: '#718096' }}>沒有符合條件的事件紀錄。</p>;
+  }
 
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
@@ -56,9 +73,9 @@ export function EventTable({ events, onSave }: EventTableProps) {
           <th style={{ padding: 8 }}>日期</th>
           <th style={{ padding: 8 }}>類型</th>
           <th style={{ padding: 8 }}>內容</th>
-          <th style={{ padding: 8 }}>信心分數</th>
-          <th style={{ padding: 8 }}>審查狀態</th>
-          <th style={{ padding: 8 }}>來源／修正紀錄</th>
+          <th style={{ padding: 8 }}>信心區間</th>
+          <th style={{ padding: 8 }}>狀態</th>
+          <th style={{ padding: 8 }}>證據／版本</th>
           <th style={{ padding: 8 }}>操作</th>
         </tr>
       </thead>
@@ -67,43 +84,46 @@ export function EventTable({ events, onSave }: EventTableProps) {
           <tr key={event.eventId} style={{ borderBottom: '1px solid #edf2f7' }}>
             <td style={{ padding: 8 }}>{event.eventDate}</td>
             <td style={{ padding: 8 }}>{EVENT_TYPE_LABEL[event.eventType]}</td>
-            <td style={{ padding: 8, maxWidth: 260 }}>
-              {editingId === event.eventId ? (
+            <td style={{ padding: 8, maxWidth: 280 }}>
+              {editingId === event.eventId && decision === 'CORRECT' ? (
                 <textarea
                   value={draftContent}
-                  onChange={(e) => setDraftContent(e.target.value)}
+                  onChange={(changeEvent) => setDraftContent(changeEvent.target.value)}
                   style={{ width: '100%' }}
                 />
               ) : (
                 event.content
               )}
             </td>
-            <td style={{ padding: 8 }}>{(event.confidence * 100).toFixed(0)}%</td>
-            <td style={{ padding: 8 }}>
-              {editingId === event.eventId ? (
-                <select value={draftStatus} onChange={(e) => setDraftStatus(e.target.value as ReviewStatus)}>
-                  {Object.entries(REVIEW_STATUS_LABEL).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                REVIEW_STATUS_LABEL[event.reviewStatus]
-              )}
-            </td>
+            <td style={{ padding: 8 }}>{CONFIDENCE_LABEL[event.confidenceBand]}</td>
+            <td style={{ padding: 8 }}>{STATUS_LABEL[event.status]}</td>
             <td style={{ padding: 8, fontSize: 12, color: '#718096' }}>
-              對話：{event.sourceConversationId}
-              {event.correctionCount > 0 && <div>已修正 {event.correctionCount} 次</div>}
+              證據 {event.evidenceRefs.length} 筆｜版本 {event.version}
             </td>
             <td style={{ padding: 8 }}>
               {editingId === event.eventId ? (
-                <button type="button" disabled={saving} onClick={() => save(event)}>
-                  儲存
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <select
+                    value={decision}
+                    onChange={(changeEvent) =>
+                      setDecision(changeEvent.target.value as CareEventDecision)
+                    }
+                  >
+                    <option value="VERIFY">驗證</option>
+                    <option value="CORRECT">修正</option>
+                    <option value="REJECT">拒絕</option>
+                    <option value="EXCLUDE">排除</option>
+                  </select>
+                  <button type="button" disabled={saving} onClick={() => save(event)}>
+                    送出覆核
+                  </button>
+                  <button type="button" disabled={saving} onClick={() => setEditingId(null)}>
+                    取消
+                  </button>
+                </div>
               ) : (
-                <button type="button" onClick={() => startEdit(event)}>
-                  修正
+                <button type="button" onClick={() => startReview(event)}>
+                  覆核
                 </button>
               )}
             </td>

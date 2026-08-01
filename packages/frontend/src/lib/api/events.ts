@@ -1,27 +1,154 @@
-import type { EventType, ListEventsResponse, ReviewStatus, UpdateEventRequest } from '@elderly-care/shared';
-import { apiFetch, type ApiConfig } from './client';
+import { apiFetch, createIdempotencyKey, type ApiConfig } from './client';
+
+export type CoreCareEventType =
+  | 'MEAL'
+  | 'ACTIVITY'
+  | 'SLEEP'
+  | 'MEDICATION_STATEMENT'
+  | 'EMOTION_EXPRESSION'
+  | 'SOCIAL_CONTACT'
+  | 'EXPECTED_CONTACT_MISSED'
+  | 'ACTIVITY_PARTICIPATION'
+  | 'ACTIVITY_CANCELLED'
+  | 'COMPANIONSHIP_NEED';
+
+export type CoreCareEventStatus =
+  'CANDIDATE' | 'NEEDS_REVIEW' | 'VERIFIED' | 'CORRECTED' | 'REJECTED' | 'EXCLUDED';
+
+export type CareEventDecision = 'VERIFY' | 'CORRECT' | 'REJECT' | 'EXCLUDE';
+export type ConfidenceBand = 'LOW' | 'MEDIUM' | 'HIGH';
+
+interface CoreCareEvent {
+  event_id: string;
+  elder_id: string;
+  event_type: CoreCareEventType;
+  event_time: string | null;
+  status: CoreCareEventStatus | 'DELETED';
+  structured_payload: Record<string, unknown>;
+  evidence_refs: string[];
+  confidence_band: ConfidenceBand;
+  version: number;
+  consent_version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CoreCareEventList {
+  items: CoreCareEvent[];
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
+export interface EventView {
+  eventId: string;
+  elderId: string;
+  eventType: CoreCareEventType;
+  eventDate: string;
+  content: string;
+  status: CoreCareEventStatus;
+  confidenceBand: ConfidenceBand;
+  evidenceRefs: string[];
+  version: number;
+  consentVersion: number;
+  structuredPayload: Record<string, unknown>;
+}
 
 export interface ListEventsFilters {
   dateFrom?: string;
   dateTo?: string;
-  eventType?: EventType;
-  reviewStatus?: ReviewStatus;
+  eventType?: CoreCareEventType;
+  status?: CoreCareEventStatus;
   cursor?: string;
 }
 
-/** GET /v1/elders/{elderId}/events — supports date range, type, and review-status filters (B04.1). */
-export function listEvents(config: ApiConfig, elderId: string, filters: ListEventsFilters = {}): Promise<ListEventsResponse> {
-  const params = new URLSearchParams();
-  if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
-  if (filters.dateTo) params.set('dateTo', filters.dateTo);
-  if (filters.eventType) params.set('eventType', filters.eventType);
-  if (filters.reviewStatus) params.set('reviewStatus', filters.reviewStatus);
-  if (filters.cursor) params.set('cursor', filters.cursor);
-  const query = params.toString();
-  return apiFetch<ListEventsResponse>(config, `/v1/elders/${elderId}/events${query ? `?${query}` : ''}`);
+export interface ListEventsResult {
+  items: EventView[];
+  nextCursor: string | null;
 }
 
-/** PUT /v1/events/{eventId} — caregiver correction; server records the before/after diff (B03.1, B03.2). */
-export function updateEvent(config: ApiConfig, eventId: string, updates: UpdateEventRequest): Promise<void> {
-  return apiFetch<void>(config, `/v1/events/${eventId}`, { method: 'PUT', body: JSON.stringify(updates) });
+function displayContent(payload: Record<string, unknown>): string {
+  for (const key of ['summary', 'content', 'description', 'text']) {
+    const value = payload[key];
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return Object.keys(payload).length > 0 ? JSON.stringify(payload) : '未提供結構化內容';
+}
+
+function toEventView(event: CoreCareEvent): EventView {
+  if (event.status === 'DELETED') {
+    throw new Error('CORE_RETURNED_DELETED_CARE_EVENT');
+  }
+  return {
+    eventId: event.event_id,
+    elderId: event.elder_id,
+    eventType: event.event_type,
+    eventDate: (event.event_time ?? event.created_at).slice(0, 10),
+    content: displayContent(event.structured_payload),
+    status: event.status,
+    confidenceBand: event.confidence_band,
+    evidenceRefs: event.evidence_refs,
+    version: event.version,
+    consentVersion: event.consent_version,
+    structuredPayload: event.structured_payload,
+  };
+}
+
+/** Core supports status/cursor server-side; date and type are safe client-side view filters. */
+export async function listEvents(
+  config: ApiConfig,
+  elderId: string,
+  filters: ListEventsFilters = {},
+): Promise<ListEventsResult> {
+  const params = new URLSearchParams();
+  if (filters.status) params.append('status', filters.status);
+  if (filters.cursor) params.set('cursor', filters.cursor);
+  params.set('limit', '100');
+
+  const result = await apiFetch<CoreCareEventList>(
+    config,
+    `/api/v1/elders/${elderId}/care-events?${params.toString()}`,
+  );
+  const items = result.items
+    .map(toEventView)
+    .filter((event) => !filters.eventType || event.eventType === filters.eventType)
+    .filter((event) => !filters.dateFrom || event.eventDate >= filters.dateFrom)
+    .filter((event) => !filters.dateTo || event.eventDate <= filters.dateTo);
+
+  return { items, nextCursor: result.next_cursor };
+}
+
+function correctedPayload(event: EventView, content: string): Record<string, unknown> {
+  const payload = { ...event.structuredPayload };
+  const existingKey = ['summary', 'content', 'description', 'text'].find(
+    (key) => typeof payload[key] === 'string',
+  );
+  payload[existingKey ?? 'content'] = content;
+  return payload;
+}
+
+export async function reviewEvent(
+  config: ApiConfig,
+  elderId: string,
+  event: EventView,
+  decision: CareEventDecision,
+  correctedContent?: string,
+): Promise<EventView> {
+  const result = await apiFetch<CoreCareEvent>(
+    config,
+    `/api/v1/elders/${elderId}/care-events/${event.eventId}/review`,
+    {
+      method: 'POST',
+      headers: { 'Idempotency-Key': createIdempotencyKey('care-event-review') },
+      body: JSON.stringify({
+        decision,
+        reason_code: 'CAREGIVER_UI_REVIEW',
+        corrected_payload:
+          decision === 'CORRECT'
+            ? correctedPayload(event, correctedContent ?? event.content)
+            : null,
+        expected_version: event.version,
+      }),
+    },
+  );
+  return toEventView(result);
 }

@@ -23,7 +23,8 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 /**
  * WebSocketClient (design.md §前端層). Wire protocol matches the backend's
  * $connect/control/audio routes (packages/backend/src/workflow/handlers):
- *  - connect: `${wsUrl}?token=<CognitoIdToken>`
+ *  - connect: no reusable credential may appear in the URL. The future speech
+ *    gateway must issue and consume a short-lived, single-use connection ticket.
  *  - control route: { action: "control", type: "start" | "stop" | "cancel" }
  *  - audio route:   { action: "audio", audioBase64, encoding, sampleRate }
  * `action` is API Gateway's routeSelectionExpression key, not a payload
@@ -33,7 +34,6 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 export class VoiceWebSocketClient {
   private ws: WebSocket | null = null;
   private wsUrl: string | null = null;
-  private token: string | null = null;
   private reconnectAttempts = 0;
   private pendingQueue: unknown[] = [];
 
@@ -41,15 +41,14 @@ export class VoiceWebSocketClient {
   private transcriptCallbacks: ((text: string) => void)[] = [];
   private responseCallbacks: ((payload: ServerResponsePayload) => void)[] = [];
 
-  connect(wsUrl: string, token: string): Promise<void> {
+  connect(wsUrl: string): Promise<void> {
     this.wsUrl = wsUrl;
-    this.token = token;
     return this.openSocket();
   }
 
   private openSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(`${this.wsUrl}?token=${encodeURIComponent(this.token!)}`);
+      const ws = new WebSocket(this.wsUrl!);
       ws.onopen = () => {
         this.reconnectAttempts = 0;
         this.flushQueue();
@@ -63,7 +62,7 @@ export class VoiceWebSocketClient {
   }
 
   private handleClose(): void {
-    if (!this.wsUrl || !this.token || this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
+    if (!this.wsUrl || this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) return;
     const delayMs = Math.min(1000 * 2 ** this.reconnectAttempts, 10_000);
     this.reconnectAttempts++;
     setTimeout(() => {
@@ -132,7 +131,6 @@ export class VoiceWebSocketClient {
 
   disconnect(): void {
     this.wsUrl = null;
-    this.token = null;
     this.ws?.close();
     this.ws = null;
   }

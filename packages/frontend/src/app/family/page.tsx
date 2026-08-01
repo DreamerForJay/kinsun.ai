@@ -1,12 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import type { SummaryRecord } from '@elderly-care/shared';
 import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
 import { ApiRequestError } from '@/lib/api/client';
-import { listSummaries } from '@/lib/api/summaries';
-import { getRuntimeConfig } from '@/lib/runtime-config';
+import { listFamilyReports, type FamilyReportView } from '@/lib/api/family-reports';
+import { getRuntimeConfig, type RuntimeConfig } from '@/lib/runtime-config';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -14,38 +13,48 @@ function daysAgoIso(days: number): string {
   return new Date(Date.now() - days * DAY_MS).toISOString().slice(0, 10);
 }
 
-/**
- * 家屬首頁 (04｜資訊架構、UX 與 User Flow §8.6) — 頂部長者/最後更新、
- * 今日摘要、本週概覽、最新重要事件，CTA 導向報表中心 (/family/reports)。
- * Only ever reads published (or redacted-withdrawn) summaries — see
- * summaries.ts's family-role filter, never a caregiver's still-draft text.
- */
 export default function FamilyHomePage() {
-  const config = getRuntimeConfig();
-  const apiConfig = { apiBaseUrl: config.apiBaseUrl, token: config.token };
-  const elderId = config.elderId;
-
-  const [summaries, setSummaries] = useState<SummaryRecord[] | null>(null);
+  const [config, setConfig] = useState<RuntimeConfig | null>(null);
+  const apiConfig = useMemo(
+    () => ({ apiBaseUrl: config?.apiBaseUrl ?? '/backend/core' }),
+    [config?.apiBaseUrl],
+  );
+  const elderId = config?.elderId ?? '';
+  const [reports, setReports] = useState<FamilyReportView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    void getRuntimeConfig().then((nextConfig) => {
+      if (!cancelled) setConfig(nextConfig);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const load = useCallback(() => {
-    // 本週概覽 only needs the last 7 days — no reason to pull full history here.
-    listSummaries(apiConfig, elderId, { dateFrom: daysAgoIso(7) })
-      .then((res) => setSummaries(res.items))
-      .catch((err) => {
-        if (err instanceof ApiRequestError && err.status === 403) {
-          setError('您目前沒有查看權限，請聯絡照護單位重新授權。'); // Authorization Expired (§7.3)
-        } else {
-          setError('讀取近況失敗，請重新整理');
-        }
+    setError(null);
+    listFamilyReports(apiConfig, elderId)
+      .then(setReports)
+      .catch((caught) => {
+        setError(
+          caught instanceof ApiRequestError && (caught.status === 403 || caught.status === 404)
+            ? '目前身分沒有查看這位長者家屬報表的權限。'
+            : '讀取近況失敗，請重新整理。',
+        );
       });
-  }, [elderId]);
+  }, [apiConfig, elderId]);
 
   useEffect(() => {
-    if (config.token && elderId) load();
-  }, [config.token, elderId, load]);
+    if (config?.credentialStatus === 'present' && elderId) load();
+  }, [config?.credentialStatus, elderId, load]);
 
-  if (!config.token || !elderId) {
+  if (!config) return null;
+  if (config.credentialStatus === 'unavailable') {
+    return <NotLoggedIn reason="無法確認登入憑證狀態；系統已停止，不會略過認證" />;
+  }
+  if (config.credentialStatus !== 'present' || !elderId) {
     return <NotLoggedIn reason="尚未設定登入資訊，請先完成登入設定" />;
   }
 
@@ -57,7 +66,7 @@ export default function FamilyHomePage() {
     );
   }
 
-  if (!summaries) {
+  if (!reports) {
     return (
       <main style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>
         <p>載入中...</p>
@@ -65,69 +74,90 @@ export default function FamilyHomePage() {
     );
   }
 
-  const published = summaries.filter((s) => s.status === 'published');
+  const published = reports.filter((report) => report.status === 'PUBLISHED');
+  const weekStart = daysAgoIso(7);
+  const weeklyReports = published.filter((report) => report.periodEnd >= weekStart);
   const today = new Date().toISOString().slice(0, 10);
-  const todaySummary = published.find((s) => s.date === today) ?? null;
-  const lastUpdated = published.reduce<string | null>((latest, s) => (!latest || s.date > latest ? s.date : latest), null);
-
-  const weekMeals = published.reduce((n, s) => n + s.content.meals.length, 0);
-  const weekActivities = published.reduce((n, s) => n + s.content.activities.length, 0);
-  const latestImportantEvents = published
-    .flatMap((s) => s.content.importantEvents.map((text) => ({ date: s.date, text })))
-    .sort((a, b) => b.date.localeCompare(a.date))
+  const todayReport =
+    published.find(
+      (report) =>
+        report.reportType === 'DAILY' && report.periodStart <= today && report.periodEnd >= today,
+    ) ?? null;
+  const lastUpdated = published.reduce<string | null>(
+    (latest, report) => (!latest || report.updatedAt > latest ? report.updatedAt : latest),
+    null,
+  );
+  const mealCount = weeklyReports.reduce(
+    (count, report) =>
+      count + report.items.filter((item) => item.category.toUpperCase() === 'MEAL').length,
+    0,
+  );
+  const activityCount = weeklyReports.reduce(
+    (count, report) =>
+      count + report.items.filter((item) => item.category.toUpperCase() === 'ACTIVITY').length,
+    0,
+  );
+  const importantItems = weeklyReports
+    .flatMap((report) =>
+      report.items
+        .filter((item) => item.category.toUpperCase() === 'IMPORTANT_EVENT')
+        .map((item) => ({ date: report.periodEnd, text: item.text })),
+    )
+    .sort((left, right) => right.date.localeCompare(left.date))
     .slice(0, 5);
 
   return (
     <main style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>
-      {/* 頂部：被授權長者、最後更新與通知入口 */}
       <h1 style={{ fontSize: 22, marginBottom: 4 }}>家屬首頁</h1>
       <p style={{ color: '#718096', marginBottom: 20 }}>
-        長者：{elderId}｜最後更新：{lastUpdated ?? '尚無資料'}
+        長者：{elderId}｜最後更新：
+        {lastUpdated ? new Date(lastUpdated).toLocaleString('zh-TW') : '尚無資料'}
       </p>
 
-      {/* 第一區：今日摘要 */}
       <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 8 }}>今日摘要</h2>
-        {todaySummary ? (
-          todaySummary.sourceEventIds.length === 0 ? (
-            <p style={{ color: '#718096' }}>今日資料不足，尚無法產生完整摘要。</p>
+        <h2 style={{ fontSize: 16, marginBottom: 8 }}>今日報表</h2>
+        {todayReport ? (
+          todayReport.items.length > 0 ? (
+            <ul>
+              {todayReport.items.map((item, index) => (
+                <li key={`${item.category}-${index}`}>{item.text}</li>
+              ))}
+            </ul>
           ) : (
-            <p>{todaySummary.content.overview}</p>
+            <p style={{ color: '#718096' }}>{todayReport.dataGapNotice ?? '今日資料不足。'}</p>
           )
         ) : (
-          <p style={{ color: '#718096' }}>今日尚未產生摘要。</p>
+          <p style={{ color: '#718096' }}>今日尚無已發布的家屬報表。</p>
         )}
       </section>
 
-      {/* 第二區：本週概覽 */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 8 }}>本週概覽</h2>
-        {published.length === 0 ? (
-          <p style={{ color: '#718096' }}>本週尚無已發布的摘要。</p>
+        {weeklyReports.length === 0 ? (
+          <p style={{ color: '#718096' }}>本週尚無已發布的家屬報表。</p>
         ) : (
           <p>
-            本週已發布 {published.length} 篇摘要，記錄了 {weekMeals} 筆飲食、{weekActivities} 筆活動。
+            本週有 {weeklyReports.length} 份正式報表，包含 {mealCount} 筆飲食與 {activityCount}{' '}
+            筆活動項目。
           </p>
         )}
       </section>
 
-      {/* 第三區：最新重要事件 */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 8 }}>最新重要事件</h2>
-        {latestImportantEvents.length === 0 ? (
-          <p style={{ color: '#718096' }}>本週尚無重要事件記錄。</p>
+        {importantItems.length === 0 ? (
+          <p style={{ color: '#718096' }}>本週沒有可分享的重要事件。</p>
         ) : (
           <ul>
-            {latestImportantEvents.map((e, i) => (
-              <li key={i}>
-                {e.date}：{e.text}
+            {importantItems.map((item, index) => (
+              <li key={`${item.date}-${index}`}>
+                {item.date}：{item.text}
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      {/* 主要操作：查看完整報表 */}
       <Link href="/family/reports">查看完整報表 →</Link>
     </main>
   );

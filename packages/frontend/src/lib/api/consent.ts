@@ -1,28 +1,74 @@
-export type ConsentType = 'recording' | 'data_processing';
+import { apiFetch, createIdempotencyKey, type ApiConfig } from './client';
 
-export interface ConsentApiConfig {
-  apiBaseUrl: string;
-  token: string;
+export interface ConsentRecord {
+  consent_id: string;
+  purpose_code:
+    | 'BASIC_VOICE'
+    | 'TRANSCRIPT_STORAGE'
+    | 'CARE_EVENT_EXTRACTION'
+    | 'LONG_TERM_MEMORY'
+    | 'COMPANION_SIGNAL_ANALYSIS'
+    | 'PROACTIVE_COMPANION'
+    | 'FAMILY_SHARING';
+  consent_version: number;
+  status: 'PENDING' | 'GRANTED' | 'REVOKED' | 'EXPIRED' | 'REJECTED';
+  policy_version: string;
+  effective_at: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+  affected_capabilities: string[];
+  deletion_request_id: string | null;
 }
 
-async function postConsent(config: ConsentApiConfig, path: string, elderId: string, type: ConsentType): Promise<void> {
-  const base = config.apiBaseUrl.replace(/\/+$/, '');
-  const response = await fetch(`${base}${path}`, {
+interface ConsentList {
+  items: ConsentRecord[];
+}
+
+export type ConsentApiConfig = ApiConfig;
+
+export async function listConsents(config: ApiConfig, elderId: string): Promise<ConsentRecord[]> {
+  const result = await apiFetch<ConsentList>(config, `/api/v1/elders/${elderId}/consents`);
+  return result.items;
+}
+
+export function activeBasicVoiceConsent(items: ConsentRecord[]): ConsentRecord | null {
+  return (
+    items.find((item) => item.purpose_code === 'BASIC_VOICE' && item.status === 'GRANTED') ?? null
+  );
+}
+
+export async function grantBasicVoiceConsent(
+  config: ApiConfig,
+  elderId: string,
+  policyVersion: string,
+): Promise<ConsentRecord> {
+  const result = await apiFetch<ConsentList>(config, `/api/v1/elders/${elderId}/consents`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${config.token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ elderId, type }),
+    headers: { 'Idempotency-Key': createIdempotencyKey('consent-grant') },
+    body: JSON.stringify({
+      purposes: ['BASIC_VOICE'],
+      share_scopes: [],
+      actor_confirmation: true,
+      policy_version: policyVersion,
+    }),
   });
-  if (!response.ok) {
-    throw new Error(`CONSENT_REQUEST_FAILED: ${response.status}`);
-  }
+  const consent = activeBasicVoiceConsent(result.items);
+  if (!consent) throw new Error('CORE_CONSENT_RESPONSE_MISSING_BASIC_VOICE');
+  return consent;
 }
 
-/** POST /v1/consent/grant (A06.1, A06.3). */
-export function grantConsent(config: ConsentApiConfig, elderId: string, type: ConsentType = 'recording'): Promise<void> {
-  return postConsent(config, '/v1/consent/grant', elderId, type);
-}
-
-/** POST /v1/consent/revoke — stops future recording; existing data is handled per retention policy (A06.4). */
-export function revokeConsent(config: ConsentApiConfig, elderId: string, type: ConsentType = 'recording'): Promise<void> {
-  return postConsent(config, '/v1/consent/revoke', elderId, type);
+export function revokeBasicVoiceConsent(
+  config: ApiConfig,
+  elderId: string,
+  consentId: string,
+): Promise<ConsentRecord> {
+  return apiFetch(config, `/api/v1/elders/${elderId}/consents/${consentId}/revoke`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': createIdempotencyKey('consent-revoke') },
+    body: JSON.stringify({
+      reason_code: 'ELDER_REQUESTED_STOP',
+      revoke_scope: [],
+      request_deletion: false,
+    }),
+  });
 }

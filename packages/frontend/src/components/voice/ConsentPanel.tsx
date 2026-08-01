@@ -2,35 +2,50 @@
 
 import { useState } from 'react';
 import { ApiRequestError } from '@/lib/api/client';
-import { grantConsent, revokeConsent, type ConsentApiConfig } from '@/lib/api/consent';
+import {
+  grantBasicVoiceConsent,
+  revokeBasicVoiceConsent,
+  type ConsentApiConfig,
+  type ConsentRecord,
+} from '@/lib/api/consent';
 
-function describeConsentError(err: unknown): string {
-  if (err instanceof ApiRequestError && err.status === 403) {
-    return '您目前沒有權限設定這位長者的錄音同意，請聯絡照護單位確認身分。';
+function describeConsentError(error: unknown): string {
+  if (error instanceof ApiRequestError && error.status === 404) {
+    return '目前無法設定這位長者的同意，請確認身分與授權範圍。';
   }
-  return '設定失敗，請稍後再試';
+  if (error instanceof ApiRequestError && error.status === 409) {
+    return '同意狀態剛剛已變更，請重新整理後再試。';
+  }
+  return '設定失敗，請稍後再試。';
 }
 
 export interface ConsentPanelProps {
   apiConfig: ConsentApiConfig;
   elderId: string;
-  initialGranted: boolean;
-  onChange: (granted: boolean) => void;
+  policyVersion: string;
+  initialConsent: ConsentRecord | null;
+  onChange: (consent: ConsentRecord | null) => void;
 }
 
-/** Consent explanation + grant/revoke flow (A06.1-A06.4). */
-export function ConsentPanel({ apiConfig, elderId, initialGranted, onChange }: ConsentPanelProps) {
-  const [granted, setGranted] = useState(initialGranted);
+export function ConsentPanel({
+  apiConfig,
+  elderId,
+  policyVersion,
+  initialConsent,
+  onChange,
+}: ConsentPanelProps) {
+  const [consent, setConsent] = useState(initialConsent);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleGrant() {
+    if (!policyVersion) return;
     setBusy(true);
     setError(null);
     try {
-      await grantConsent(apiConfig, elderId);
-      setGranted(true);
-      onChange(true);
+      const next = await grantBasicVoiceConsent(apiConfig, elderId, policyVersion);
+      setConsent(next);
+      onChange(next);
     } catch (err) {
       setError(describeConsentError(err));
     } finally {
@@ -39,12 +54,13 @@ export function ConsentPanel({ apiConfig, elderId, initialGranted, onChange }: C
   }
 
   async function handleRevoke() {
+    if (!consent) return;
     setBusy(true);
     setError(null);
     try {
-      await revokeConsent(apiConfig, elderId);
-      setGranted(false);
-      onChange(false);
+      await revokeBasicVoiceConsent(apiConfig, elderId, consent.consent_id);
+      setConsent(null);
+      onChange(null);
     } catch (err) {
       setError(describeConsentError(err));
     } finally {
@@ -53,42 +69,38 @@ export function ConsentPanel({ apiConfig, elderId, initialGranted, onChange }: C
   }
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', padding: 24, fontSize: 18, lineHeight: 1.7 }}>
-      <h1 style={{ fontSize: 22, marginBottom: 16 }}>錄音與資料使用說明</h1>
-      <p>當您按下錄音按鈕說話時，系統會錄下您說的話，用來：</p>
+    <div style={{ maxWidth: 560, margin: '0 auto', padding: 24, fontSize: 18, lineHeight: 1.7 }}>
+      <h1 style={{ fontSize: 24, marginBottom: 16 }}>文字陪伴同意說明</h1>
+      <p>本階段取得的是獨立的 BASIC_VOICE 陪伴同意，用來建立受控 Session 並產生安全回覆。</p>
       <ul>
-        <li>了解您說的內容，給您回覆</li>
-        <li>整理您的生活紀錄（例如吃飯、睡覺、活動），提供給照顧您的人參考</li>
+        <li>目前只會送出您主動輸入的文字，不會開啟麥克風或上傳音訊。</li>
+        <li>本輪文字不會自動成為長期記憶、照護事件或逐字稿。</li>
+        <li>每次互動前，Core 都會重新檢查身分、長者範圍及同意版本。</li>
       </ul>
-      <p>語音檔案會保存 90 天後自動刪除。您可以隨時要求刪除或更正您的資料。</p>
-      <p>您可以隨時撤回這個同意，撤回後系統就不會再錄音。</p>
+      <p>您可以隨時撤回；撤回後，新的陪伴 Session 會立即被 Core 拒絕。</p>
+
+      {!consent && !policyVersion && (
+        <p style={{ color: 'var(--color-destructive)' }}>
+          尚未設定同意政策版本，為避免套用錯誤政策，目前不能建立同意。
+        </p>
+      )}
 
       <div style={{ marginTop: 24, display: 'flex', gap: 12, justifyContent: 'center' }}>
-        {granted ? (
-          <button
-            type="button"
-            onClick={handleRevoke}
-            disabled={busy}
-            style={{ padding: '12px 28px', fontSize: 18, borderRadius: 8, border: '1px solid #e53e3e', background: '#fff', color: '#e53e3e' }}
-          >
-            撤回同意
+        {consent ? (
+          <button type="button" onClick={handleRevoke} disabled={busy}>
+            撤回陪伴同意
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={handleGrant}
-            disabled={busy}
-            style={{ padding: '12px 28px', fontSize: 18, borderRadius: 8, border: 'none', background: '#2b6cb0', color: '#fff' }}
-          >
-            我同意，開始使用
+          <button type="button" onClick={handleGrant} disabled={busy || !policyVersion}>
+            我同意，開始文字陪伴
           </button>
         )}
       </div>
 
-      <p style={{ marginTop: 12, textAlign: 'center', color: granted ? '#38a169' : '#a0aec0' }}>
-        目前狀態：{granted ? '已同意錄音' : '尚未同意錄音'}
+      <p style={{ marginTop: 12, textAlign: 'center' }}>
+        Core API 目前狀態：{consent ? `已同意（版本 ${consent.consent_version}）` : '尚未同意'}
       </p>
-      {error && <p style={{ color: '#e53e3e', textAlign: 'center' }}>{error}</p>}
+      {error && <p style={{ color: 'var(--color-destructive)', textAlign: 'center' }}>{error}</p>}
     </div>
   );
 }

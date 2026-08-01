@@ -1,97 +1,137 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import type { EventSummary, ListMemoriesResponse, PersonaContext, ReviewStatus, SummaryRecord } from '@elderly-care/shared';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EventFilterBar } from '@/components/dashboard/EventFilterBar';
 import { EventTable } from '@/components/dashboard/EventTable';
 import { MemoryList } from '@/components/dashboard/MemoryList';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
-import { PersonaForm } from '@/components/dashboard/PersonaForm';
 import { ApiRequestError } from '@/lib/api/client';
-import { listEvents, updateEvent, type ListEventsFilters } from '@/lib/api/events';
-import { confirmMemory, deleteMemory, listMemories, rejectMemory } from '@/lib/api/memories';
-import { getPersona, updatePersona } from '@/lib/api/persona';
-import { listSummaries, publishSummary, withdrawSummary } from '@/lib/api/summaries';
-import { getRuntimeConfig } from '@/lib/runtime-config';
+import {
+  listEvents,
+  reviewEvent,
+  type CareEventDecision,
+  type EventView,
+  type ListEventsFilters,
+} from '@/lib/api/events';
+import {
+  confirmMemory,
+  deleteMemory,
+  listMemories,
+  rejectMemory,
+  type MemoryListView,
+  type MemoryView,
+} from '@/lib/api/memories';
+import { listSummaries, type SummaryView } from '@/lib/api/summaries';
+import { getRuntimeConfig, type RuntimeConfig } from '@/lib/runtime-config';
 
-type Tab = 'events' | 'memories' | 'summaries' | 'persona';
+type Tab = 'events' | 'memories' | 'summaries';
 
-/** 403 always means the same thing here — caregiver JWT valid, but this elder isn't in their authorizedElderIds. */
-function describeError(err: unknown, fallback: string): string {
-  if (err instanceof ApiRequestError && err.status === 403) {
-    return '您目前沒有查看這位長者資料的權限，請聯絡系統管理員確認授權。';
+const SUMMARY_STATUS_LABEL: Record<SummaryView['status'], string> = {
+  DRAFT: '草稿',
+  READY: '可供覆核',
+  NEEDS_REVIEW: '待覆核',
+  PUBLISHED: '已發布',
+  STALE: '需重建',
+  WITHDRAWN: '已撤回',
+};
+
+function describeError(error: unknown, fallback: string): string {
+  if (error instanceof ApiRequestError && (error.status === 403 || error.status === 404)) {
+    return '目前身分沒有查看或操作這位長者資料的權限。';
+  }
+  if (error instanceof ApiRequestError && error.status === 409) {
+    return '資料版本已更新，請重新載入後再操作。';
   }
   return fallback;
 }
 
 export default function ElderDetailPage({ params }: { params: { elderId: string } }) {
   const { elderId } = params;
+  const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig | null>(null);
+  const apiConfig = useMemo(
+    () => ({ apiBaseUrl: runtimeConfig?.apiBaseUrl ?? '/backend/core' }),
+    [runtimeConfig?.apiBaseUrl],
+  );
   const [tab, setTab] = useState<Tab>('events');
-  const [events, setEvents] = useState<EventSummary[]>([]);
+  const [events, setEvents] = useState<EventView[]>([]);
   const [eventFilters, setEventFilters] = useState<ListEventsFilters>({});
-  const [memories, setMemories] = useState<ListMemoriesResponse>({ candidates: [], confirmed: [] });
-  const [summaries, setSummaries] = useState<SummaryRecord[]>([]);
-  const [persona, setPersona] = useState<PersonaContext | null>(null);
+  const [memories, setMemories] = useState<MemoryListView>({ candidates: [], confirmed: [] });
+  const [summaries, setSummaries] = useState<SummaryView[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const config = getRuntimeConfig();
-  const apiConfig = { apiBaseUrl: config.apiBaseUrl, token: config.token };
-  const caregiverId = config.caregiverId;
+  useEffect(() => {
+    let cancelled = false;
+    void getRuntimeConfig().then((nextConfig) => {
+      if (!cancelled) setRuntimeConfig(nextConfig);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const loadEvents = useCallback(() => {
+    setError(null);
     listEvents(apiConfig, elderId, eventFilters)
-      .then((res) => setEvents(res.items))
-      .catch((err) => setError(describeError(err, '讀取事件失敗')));
-  }, [elderId, eventFilters]);
+      .then((response) => setEvents(response.items))
+      .catch((caught) => setError(describeError(caught, '讀取事件失敗')));
+  }, [apiConfig, elderId, eventFilters]);
 
   const loadMemories = useCallback(() => {
+    setError(null);
     listMemories(apiConfig, elderId)
       .then(setMemories)
-      .catch((err) => setError(describeError(err, '讀取記憶失敗')));
-  }, [elderId]);
+      .catch((caught) => setError(describeError(caught, '讀取記憶失敗')));
+  }, [apiConfig, elderId]);
 
   const loadSummaries = useCallback(() => {
+    setError(null);
     listSummaries(apiConfig, elderId)
-      .then((res) => setSummaries(res.items))
-      .catch((err) => setError(describeError(err, '讀取摘要失敗')));
-  }, [elderId]);
-
-  const loadPersona = useCallback(() => {
-    getPersona(apiConfig, elderId)
-      .then(setPersona)
-      .catch((err) => setError(describeError(err, '讀取個人化設定失敗')));
-  }, [elderId]);
+      .then((response) => setSummaries(response.items))
+      .catch((caught) => setError(describeError(caught, '讀取摘要失敗')));
+  }, [apiConfig, elderId]);
 
   useEffect(() => {
-    if (!config.token) return;
+    if (runtimeConfig?.credentialStatus !== 'present') return;
     if (tab === 'events') loadEvents();
     if (tab === 'memories') loadMemories();
     if (tab === 'summaries') loadSummaries();
-    if (tab === 'persona') loadPersona();
-  }, [tab, config.token, loadEvents, loadMemories, loadSummaries, loadPersona]);
+  }, [tab, runtimeConfig?.credentialStatus, loadEvents, loadMemories, loadSummaries]);
 
-  if (!config.token) {
+  if (!runtimeConfig) return null;
+  if (runtimeConfig.credentialStatus === 'unavailable') {
+    return <NotLoggedIn reason="無法確認登入憑證狀態；系統已停止，不會略過認證" />;
+  }
+  if (runtimeConfig.credentialStatus !== 'present') {
     return <NotLoggedIn reason="尚未設定登入資訊，請先完成登入設定" />;
   }
 
-  async function handleSaveEvent(eventId: string, eventDate: string, content: string, reviewStatus: ReviewStatus) {
-    await updateEvent(apiConfig, eventId, { elderId, eventDate, content, reviewStatus, updatedBy: caregiverId });
-    loadEvents();
+  async function handleReviewEvent(
+    event: EventView,
+    decision: CareEventDecision,
+    correctedContent?: string,
+  ) {
+    try {
+      await reviewEvent(apiConfig, elderId, event, decision, correctedContent);
+      loadEvents();
+    } catch (caught) {
+      setError(describeError(caught, '覆核事件失敗'));
+      throw caught;
+    }
   }
 
-  async function handlePublishSummary(date: string) {
-    await publishSummary(apiConfig, elderId, date);
-    loadSummaries();
+  async function handleConfirmMemory(memory: MemoryView) {
+    await confirmMemory(apiConfig, elderId, memory);
+    loadMemories();
   }
 
-  async function handleWithdrawSummary(date: string) {
-    await withdrawSummary(apiConfig, elderId, date);
-    loadSummaries();
+  async function handleRejectMemory(memory: MemoryView) {
+    await rejectMemory(apiConfig, elderId, memory);
+    loadMemories();
   }
 
-  async function handleSavePersona(updates: PersonaContext) {
-    const saved = await updatePersona(apiConfig, elderId, { ...updates, updatedBy: caregiverId });
-    setPersona(saved);
+  async function handleDeleteMemory(memory: MemoryView) {
+    await deleteMemory(apiConfig, elderId, memory);
+    loadMemories();
   }
 
   return (
@@ -99,22 +139,29 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
       <h1 style={{ fontSize: 22, marginBottom: 4 }}>長者詳情</h1>
       <p style={{ color: '#718096', marginBottom: 20 }}>Elder ID: {elderId}</p>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, borderBottom: '1px solid #e2e8f0' }}>
-        {(['events', 'memories', 'summaries', 'persona'] as Tab[]).map((t) => (
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          marginBottom: 20,
+          borderBottom: '1px solid #e2e8f0',
+        }}
+      >
+        {(['events', 'memories', 'summaries'] as Tab[]).map((item) => (
           <button
-            key={t}
+            key={item}
             type="button"
-            onClick={() => setTab(t)}
+            onClick={() => setTab(item)}
             style={{
               padding: '8px 16px',
               border: 'none',
-              borderBottom: tab === t ? '2px solid #2b6cb0' : '2px solid transparent',
+              borderBottom: tab === item ? '2px solid #2b6cb0' : '2px solid transparent',
               background: 'none',
-              fontWeight: tab === t ? 700 : 400,
+              fontWeight: tab === item ? 700 : 400,
               cursor: 'pointer',
             }}
           >
-            {t === 'events' ? 'AI 擷取事件' : t === 'memories' ? '記憶管理' : t === 'summaries' ? '每日摘要' : '個人化設定'}
+            {item === 'events' ? '照護事件' : item === 'memories' ? '記憶管理' : '每日摘要'}
           </button>
         ))}
       </div>
@@ -124,7 +171,7 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
       {tab === 'events' && (
         <>
           <EventFilterBar filters={eventFilters} onChange={setEventFilters} />
-          <EventTable events={events} onSave={handleSaveEvent} />
+          <EventTable events={events} onReview={handleReviewEvent} />
         </>
       )}
 
@@ -132,57 +179,46 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
         <MemoryList
           candidates={memories.candidates}
           confirmed={memories.confirmed}
-          onConfirm={async (id) => {
-            await confirmMemory(apiConfig, elderId, id, caregiverId);
-            loadMemories();
-          }}
-          onReject={async (id) => {
-            await rejectMemory(apiConfig, elderId, id, caregiverId);
-            loadMemories();
-          }}
-          onDelete={async (id) => {
-            await deleteMemory(apiConfig, elderId, id);
-            loadMemories();
-          }}
+          onConfirm={handleConfirmMemory}
+          onReject={handleRejectMemory}
+          onDelete={handleDeleteMemory}
         />
       )}
 
       {tab === 'summaries' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {summaries.length === 0 && <p style={{ color: '#718096' }}>目前沒有摘要紀錄。</p>}
-          {summaries.map((s) => (
-            <div key={s.summaryId} style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}>
+          <p style={{ color: '#718096' }}>
+            Core API 目前僅提供摘要讀取；摘要發布與家屬報表是不同的正式流程。
+          </p>
+          {summaries.length === 0 && <p style={{ color: '#718096' }}>目前沒有正式摘要。</p>}
+          {summaries.map((summary) => (
+            <section
+              key={summary.summaryId}
+              style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <strong>{s.date}</strong>
-                <span
-                  style={{
-                    fontSize: 12,
-                    padding: '2px 8px',
-                    borderRadius: 999,
-                    color: s.status === 'published' ? '#2f855a' : s.status === 'withdrawn' ? '#718096' : '#b7791f',
-                    background: s.status === 'published' ? '#f0fff4' : s.status === 'withdrawn' ? '#f7fafc' : '#fffaf0',
-                  }}
-                >
-                  {s.status === 'published' ? '已發布' : s.status === 'withdrawn' ? '已撤回' : '草稿'}
-                </span>
+                <strong>{summary.date}</strong>
+                <span>{SUMMARY_STATUS_LABEL[summary.status]}</span>
+                <span style={{ fontSize: 12, color: '#718096' }}>版本 {summary.version}</span>
               </div>
-              <p>{s.content.overview}</p>
-              <p style={{ fontSize: 12, color: '#718096' }}>來源事件數：{s.sourceEventIds.length}</p>
-              {s.status === 'published' ? (
-                <button type="button" onClick={() => handleWithdrawSummary(s.date)}>
-                  撤回
-                </button>
+              {summary.items.length === 0 ? (
+                <p style={{ color: '#718096' }}>沒有可顯示的來源支持項目。</p>
               ) : (
-                <button type="button" onClick={() => handlePublishSummary(s.date)}>
-                  發布給家屬
-                </button>
+                <ul>
+                  {summary.items.map((item, index) => (
+                    <li key={`${item.category}-${index}`}>
+                      [{item.category}] {item.text}（來源 {item.sourceEventIds.length} 筆）
+                    </li>
+                  ))}
+                </ul>
               )}
-            </div>
+              {summary.missingFields.length > 0 && (
+                <p style={{ color: '#718096' }}>資料缺口：{summary.missingFields.join('、')}</p>
+              )}
+            </section>
           ))}
         </div>
       )}
-
-      {tab === 'persona' && <PersonaForm persona={persona} onSave={handleSavePersona} />}
     </main>
   );
 }
