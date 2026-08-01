@@ -18,16 +18,7 @@
   },
   "overrides": [
     {
-      "files": [
-        "packages/frontend/src/app/dashboard/**/*.{ts,tsx}",
-        "packages/frontend/src/app/family/**/*.{ts,tsx}",
-        "packages/frontend/src/app/staff/**/*.{ts,tsx}",
-        "packages/frontend/src/components/dashboard/**/*.{ts,tsx}",
-        "packages/frontend/src/components/NotLoggedIn.tsx",
-        "packages/frontend/src/components/StateCard.tsx",
-        "packages/frontend/src/components/SurfaceShell.tsx",
-        "packages/frontend/src/components/LanguageSwitch.tsx"
-      ],
+      "files": ["packages/frontend/src/**/*.{ts,tsx}"],
       "rules": {
         "no-restricted-syntax": [
           "error",
