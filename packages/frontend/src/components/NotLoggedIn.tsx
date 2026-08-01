@@ -13,8 +13,8 @@ interface NotLoggedInProps {
 export function NotLoggedIn({ reason, linkLabel }: NotLoggedInProps) {
   return (
     <main style={{ maxWidth: 480, margin: '80px auto', padding: 24, textAlign: 'center' }}>
-      <p style={{ color: '#718096', marginBottom: 16 }}>{reason}</p>
-      <a href="/sign-in" style={{ color: '#2b6cb0' }}>
+      <p style={{ color: 'var(--color-muted-foreground)', marginBottom: 16 }}>{reason}</p>
+      <a href="/sign-in" style={{ color: 'var(--color-primary-text)' }}>
         {linkLabel ?? '前往登入 →'}
       </a>
     </main>

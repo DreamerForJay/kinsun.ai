@@ -56,8 +56,10 @@ export default function CaregiverDashboardPage() {
   return (
     <main style={{ maxWidth: 900, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontSize: 22, marginBottom: 16 }}>{t('dashboard.title')}</h1>
-      <p style={{ color: '#718096', marginBottom: 16 }}>{t('dashboard.subtitle')}</p>
-      {errorKey && <p style={{ color: '#e53e3e' }}>{t(errorKey)}</p>}
+      <p style={{ color: 'var(--color-muted-foreground)', marginBottom: 16 }}>
+        {t('dashboard.subtitle')}
+      </p>
+      {errorKey && <p style={{ color: 'var(--color-destructive)' }}>{t(errorKey)}</p>}
       {!elders && !errorKey && <p>{t('common.loading')}</p>}
       {elders && <ElderOverviewList elders={elders} />}
     </main>

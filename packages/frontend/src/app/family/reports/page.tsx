@@ -62,11 +62,15 @@ export default function FamilyReportCenterPage() {
         <Link href="/family">{t('reports.back')}</Link>
       </p>
       <h1 style={{ fontSize: 22, marginBottom: 4 }}>{t('reports.title')}</h1>
-      <p style={{ color: '#718096', marginBottom: 20 }}>{t('reports.subtitle')}</p>
+      <p style={{ color: 'var(--color-muted-foreground)', marginBottom: 20 }}>
+        {t('reports.subtitle')}
+      </p>
 
-      {errorKey && <p style={{ color: '#e53e3e' }}>{t(errorKey)}</p>}
+      {errorKey && <p style={{ color: 'var(--color-destructive)' }}>{t(errorKey)}</p>}
       {!reports && !errorKey && <p>{t('common.loading')}</p>}
-      {reports && reports.length === 0 && <p style={{ color: '#718096' }}>{t('reports.empty')}</p>}
+      {reports && reports.length === 0 && (
+        <p style={{ color: 'var(--color-muted-foreground)' }}>{t('reports.empty')}</p>
+      )}
 
       {reports && reports.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

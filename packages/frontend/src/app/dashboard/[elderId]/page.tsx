@@ -193,7 +193,9 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
   return (
     <main style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontSize: 22, marginBottom: 4 }}>{t('elderDetail.title')}</h1>
-      <p style={{ color: '#718096', marginBottom: 20 }}>Elder ID: {elderId}</p>
+      <p style={{ color: 'var(--color-muted-foreground)', marginBottom: 20 }}>
+        Elder ID: {elderId}
+      </p>
 
       {/* §10.2 Needs Review: the count and the reason, on every tab. */}
       {needsReview && needsReview.count > 0 && (
@@ -229,7 +231,7 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
           display: 'flex',
           gap: 12,
           marginBottom: 20,
-          borderBottom: '1px solid #e2e8f0',
+          borderBottom: '1px solid var(--color-border)',
         }}
       >
         {(['events', 'memories', 'summaries'] as Tab[]).map((item) => (
@@ -241,7 +243,8 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
             style={{
               padding: '8px 16px',
               border: 'none',
-              borderBottom: tab === item ? '2px solid #2b6cb0' : '2px solid transparent',
+              borderBottom:
+                tab === item ? '2px solid var(--color-primary)' : '2px solid transparent',
               background: 'none',
               fontWeight: tab === item ? 700 : 400,
               cursor: 'pointer',
@@ -252,7 +255,7 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
         ))}
       </div>
 
-      {errorKey && <p style={{ color: '#e53e3e' }}>{t(errorKey)}</p>}
+      {errorKey && <p style={{ color: 'var(--color-destructive)' }}>{t(errorKey)}</p>}
 
       {tab === 'events' && (
         <>
@@ -273,24 +276,32 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
 
       {tab === 'summaries' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p style={{ color: '#718096' }}>{t('elderDetail.summaryNotice')}</p>
+          <p style={{ color: 'var(--color-muted-foreground)' }}>{t('elderDetail.summaryNotice')}</p>
           {summaries.length === 0 && (
-            <p style={{ color: '#718096' }}>{t('elderDetail.summaryEmpty')}</p>
+            <p style={{ color: 'var(--color-muted-foreground)' }}>
+              {t('elderDetail.summaryEmpty')}
+            </p>
           )}
           {summaries.map((summary) => (
             <section
               key={summary.summaryId}
-              style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}
+              style={{
+                padding: 'var(--space-3)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+              }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <strong>{summary.date}</strong>
                 <span>{t(`summaryStatus.${summary.status}` as MessageKey)}</span>
-                <span style={{ fontSize: 12, color: '#718096' }}>
+                <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}>
                   {t('common.version', { version: summary.version })}
                 </span>
               </div>
               {summary.items.length === 0 ? (
-                <p style={{ color: '#718096' }}>{t('elderDetail.summaryNoItems')}</p>
+                <p style={{ color: 'var(--color-muted-foreground)' }}>
+                  {t('elderDetail.summaryNoItems')}
+                </p>
               ) : (
                 <ul>
                   {summary.items.map((item, index) => (
@@ -302,7 +313,7 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
                 </ul>
               )}
               {summary.missingFields.length > 0 && (
-                <p style={{ color: '#718096' }}>
+                <p style={{ color: 'var(--color-muted-foreground)' }}>
                   {t('elderDetail.dataGaps', {
                     fields: summary.missingFields.join(listSeparator),
                   })}

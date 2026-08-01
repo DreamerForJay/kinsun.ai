@@ -41,13 +41,13 @@ export function EventTable({ events, onReview }: EventTableProps) {
   }
 
   if (events.length === 0) {
-    return <p style={{ color: '#718096' }}>{t('eventTable.empty')}</p>;
+    return <p style={{ color: 'var(--color-muted-foreground)' }}>{t('eventTable.empty')}</p>;
   }
 
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
       <thead>
-        <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+        <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--color-border-strong)' }}>
           <th style={{ padding: 8 }}>{t('eventTable.colDate')}</th>
           <th style={{ padding: 8 }}>{t('eventTable.colType')}</th>
           <th style={{ padding: 8 }}>{t('eventTable.colContent')}</th>
@@ -59,7 +59,7 @@ export function EventTable({ events, onReview }: EventTableProps) {
       </thead>
       <tbody>
         {events.map((event) => (
-          <tr key={event.eventId} style={{ borderBottom: '1px solid #edf2f7' }}>
+          <tr key={event.eventId} style={{ borderBottom: '1px solid var(--color-border)' }}>
             <td style={{ padding: 8 }}>{event.eventDate}</td>
             <td style={{ padding: 8 }}>{t(`eventType.${event.eventType}` as MessageKey)}</td>
             <td style={{ padding: 8, maxWidth: 280 }}>
@@ -83,7 +83,7 @@ export function EventTable({ events, onReview }: EventTableProps) {
                 label={t(`eventStatus.${event.status}` as MessageKey)}
               />
             </td>
-            <td style={{ padding: 8, fontSize: 12, color: '#718096' }}>
+            <td style={{ padding: 8, fontSize: 12, color: 'var(--color-muted-foreground)' }}>
               {t('eventTable.evidenceVersion', {
                 evidence: event.evidenceRefs.length,
                 version: event.version,

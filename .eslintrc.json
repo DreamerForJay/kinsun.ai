@@ -6,24 +6,41 @@
     "sourceType": "module"
   },
   "plugins": ["@typescript-eslint"],
-  "extends": [
-    "eslint:recommended",
-    "plugin:@typescript-eslint/recommended",
-    "prettier"
-  ],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended", "prettier"],
   "env": {
     "node": true,
     "es2022": true
   },
-  "ignorePatterns": [
-    "**/node_modules/**",
-    "**/dist/**",
-    "**/.next/**",
-    "**/cdk.out/**",
-    "1214/**"
-  ],
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/.next/**", "**/cdk.out/**", "1214/**"],
   "rules": {
     "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
     "@typescript-eslint/no-explicit-any": "warn"
-  }
+  },
+  "overrides": [
+    {
+      "files": [
+        "packages/frontend/src/app/dashboard/**/*.{ts,tsx}",
+        "packages/frontend/src/app/family/**/*.{ts,tsx}",
+        "packages/frontend/src/app/staff/**/*.{ts,tsx}",
+        "packages/frontend/src/components/dashboard/**/*.{ts,tsx}",
+        "packages/frontend/src/components/NotLoggedIn.tsx",
+        "packages/frontend/src/components/StateCard.tsx",
+        "packages/frontend/src/components/SurfaceShell.tsx",
+        "packages/frontend/src/components/LanguageSwitch.tsx"
+      ],
+      "rules": {
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "Literal[value=/#(?:[0-9a-fA-F]{3,4}){1,2}\\b/]",
+            "message": "不得在元件內寫 raw hex（MASTER.md §14）。改用 app/tokens.css 的 var(--color-*)；需要新色階時加在 primitive 層，不要就地發明顏色。"
+          },
+          {
+            "selector": "TemplateElement[value.raw=/#(?:[0-9a-fA-F]{3,4}){1,2}\\b/]",
+            "message": "同上：樣板字串裡也不得出現 raw hex（MASTER.md §14）。"
+          }
+        ]
+      }
+    }
+  ]
 }

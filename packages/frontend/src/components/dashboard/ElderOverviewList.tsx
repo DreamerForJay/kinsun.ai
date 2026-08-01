@@ -12,13 +12,13 @@ export function ElderOverviewList({ elders }: ElderOverviewListProps) {
   const { t } = useLocale();
 
   if (elders.length === 0) {
-    return <p style={{ color: '#718096' }}>{t('dashboard.empty')}</p>;
+    return <p style={{ color: 'var(--color-muted-foreground)' }}>{t('dashboard.empty')}</p>;
   }
 
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
       <thead>
-        <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+        <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--color-border-strong)' }}>
           <th style={{ padding: 8 }}>{t('dashboard.colElder')}</th>
           <th style={{ padding: 8 }}>{t('dashboard.colCareUnit')}</th>
           <th style={{ padding: 8 }}>{t('dashboard.colAuthorization')}</th>
@@ -26,9 +26,12 @@ export function ElderOverviewList({ elders }: ElderOverviewListProps) {
       </thead>
       <tbody>
         {elders.map((elder) => (
-          <tr key={elder.elderId} style={{ borderBottom: '1px solid #edf2f7' }}>
+          <tr key={elder.elderId} style={{ borderBottom: '1px solid var(--color-border)' }}>
             <td style={{ padding: 8 }}>
-              <Link href={`/dashboard/${elder.elderId}`} style={{ color: '#2b6cb0' }}>
+              <Link
+                href={`/dashboard/${elder.elderId}`}
+                style={{ color: 'var(--color-primary-text)' }}
+              >
                 {elder.elderName}
               </Link>
             </td>

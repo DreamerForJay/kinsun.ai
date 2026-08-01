@@ -65,7 +65,7 @@ export default function FamilyHomePage() {
   if (errorKey) {
     return (
       <main style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>
-        <p style={{ color: '#e53e3e' }}>{t(errorKey)}</p>
+        <p style={{ color: 'var(--color-destructive)' }}>{t(errorKey)}</p>
       </main>
     );
   }
@@ -113,7 +113,7 @@ export default function FamilyHomePage() {
   return (
     <main style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontSize: 22, marginBottom: 4 }}>{t('family.homeTitle')}</h1>
-      <p style={{ color: '#718096', marginBottom: 20 }}>
+      <p style={{ color: 'var(--color-muted-foreground)', marginBottom: 20 }}>
         {t('family.meta', {
           elderId,
           updated: lastUpdated ? formatDateTime(lastUpdated) : t('family.noData'),
@@ -146,7 +146,7 @@ export default function FamilyHomePage() {
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 8 }}>{t('family.weekTitle')}</h2>
         {weeklyReports.length === 0 ? (
-          <p style={{ color: '#718096' }}>{t('family.weekNone')}</p>
+          <p style={{ color: 'var(--color-muted-foreground)' }}>{t('family.weekNone')}</p>
         ) : (
           <p>
             {t('family.weekSummary', {
@@ -161,7 +161,7 @@ export default function FamilyHomePage() {
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 8 }}>{t('family.importantTitle')}</h2>
         {importantItems.length === 0 ? (
-          <p style={{ color: '#718096' }}>{t('family.importantNone')}</p>
+          <p style={{ color: 'var(--color-muted-foreground)' }}>{t('family.importantNone')}</p>
         ) : (
           <ul>
             {importantItems.map((item, index) => (

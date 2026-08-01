@@ -20,6 +20,11 @@
   --red-50: #fef2f2;
   --slate-500: #64748b;
   --slate-100: #f1f5f9;
+  /* Page backgrounds sit below cyan-50 / slate-100 on the scale. They live here
+     rather than inline in the surface blocks below: the surface layer selects
+     primitives, it does not mint colours (§3). */
+  --slate-25: #f6fafb;
+  --cyan-25: #f8fdfe;
   --white: #ffffff;
 
   /* ---- semantic: colour ---- */
@@ -125,7 +130,7 @@
 /* ---- surface: care (professional). Deliberately more neutral background —
        a saturated background fatigues over a long shift (§4.1). ---- */
 [data-surface='care'] {
-  --color-background: #f6fafb;
+  --color-background: var(--slate-25);
   --text-xs: 12px;
   --text-sm: 14px;
   --text-base: 16px;
@@ -142,7 +147,7 @@
 
 /* ---- surface: family ---- */
 [data-surface='family'] {
-  --color-background: #f8fdfe;
+  --color-background: var(--cyan-25);
   --text-xs: 14px;
   --text-sm: 16px;
   --text-base: 18px;

@@ -8,8 +8,8 @@ export default function FamilyJoinPage() {
   return (
     <main style={{ margin: '0 auto', maxWidth: 560, padding: 24 }}>
       <h1 style={{ fontSize: 28 }}>{t('join.title')}</h1>
-      <p style={{ color: '#4a5568', lineHeight: 1.7 }}>{t('join.intro')}</p>
-      <p style={{ color: '#4a5568', lineHeight: 1.7 }}>{t('join.note')}</p>
+      <p style={{ color: 'var(--color-foreground)', lineHeight: 1.7 }}>{t('join.intro')}</p>
+      <p style={{ color: 'var(--color-foreground)', lineHeight: 1.7 }}>{t('join.note')}</p>
       {/* Native form post to the BFF: redemption stays server-side, so this page
           needs no JavaScript to work beyond the language switch. */}
       <form action="/backend/auth/login" method="post" style={{ marginTop: 20 }}>
@@ -30,10 +30,10 @@ export default function FamilyJoinPage() {
         />
         <button
           style={{
-            background: '#1d4ed8',
+            background: 'var(--color-primary)',
             border: 0,
-            borderRadius: 10,
-            color: 'white',
+            borderRadius: 'var(--radius-md)',
+            color: 'var(--color-on-primary)',
             fontSize: 18,
             marginTop: 14,
             padding: '14px 18px',
