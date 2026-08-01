@@ -22,8 +22,28 @@ const TRANSCRIBE_LANGUAGE_CODES: Record<'zh-TW' | 'en-US', LanguageCode> = {
   'en-US': LanguageCode.EN_US,
 };
 
-async function* singleChunkAudioStream(data: Uint8Array) {
-  yield { AudioEvent: { AudioChunk: data } };
+/**
+ * Bytes per AudioEvent. Transcribe rejects the entire request with
+ * "Your stream is too big. Reduce the frame size and try your request again."
+ * once a single event exceeds its frame limit, so even a short utterance cannot
+ * be sent as one chunk.
+ *
+ * 3200 bytes is 100ms of 16kHz 16-bit mono PCM. It stays a safe frame size for
+ * higher sample rates and for ogg-opus as well — those simply carry a different
+ * amount of audio per frame, which the service reassembles from the byte
+ * sequence either way.
+ */
+const AUDIO_FRAME_BYTES = 3200;
+
+/**
+ * Splits the utterance into Transcribe-sized frames. The streaming API expects
+ * a sequence of small frames rather than one blob — this is why the recorded
+ * audio is re-chunked here instead of being forwarded as-is.
+ */
+async function* framedAudioStream(data: Uint8Array, frameBytes = AUDIO_FRAME_BYTES) {
+  for (let offset = 0; offset < data.length; offset += frameBytes) {
+    yield { AudioEvent: { AudioChunk: data.subarray(offset, offset + frameBytes) } };
+  }
 }
 
 /** AWS Transcribe Streaming — handles Mandarin and English (A02.1, A02.3). */
@@ -35,7 +55,7 @@ export class TranscribeAdapter implements AsrAdapter {
       LanguageCode: TRANSCRIBE_LANGUAGE_CODES[language],
       MediaEncoding: audio.encoding === 'opus' ? 'ogg-opus' : 'pcm',
       MediaSampleRateHertz: audio.sampleRate,
-      AudioStream: singleChunkAudioStream(audio.data),
+      AudioStream: framedAudioStream(audio.data),
     });
     const response = await this.client.send(command);
 
