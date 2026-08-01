@@ -6,7 +6,12 @@ import {
   createDevelopmentAuthSession,
   hasAuthCredential,
 } from '@/lib/auth-session';
-import { AUTH_STORAGE_KEYS, clearLegacyBrowserCredential } from '@/lib/runtime-config';
+import {
+  AUTH_STORAGE_KEYS,
+  clearLegacyBrowserCredential,
+  getVoiceSessionConfig,
+  setVoiceWsToken,
+} from '@/lib/runtime-config';
 
 /**
  * Development-only stand-in for the future Cognito authorization-code
@@ -20,27 +25,33 @@ export default function DevLoginPage() {
   const [credentialPresent, setCredentialPresent] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isLocalHost, setIsLocalHost] = useState(false);
+
+  // Voice (packages/backend's WebSocket API) is a separate backend with its
+  // own Cognito JWT — not the Core API bearer token above, and not stored
+  // as a cookie. See lib/runtime-config.ts's getVoiceSessionConfig.
+  const [voiceToken, setVoiceTokenInput] = useState('');
+  const [voiceSaved, setVoiceSaved] = useState(false);
 
   useEffect(() => {
-    const host = window.location.hostname.toLowerCase();
-    setIsLocalHost(host === 'localhost' || host === '127.0.0.1' || host === '[::1]');
     clearLegacyBrowserCredential();
     setElderId(window.localStorage.getItem(AUTH_STORAGE_KEYS.elderId) ?? '');
     setCaregiverId(window.localStorage.getItem(AUTH_STORAGE_KEYS.caregiverId) ?? '');
+    setVoiceTokenInput(getVoiceSessionConfig().token);
     void hasAuthCredential()
       .then(setCredentialPresent)
       .catch(() => setCredentialPresent(null));
   }, []);
 
-  if (process.env.NODE_ENV !== 'development' || !isLocalHost) {
-    return (
-      <main style={{ maxWidth: 560, margin: '0 auto', padding: 24 }}>
-        <h1 style={{ fontSize: 22 }}>本機 Demo 登入</h1>
-        <p>這個頁面只可在本機開發環境使用。</p>
-        <a href="/sign-in">前往正式登入</a>
-      </main>
-    );
+  function handleSaveVoiceToken(e: React.FormEvent) {
+    e.preventDefault();
+    setVoiceWsToken(voiceToken.trim());
+    setVoiceSaved(true);
+  }
+
+  function handleClearVoiceToken() {
+    setVoiceWsToken('');
+    setVoiceTokenInput('');
+    setVoiceSaved(false);
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -69,6 +80,7 @@ export default function DevLoginPage() {
       clearLegacyBrowserCredential();
       window.localStorage.removeItem(AUTH_STORAGE_KEYS.elderId);
       window.localStorage.removeItem(AUTH_STORAGE_KEYS.caregiverId);
+      handleClearVoiceToken();
       setToken('');
       setElderId('');
       setCaregiverId('');
@@ -155,6 +167,45 @@ export default function DevLoginPage() {
           {credentialPresent === false && <span style={{ fontSize: 14 }}>尚未登入</span>}
         </div>
         {error && <p style={{ color: '#c53030', margin: 0 }}>{error}</p>}
+      </form>
+
+      <hr style={{ margin: '32px 0', border: 'none', borderTop: '1px solid #e2e8f0' }} />
+
+      <h2 style={{ fontSize: 18, marginBottom: 8 }}>語音（選填，另一套後端）</h2>
+      <p style={{ color: '#718096', marginBottom: 16, fontSize: 14, lineHeight: 1.6 }}>
+        語音互動走 packages/backend 的 WebSocket API，跟上面的 Core API 是不同的後端、不同的憑證，
+        也不會存進 Cookie。需要另外部署 infrastructure/ 並在 .env.local 設定 NEXT_PUBLIC_WS_URL，
+        這裡只設定該後端要驗證的 Cognito ID Token。有填才會在首頁改用語音面板，否則維持文字陪伴。
+      </p>
+      <form onSubmit={handleSaveVoiceToken} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <label>
+          語音 Cognito ID Token
+          <textarea
+            value={voiceToken}
+            onChange={(e) => setVoiceTokenInput(e.target.value)}
+            rows={4}
+            placeholder="eyJhbGciOi..."
+            autoComplete="off"
+            spellCheck={false}
+            style={{
+              display: 'block',
+              width: '100%',
+              padding: 8,
+              marginTop: 4,
+              fontFamily: 'monospace',
+              fontSize: 12,
+            }}
+          />
+        </label>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button type="submit" disabled={!voiceToken.trim()}>
+            儲存語音憑證
+          </button>
+          <button type="button" onClick={handleClearVoiceToken}>
+            清除語音憑證
+          </button>
+          {voiceSaved && <span style={{ color: '#2f855a', fontSize: 14 }}>已儲存</span>}
+        </div>
       </form>
 
       <div style={{ marginTop: 24, display: 'flex', gap: 16, fontSize: 14 }}>

@@ -23,8 +23,16 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 /**
  * WebSocketClient (design.md §前端層). Wire protocol matches the backend's
  * $connect/control/audio routes (packages/backend/src/workflow/handlers):
- *  - connect: no reusable credential may appear in the URL. The future speech
- *    gateway must issue and consume a short-lived, single-use connection ticket.
+ *  - connect: `${wsUrl}?token=<CognitoIdToken>`. TEMPORARY: this puts a
+ *    reusable credential in the URL, which is exactly what a prior revision
+ *    of this file's own doc comment flagged as unsafe ("no reusable
+ *    credential may appear in the URL... must issue and consume a
+ *    short-lived, single-use connection ticket"). Reinstated because
+ *    packages/backend/src/workflow/handlers/connect.ts only reads
+ *    queryStringParameters.token today and has no cookie-reading path — the
+ *    BFF's HttpOnly-cookie model (see lib/server/core-proxy.ts) doesn't
+ *    reach this backend at all. Replace both sides with a short-lived
+ *    ticket before this ships past a demo.
  *  - control route: { action: "control", type: "start" | "stop" | "cancel" }
  *  - audio route:   { action: "audio", audioBase64, encoding, sampleRate }
  * `action` is API Gateway's routeSelectionExpression key, not a payload
@@ -34,6 +42,7 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 export class VoiceWebSocketClient {
   private ws: WebSocket | null = null;
   private wsUrl: string | null = null;
+  private token: string | null = null;
   private reconnectAttempts = 0;
   private pendingQueue: unknown[] = [];
 
@@ -41,14 +50,15 @@ export class VoiceWebSocketClient {
   private transcriptCallbacks: ((text: string) => void)[] = [];
   private responseCallbacks: ((payload: ServerResponsePayload) => void)[] = [];
 
-  connect(wsUrl: string): Promise<void> {
+  connect(wsUrl: string, token: string): Promise<void> {
     this.wsUrl = wsUrl;
+    this.token = token;
     return this.openSocket();
   }
 
   private openSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(this.wsUrl!);
+      const ws = new WebSocket(`${this.wsUrl!}?token=${encodeURIComponent(this.token ?? '')}`);
       ws.onopen = () => {
         this.reconnectAttempts = 0;
         this.flushQueue();
@@ -131,6 +141,7 @@ export class VoiceWebSocketClient {
 
   disconnect(): void {
     this.wsUrl = null;
+    this.token = null;
     this.ws?.close();
     this.ws = null;
   }
