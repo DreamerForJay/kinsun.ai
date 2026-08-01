@@ -387,8 +387,21 @@ Authorization Expired／Consent Revoked／Data Insufficient。
 前端**不得渲染**以下欄位，即使 API 回傳了：逐字稿、ASR 信心值、未覆核事件、
 內部照護筆記、診斷式分數、完整 Prompt（AGENTS.md §8.1、文件 04 §8.7）。
 
-建議在 `family` 的 API client 加一道 runtime assert 攔截這些欄位並丟出錯誤，
-而不是只依賴後端不回傳。這是縱深防禦，成本極低。
+這道 runtime assert **已實作**於 `packages/frontend/src/lib/api/family-guard.ts`，
+在 `listFamilyReports` 內對 **raw Core payload** 執行（必須在 `toFamilyReportView`
+之前——mapping 只留已知欄位，洩漏的逐字稿會被靜默丟掉，違約就永遠看不到）。
+
+兩種違規的處置刻意不同：
+
+| 違規 | 處置 | 理由 |
+| --- | --- | --- |
+| 出現本節列的受限欄位 | **丟 `FamilyDataRedlineError`**，整頁失敗 | 契約已破到無法界定範圍，繼續渲染等於猜測還有什麼是壞的 |
+| 回傳非 `PUBLISHED`／`WITHDRAWN` 的報表 | **丟棄該筆**，其餘照常顯示，並記錄違規 | 沒進 DOM 就沒洩漏；為一筆壞資料讓家屬看不到其他合法報表是錯的代價 |
+
+被丟棄的報表**不得**在畫面上留下任何痕跡——讓家屬知道有一份草稿存在，本身就是揭露（§10.3）。
+
+新增家屬端 endpoint 時要一併接上這兩道；受限欄位清單也在該檔，以正規化（小寫、去
+`_`／`-`）比對，casing 或 camelCase 變動不會讓它變成空轉。
 
 ---
 
