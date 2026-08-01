@@ -11,12 +11,13 @@ export function accessTokenCookieName(): string {
     : DEVELOPMENT_ACCESS_TOKEN_COOKIE;
 }
 
-export function accessTokenCookieOptions() {
+export function accessTokenCookieOptions(maxAgeSeconds?: number) {
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax' as const,
     path: '/',
+    ...(maxAgeSeconds === undefined ? {} : { maxAge: maxAgeSeconds }),
   };
 }
 
