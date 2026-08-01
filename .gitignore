@@ -24,6 +24,9 @@ npm-debug.log*
 
 # AWS CDK
 cdk.out/
+# cdk deploy --outputs-file 的產物：某次部署的端點與資源 ID，隨時可用
+# `aws cloudformation describe-stacks` 查回，不需要版控
+cdk-outputs.json
 
 # 編輯器、OS 與本機 AI 工具
 .vscode/
