@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "profile": "legal",
+  "search_pipeline": "kinsun-rag-legal-staging-v1",
+  "bm25_weight": 0.65,
+  "vector_weight": 0.35,
+  "vector_min_score": 0.7,
+  "top_k": 5,
+  "agent_chunk_min": 3,
+  "agent_chunk_max": 5,
+  "pipeline": {
+    "description": "Staging RAG legal exact-question hybrid score normalization",
+    "phase_results_processors": [
+      {
+        "normalization-processor": {
+          "normalization": { "technique": "min_max" },
+          "combination": {
+            "technique": "arithmetic_mean",
+            "parameters": { "weights": [0.65, 0.35] }
+          }
+        }
+      }
+    ]
+  }
+}

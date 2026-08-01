@@ -1,0 +1,11 @@
+{
+  "_why_invalid": "The first staging RAG contract fixes retrieval to Top 5.",
+  "data": {
+    "schema_version": "1.0.0",
+    "request_id": "rag-request-002",
+    "query": "長照服務是什麼？",
+    "query_profile": "natural_language",
+    "top_k": 10
+  }
+}
+

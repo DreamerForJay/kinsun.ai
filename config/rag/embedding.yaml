@@ -1,0 +1,16 @@
+schema_version: "1.0.0"
+embedding:
+  provider: bedrock
+  model_id: cohere.embed-v4:0
+  model_id_env: BEDROCK_EMBEDDING_MODEL_ID
+  dimension: 1024
+  dimension_env: BEDROCK_EMBEDDING_DIMENSION
+  region: null
+  region_env: AWS_REGION
+  document_input_type: search_document
+  query_input_type: search_query
+  embedding_types:
+    - float
+  batch_size: 96
+  truncate: NONE
+

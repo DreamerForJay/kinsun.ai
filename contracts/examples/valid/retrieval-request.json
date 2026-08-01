@@ -1,0 +1,13 @@
+{
+  "data": {
+    "schema_version": "1.0.0",
+    "request_id": "rag-request-001",
+    "query": "長期照顧服務法第三條如何定義家庭照顧者？",
+    "query_profile": "legal",
+    "top_k": 5,
+    "audience": "family_caregiver",
+    "purpose": "legal_reference",
+    "language": "zh-TW"
+  }
+}
+

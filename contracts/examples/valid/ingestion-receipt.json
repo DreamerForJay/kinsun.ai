@@ -1,0 +1,33 @@
+{
+  "data": {
+    "schema_version": "1.0.0",
+    "run_id": "7f93d4ef-48ef-46a4-8f09-c05622d6b4ef",
+    "mode": "staging",
+    "status": "VALIDATED",
+    "started_at": "2026-08-01T04:00:00Z",
+    "completed_at": "2026-08-01T04:01:00Z",
+    "allowlist_path": "data/rag-manifest/AI_Reviewed_Embedding_Staging_Allowlist_v002.json",
+    "allowlist_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "chunks_dir": "data/rag-chunks/approved",
+    "source_count": 6,
+    "allowlist_chunk_count": 262,
+    "validated_chunk_count": 262,
+    "embedding_model_id": "cohere.embed-v4:0",
+    "embedding_dimension": 1024,
+    "embedding_success_count": 0,
+    "embedding_failure_count": 0,
+    "index_name": "ltc-public-knowledge-staging-v1",
+    "index_alias": "ltc-public-knowledge-staging",
+    "indexed_document_count": 0,
+    "duplicate_id_count": 0,
+    "governance": {
+      "governance_status": "UNSIGNED_DEVELOPMENT_OVERRIDE",
+      "production_approved": false,
+      "allowlist_status": "DRAFT_FIXED_HASH_NOT_EFFECTIVE_UNTIL_PROJECT_OWNER_SIGNATURE",
+      "project_owner_risk_acceptance": "NOT_SIGNED",
+      "human_source_review": "NOT_COMPLETED",
+      "production_status": "BLOCKED"
+    },
+    "errors": []
+  }
+}

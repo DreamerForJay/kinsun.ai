@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/rag/rag-chunk.schema.json",
+  "title": "RagChunkV1",
+  "description": "Normalized, allowlisted staging chunk before an embedding vector is attached. Vectors are runtime artifacts and are never part of this Git contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "chunk_id",
+    "source_id",
+    "text",
+    "embedding_text",
+    "text_sha256",
+    "embedding_text_sha256",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "chunk_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "source_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "text": { "type": "string", "minLength": 1, "maxLength": 50000 },
+    "embedding_text": { "type": "string", "minLength": 1, "maxLength": 50000 },
+    "text_sha256": { "$ref": "#/$defs/Sha256" },
+    "embedding_text_sha256": { "$ref": "#/$defs/Sha256" },
+    "metadata": {
+      "$ref": "https://kinsun.ai/contracts/schemas/rag/rag-metadata.schema.json"
+    }
+  },
+  "$defs": {
+    "Sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
+

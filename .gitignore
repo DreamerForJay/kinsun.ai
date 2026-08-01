@@ -37,3 +37,5 @@ Thumbs.db
 # 本機產物
 *.log
 docker/postgres/data/
+.rag-work/
+rag-embeddings-*.jsonl

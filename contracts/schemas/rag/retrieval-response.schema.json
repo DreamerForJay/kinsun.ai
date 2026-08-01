@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/rag/retrieval-response.schema.json",
+  "title": "RetrievalResponseV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "status",
+    "fallback_message",
+    "results"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "request_id": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "status": { "type": "string", "enum": ["SUCCESS", "NO_DATA", "FAILED"] },
+    "fallback_message": { "type": ["string", "null"], "maxLength": 1000 },
+    "results": {
+      "type": "array",
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/RetrievalResult" }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "SUCCESS" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "fallback_message": { "type": "null" },
+          "results": { "minItems": 3, "maxItems": 5 }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": { "enum": ["NO_DATA", "FAILED"] }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "fallback_message": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "results": { "maxItems": 0 }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "RetrievalResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chunk_id",
+        "text",
+        "score",
+        "document_name",
+        "section",
+        "page_start",
+        "page_end",
+        "source_url"
+      ],
+      "properties": {
+        "chunk_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 50000 },
+        "score": { "type": "number" },
+        "document_name": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "section": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "page_start": { "type": "integer", "minimum": 1 },
+        "page_end": { "type": "integer", "minimum": 1 },
+        "source_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      }
+    }
+  }
+}

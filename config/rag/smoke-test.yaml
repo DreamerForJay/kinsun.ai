@@ -1,0 +1,20 @@
+schema_version: "1.0.0"
+mode: staging
+endpoint_path: /api/v1/rag/retrievals
+timeout_seconds: 15
+positive_request:
+  schema_version: "1.0.0"
+  request_id: rag-smoke-positive-v1
+  query: 長期照顧服務的申請流程與可用資源有哪些？
+  query_profile: natural_language
+  top_k: 5
+  language: zh-TW
+no_data_request:
+  schema_version: "1.0.0"
+  request_id: rag-smoke-no-data-v1
+  query: RAG_SMOKE_NO_DATA_SENTINEL_7f36c1a9
+  query_profile: natural_language
+  top_k: 5
+  audience: rag_smoke_no_match_audience_v1
+  purpose: rag_smoke_no_match_purpose_v1
+  language: zh-TW

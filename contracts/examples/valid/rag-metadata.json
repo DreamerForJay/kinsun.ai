@@ -1,0 +1,20 @@
+{
+  "data": {
+    "document_name": "長期照顧服務法",
+    "section": "第一章 總則",
+    "page_start": 1,
+    "page_end": 1,
+    "source_url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0070040",
+    "source_locator": "第 1 頁／第 1 條",
+    "current_status": "current",
+    "stop_normal_rag": false,
+    "risk_level": "low",
+    "requires_human_review": false,
+    "human_source_review": "NOT_COMPLETED",
+    "allowed_audiences": ["elder", "family_caregiver"],
+    "allowed_purposes": ["general_information"],
+    "source_version": "2021-06-09",
+    "last_verified_at": "2026-07-27"
+  }
+}
+

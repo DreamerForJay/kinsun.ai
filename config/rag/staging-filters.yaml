@@ -1,0 +1,18 @@
+schema_version: "1.0.0"
+mode: staging
+paths:
+  allowlist: data/rag-manifest/AI_Reviewed_Embedding_Staging_Allowlist_v002.json
+  allowlist_env: RAG_ALLOWLIST_PATH
+  chunks_dir: data/rag-chunks/approved
+  chunks_dir_env: RAG_CHUNKS_DIR
+  work_dir: .rag-work
+forbidden_paths:
+  - data/rag-chunks/pending-revalidation
+filters:
+  current_status: current
+  stop_normal_rag: false
+staging_guards:
+  require_staging_index_name: true
+  reject_production_mode: true
+  reject_pending_revalidation: true
+
