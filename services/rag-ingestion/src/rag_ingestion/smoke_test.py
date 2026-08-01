@@ -23,7 +23,11 @@ RETRIEVAL_ENDPOINT_PATH = "/api/v1/rag/retrievals"
 
 
 class SmokeTestError(RuntimeError):
-    """Raised unless both retrieval contract scenarios pass completely."""
+    """Raised unless both retrieval contract scenarios pass completely.
+
+    Messages name the contract check that failed and never quote the query,
+    a chunk, or a provider response, so the CLI may report them verbatim.
+    """
 
 
 @dataclass(frozen=True, slots=True)

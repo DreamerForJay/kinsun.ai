@@ -11,6 +11,13 @@ from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection
 
 from agent_runtime.rag.models import HybridSearchPlan, OpenSearchConnectionSettings
 
+# opensearch-py defaults to 10s, which a hybrid query over the staging
+# collection exceeds. That surfaced only as a bare ConnectionTimeout that
+# Retriever converted into the public "knowledge unavailable" fallback, so
+# every retrieval failed silently. This is a fail-safe ceiling, not a latency
+# budget: the voice path needs its own measured target.
+SEARCH_TIMEOUT_SECONDS = 60
+
 
 class OpenSearchClientError(RuntimeError):
     """OpenSearch did not return a usable search response."""
@@ -69,6 +76,7 @@ def build_opensearch_transport(settings: OpenSearchConnectionSettings) -> OpenSe
         use_ssl=parsed.scheme == "https",
         verify_certs=parsed.scheme == "https",
         connection_class=RequestsHttpConnection,
+        timeout=SEARCH_TIMEOUT_SECONDS,
     )
     return cast(OpenSearchTransport, transport)
 

@@ -44,7 +44,7 @@ class Retriever:
             return failed_response(request.request_id)
 
         results = _eligible_unique_results(
-            hits,
+            _above_relevance_floor(hits, plan.min_score),
             request.top_k,
             request.query_profile,
             audience=request.audience,
@@ -71,6 +71,30 @@ def build_retriever(settings: RagRuntimeSettings) -> Retriever:
         search_client=build_opensearch_client(settings.opensearch),
         hybrid_search=HybridSearch(settings.hybrid),
     )
+
+
+def _above_relevance_floor(
+    hits: list[Mapping[str, object]], min_score: float
+) -> list[Mapping[str, object]]:
+    """Drop hits the configured floor rejects, so a bad query yields NO_DATA.
+
+    The floor applies to the pipeline-normalized hybrid score, not to raw
+    cosine similarity: the collection's knn clause accepts only ``k``, so it
+    always returns that many neighbours no matter how poor the match. Without
+    this, a query matching nothing still produced five cited chunks reported as
+    SUCCESS. A hit that satisfies only one retrieval leg cannot exceed that
+    leg's configured weight, which is what keeps unmatched queries below the
+    floor.
+    """
+
+    scored: list[Mapping[str, object]] = []
+    for hit in hits:
+        score = hit.get("_score")
+        if isinstance(score, bool) or not isinstance(score, int | float):
+            continue
+        if float(score) >= min_score:
+            scored.append(hit)
+    return scored
 
 
 def _eligible_unique_results(

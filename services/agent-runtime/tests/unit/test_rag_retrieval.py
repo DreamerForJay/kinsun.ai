@@ -309,11 +309,18 @@ def test_hybrid_plan_uses_configured_profile_and_mandatory_filters(
 
     assert plan.search_pipeline == pipeline
     assert (plan.bm25_weight, plan.vector_weight) == weights
+    # The floor cannot ride on the knn clause, so it travels on the plan and is
+    # applied to the normalized score after the search returns.
+    assert plan.min_score == 0.7
     assert plan.body["size"] == 5
     hybrid = plan.body["query"]["hybrid"]
     assert hybrid["queries"][0] == {"match": {"text": {"query": "長照服務如何申請？"}}}
-    assert hybrid["queries"][1]["knn"]["embedding"]["min_score"] == 0.7
-    assert "k" not in hybrid["queries"][1]["knn"]["embedding"]
+    # Serverless rejects min_score/max_distance on a knn clause, so `k` is the
+    # only accepted selector. Sending anything else makes every retrieval fail
+    # with a 400 that Retriever hides behind the public fallback.
+    assert hybrid["queries"][1]["knn"]["embedding"]["k"] == 5
+    assert "min_score" not in hybrid["queries"][1]["knn"]["embedding"]
+    assert "max_distance" not in hybrid["queries"][1]["knn"]["embedding"]
     expected_bool: dict[str, object] = {
         "must": [
             {"term": {"current_status": "current"}},
@@ -388,6 +395,39 @@ async def test_no_results_returns_explicit_fallback_and_never_guesses() -> None:
     assert response.results == []
     assert response.fallback_message == NO_DATA_MESSAGE
     assert "無法" in response.fallback_message
+
+
+@pytest.mark.asyncio
+async def test_query_matching_nothing_is_no_data_rather_than_five_cited_chunks() -> None:
+    """A knn clause with only `k` always returns k neighbours, however poor.
+
+    Against the real staging collection a sentinel query that matched nothing
+    still came back as SUCCESS with five cited chunks, because the configured
+    floor was not being applied anywhere.
+    """
+
+    hits = [make_hit(f"weak-{number}", score=0.6) for number in range(5)]
+
+    response = await make_retriever(FakeOpenSearchTransport(hits)).retrieve(make_request())
+
+    assert response.status == "NO_DATA"
+    assert response.results == []
+    assert response.fallback_message == NO_DATA_MESSAGE
+
+
+@pytest.mark.asyncio
+async def test_only_hits_at_or_above_the_configured_floor_reach_the_agent() -> None:
+    hits = [make_hit(f"strong-{number}", score=0.75) for number in range(3)]
+    hits.extend(make_hit(f"weak-{number}", score=0.69) for number in range(2))
+
+    response = await make_retriever(FakeOpenSearchTransport(hits)).retrieve(make_request())
+
+    assert response.status == "SUCCESS"
+    assert {result.chunk_id for result in response.results} == {
+        "strong-0",
+        "strong-1",
+        "strong-2",
+    }
 
 
 @pytest.mark.asyncio

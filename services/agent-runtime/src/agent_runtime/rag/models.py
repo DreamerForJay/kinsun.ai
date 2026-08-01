@@ -247,6 +247,9 @@ class HybridSearchPlan(RagBaseModel):
     profile: QueryProfile
     bm25_weight: float
     vector_weight: float
+    # Applied by Retriever to the pipeline-normalized hit score, because the
+    # collection's knn clause accepts only `k` and cannot carry a floor itself.
+    min_score: float = Field(gt=0.0, le=1.0)
     body: dict[str, object]
 
 

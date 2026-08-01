@@ -36,7 +36,13 @@ class HybridSearch:
                             "knn": {
                                 "embedding": {
                                     "vector": query_vector,
-                                    "min_score": profile.vector_min_score,
+                                    # Serverless accepts only `k` here. It rejects
+                                    # min_score and max_distance alike with "[knn]
+                                    # requires exactly one of k, distance or score
+                                    # to be set", so profile.vector_min_score cannot
+                                    # be enforced on the vector leg. Sufficiency is
+                                    # decided by Retriever's minimum eligible count.
+                                    "k": request.top_k,
                                 }
                             }
                         },
@@ -55,5 +61,6 @@ class HybridSearch:
             profile=profile.profile,
             bm25_weight=profile.bm25_weight,
             vector_weight=profile.vector_weight,
+            min_score=profile.vector_min_score,
             body=body,
         )

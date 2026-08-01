@@ -21,7 +21,7 @@ from rag_ingestion.index_manager import IndexConfigurationError, SearchPipelineD
 from rag_ingestion.opensearch_client import BulkOperationError
 from rag_ingestion.receipt import new_receipt
 from rag_ingestion.settings import SettingsError
-from rag_ingestion.smoke_test import AgentRuntimeSmokeReport
+from rag_ingestion.smoke_test import AgentRuntimeSmokeReport, SmokeTestError
 from rag_ingestion.validator import validate_chunks
 
 
@@ -236,7 +236,7 @@ def test_cli_reports_safe_dependency_diagnostics(monkeypatch: Any, capsys: Any) 
 
 @pytest.mark.parametrize(
     "error_type",
-    [IndexConfigurationError, SettingsError],
+    [IndexConfigurationError, SettingsError, SmokeTestError],
 )
 def test_cli_reports_safe_local_configuration_failure_reason(
     error_type: type[ValueError], monkeypatch: Any, capsys: Any

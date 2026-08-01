@@ -33,6 +33,7 @@ from rag_ingestion.opensearch_client import OpenSearchGateway
 from rag_ingestion.receipt import new_receipt, write_receipt
 from rag_ingestion.settings import IngestionSettings, SettingsError, load_settings
 from rag_ingestion.smoke_test import (
+    SmokeTestError,
     load_smoke_test_definition,
     run_agent_runtime_smoke,
 )
@@ -49,7 +50,7 @@ COMMANDS = (
 DIAGNOSTIC_COMMANDS = ("inspect-pipelines",)
 _MAX_DEPENDENCY_REASON_LENGTH = 512
 _RUN_ID_PATTERN = re.compile(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}")
-_LOCAL_CONFIGURATION_ERROR_TYPES = (IndexConfigurationError, SettingsError)
+_LOCAL_CONFIGURATION_ERROR_TYPES = (IndexConfigurationError, SettingsError, SmokeTestError)
 
 
 def main(argv: list[str] | None = None) -> int:
