@@ -9,12 +9,13 @@ import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 import * as path from 'node:path';
 import { Api } from './constructs/api';
-import { Auth } from './constructs/auth';
+import { Auth, GoogleFederationProps } from './constructs/auth';
 import { DataStore } from './constructs/data-store';
 import { VoiceWorkflow } from './constructs/voice-workflow';
 
 export interface ElderlyCareStackProps extends cdk.StackProps {
   envName: string;
+  googleFederation?: GoogleFederationProps;
 }
 
 export class ElderlyCareStack extends cdk.Stack {
@@ -25,8 +26,14 @@ export class ElderlyCareStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: ElderlyCareStackProps) {
     super(scope, id, props);
 
+    if (props.googleFederation && props.envName !== 'staging') {
+      throw new Error('Google federation is enabled only for the staging stack');
+    }
     this.dataStore = new DataStore(this, 'DataStore', { envName: props.envName });
-    this.auth = new Auth(this, 'Auth', { envName: props.envName });
+    this.auth = new Auth(this, 'Auth', {
+      envName: props.envName,
+      googleFederation: props.googleFederation,
+    });
 
     // Workflow/component Lambda logs (ASR, Context Composer, Event Extractor,
     // Memory Manager, ...) all log here so CloudWatch Insights queries can
@@ -229,6 +236,16 @@ export class ElderlyCareStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'WebSocketUrl', { value: this.api.webSocketStage.url });
     new cdk.CfnOutput(this, 'UserPoolId', { value: this.auth.userPool.userPoolId });
     new cdk.CfnOutput(this, 'UserPoolClientId', { value: this.auth.userPoolClient.userPoolClientId });
+    if (this.auth.webBffClient && this.auth.userPoolDomain) {
+      const oauthDomain = this.auth.userPoolDomain.baseUrl();
+      new cdk.CfnOutput(this, 'WebBffClientId', {
+        value: this.auth.webBffClient.userPoolClientId,
+      });
+      new cdk.CfnOutput(this, 'CognitoOAuthDomain', { value: oauthDomain });
+      new cdk.CfnOutput(this, 'GoogleOAuthRedirectUri', {
+        value: `${oauthDomain}/oauth2/idpresponse`,
+      });
+    }
     new cdk.CfnOutput(this, 'TableName', { value: this.dataStore.table.tableName });
   }
 }
