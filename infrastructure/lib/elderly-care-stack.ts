@@ -56,7 +56,10 @@ export class ElderlyCareStack extends cdk.Stack {
       DYNAMODB_GSI2_NAME: 'GSI2',
       COGNITO_USER_POOL_ID: this.auth.userPool.userPoolId,
       COGNITO_CLIENT_ID: this.auth.userPoolClient.userPoolClientId,
-      BEDROCK_MODEL_ID: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+      // The `us.` prefix is a cross-region inference profile and is required:
+      // current Claude models reject on-demand invocation by bare model ID.
+      // Verified callable in us-west-2 via the Converse API.
+      BEDROCK_MODEL_ID: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
       // 1024 dimensions — must stay in sync with the knn_vector dimension in
       // packages/backend/src/search/index-mappings.ts. Changing the embedding
       // model means reindexing, not just editing this line.

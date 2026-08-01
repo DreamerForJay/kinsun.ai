@@ -1,6 +1,7 @@
 import { Client } from '@opensearch-project/opensearch';
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
 import type { DocumentMetadata, MetadataFilter, SearchResult } from '@elderly-care/shared';
+import { resolveEmbeddingModelId } from '../llm/models.js';
 import { embedText } from './embeddings.js';
 import { HEALTH_KNOWLEDGE_INDEX_NAME } from './index-mappings.js';
 import { getOpenSearchClient } from './index-management.js';
@@ -88,7 +89,7 @@ export class OpenSearchVectorAdapter implements VectorSearchAdapter {
   constructor(
     private readonly client: Client = getOpenSearchClient(),
     private readonly bedrockClient: BedrockRuntimeClient = new BedrockRuntimeClient({}),
-    private readonly embeddingModelId: string = process.env.BEDROCK_EMBEDDING_MODEL_ID ?? 'amazon.titan-embed-text-v2:0',
+    private readonly embeddingModelId: string = resolveEmbeddingModelId(),
   ) {}
 
   async search(query: string, filter: MetadataFilter, topK: number): Promise<SearchResult[]> {

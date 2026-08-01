@@ -1,8 +1,9 @@
 import { BedrockRuntimeClient, ConverseCommand, type Message } from '@aws-sdk/client-bedrock-runtime';
 import { buildUserMessage } from './message-builder.js';
+import { resolveModelId } from './models.js';
 import type { LlmGenerateRequest, LlmGenerateResult } from './types.js';
 
-const DEFAULT_MODEL_ID = process.env.BEDROCK_MODEL_ID ?? 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+const DEFAULT_MODEL_ID = resolveModelId();
 
 /** LLM Engine (A03, A04) — Amazon Bedrock Converse API wrapper around Claude. */
 export class LlmEngine {

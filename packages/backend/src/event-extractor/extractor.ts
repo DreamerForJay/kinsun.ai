@@ -1,6 +1,7 @@
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import type { ConversationRecord, ExtractedEvent } from '@elderly-care/shared';
 import { isConfidenceAcceptable } from '../asr/confidence.js';
+import { resolveModelId } from '../llm/models.js';
 import { validateExtractedEvent } from './schema.js';
 
 export const EVENT_EXTRACTION_CONFIDENCE_THRESHOLD = 0.7;
@@ -28,7 +29,7 @@ const EXTRACTION_SYSTEM_PROMPT = `你是一個從長者對話中擷取結構化�
 export class BedrockExtractionAdapter implements ExtractionAdapter {
   constructor(
     private readonly client: BedrockRuntimeClient = new BedrockRuntimeClient({}),
-    private readonly modelId: string = process.env.BEDROCK_MODEL_ID ?? 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    private readonly modelId: string = resolveModelId(),
   ) {}
 
   async extractRaw(conversation: ConversationRecord): Promise<unknown[]> {

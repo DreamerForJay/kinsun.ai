@@ -1,6 +1,7 @@
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import type { HealthSearchResponse } from '@elderly-care/shared';
 import type { PersonaContext, RankedResult } from '@elderly-care/shared';
+import { resolveModelId } from '../llm/models.js';
 import { Reranker } from '../reranker/reranker.js';
 import type { SearchEngine } from './engine.js';
 
@@ -38,7 +39,7 @@ export class HealthAnswerGenerator {
   constructor(private readonly deps: HealthAnswerDeps) {
     this.reranker = deps.reranker ?? new Reranker();
     this.llmClient = deps.llmClient ?? new BedrockRuntimeClient({});
-    this.modelId = deps.modelId ?? process.env.BEDROCK_MODEL_ID ?? 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+    this.modelId = deps.modelId ?? resolveModelId();
     this.topN = deps.topN ?? 5;
   }
 

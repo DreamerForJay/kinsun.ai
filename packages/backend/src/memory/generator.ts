@@ -1,5 +1,6 @@
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import type { CandidateMemory, ConversationRecord } from '@elderly-care/shared';
+import { resolveModelId } from '../llm/models.js';
 import { validateCandidateMemory } from './schema.js';
 
 export interface CandidateGenerationOutcome {
@@ -30,7 +31,7 @@ const GENERATION_SYSTEM_PROMPT = `你是一個從長者對話中識別「值得�
 export class BedrockMemoryGenerationAdapter implements MemoryGenerationAdapter {
   constructor(
     private readonly client: BedrockRuntimeClient = new BedrockRuntimeClient({}),
-    private readonly modelId: string = process.env.BEDROCK_MODEL_ID ?? 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    private readonly modelId: string = resolveModelId(),
   ) {}
 
   async generateRaw(conversation: ConversationRecord): Promise<unknown[]> {

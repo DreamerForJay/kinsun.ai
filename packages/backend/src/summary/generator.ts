@@ -2,6 +2,7 @@ import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-r
 import { ulid } from 'ulid';
 import type { EventRecord, SummaryContent, SummaryRecord } from '@elderly-care/shared';
 import { computeTtlEpochSeconds, DynamoTable, Keys, RETENTION_DAYS } from '../db/index.js';
+import { resolveModelId } from '../llm/models.js';
 import { prioritizeEvents } from './prioritize.js';
 
 export interface SummaryGenerationAdapter {
@@ -24,7 +25,7 @@ const SUMMARY_SYSTEM_PROMPT = `你是一個為長者生活事件產生每日摘�
 export class BedrockSummaryAdapter implements SummaryGenerationAdapter {
   constructor(
     private readonly client: BedrockRuntimeClient = new BedrockRuntimeClient({}),
-    private readonly modelId: string = process.env.BEDROCK_MODEL_ID ?? 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    private readonly modelId: string = resolveModelId(),
   ) {}
 
   async generate(elderId: string, date: string, events: EventRecord[]): Promise<SummaryContent> {

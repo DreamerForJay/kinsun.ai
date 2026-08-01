@@ -1,4 +1,5 @@
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
+import { resolveModelId } from '../llm/models.js';
 
 export interface QueryReformulator {
   reformulate(originalQuestion: string): Promise<string>;
@@ -14,7 +15,7 @@ const REFORMULATE_SYSTEM_PROMPT = `你是一個將長者口語問題轉換為適
 export class BedrockQueryReformulator implements QueryReformulator {
   constructor(
     private readonly client: BedrockRuntimeClient = new BedrockRuntimeClient({}),
-    private readonly modelId: string = process.env.BEDROCK_MODEL_ID ?? 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+    private readonly modelId: string = resolveModelId(),
   ) {}
 
   async reformulate(originalQuestion: string): Promise<string> {

@@ -1,6 +1,7 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import { resolveEmbeddingModelId } from '../llm/models.js';
 
-const DEFAULT_EMBEDDING_MODEL_ID = process.env.BEDROCK_EMBEDDING_MODEL_ID ?? 'amazon.titan-embed-text-v2:0';
+const DEFAULT_EMBEDDING_MODEL_ID = resolveEmbeddingModelId();
 
 /** Shared embedding call — used by both vector search (query time) and the knowledge ETL pipeline (index time). */
 export async function embedText(
