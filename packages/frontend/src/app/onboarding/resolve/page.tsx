@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { touchLinkStyle } from '@/components/touch-link';
 import { ApiRequestError, apiFetch } from '@/lib/api/client';
 
 interface ActorProfile {
@@ -81,16 +82,7 @@ export default function ResolveOnboardingPage() {
         {message}
       </p>
       <p>
-        <a
-          href="/sign-in"
-          style={{
-            alignItems: 'center',
-            display: 'inline-flex',
-            justifyContent: 'center',
-            minHeight: 'var(--touch-min)',
-            padding: '0 var(--space-4)',
-          }}
-        >
+        <a href="/sign-in" style={touchLinkStyle}>
           返回登入入口
         </a>
       </p>

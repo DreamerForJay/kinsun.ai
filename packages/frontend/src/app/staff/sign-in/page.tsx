@@ -1,5 +1,6 @@
 'use client';
 
+import { AuthSubmitButton } from '@/components/AuthSubmitButton';
 import { useLocale } from '@/lib/i18n/locale-context';
 
 export default function StaffSignInPage() {
@@ -14,7 +15,7 @@ export default function StaffSignInPage() {
       <form action="/backend/auth/login" method="post">
         <input name="intent" type="hidden" value="STAFF" />
         <input name="returnTo" type="hidden" value="/onboarding/resolve" />
-        <button type="submit">{t('common.continueWithGoogle')}</button>
+        <AuthSubmitButton>{t('common.continueWithGoogle')}</AuthSubmitButton>
       </form>
       <p style={{ color: 'var(--color-foreground)', marginTop: 24 }}>
         {t('staffSignIn.notActivated')}

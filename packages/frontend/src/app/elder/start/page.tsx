@@ -1,3 +1,5 @@
+import { touchLinkStyle } from '@/components/touch-link';
+
 export default function ElderStartPage() {
   return (
     <main
@@ -54,19 +56,7 @@ export default function ElderStartPage() {
       >
         需要協助嗎？請家人或照服員陪您一起完成設定。
       </p>
-      {/* A bare inline link is a small target; §6.1 forbids requiring precise
-          taps on the elder surface, so it gets the same 64px box. */}
-      <a
-        href="/sign-in"
-        style={{
-          alignItems: 'center',
-          display: 'inline-flex',
-          fontSize: 'var(--text-base)',
-          justifyContent: 'center',
-          minHeight: 'var(--touch-min)',
-          padding: '0 var(--space-4)',
-        }}
-      >
+      <a href="/sign-in" style={touchLinkStyle}>
         返回選擇服務
       </a>
     </main>

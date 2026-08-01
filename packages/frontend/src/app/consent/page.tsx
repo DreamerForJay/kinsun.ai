@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { touchLinkStyle } from '@/components/touch-link';
 import { FamilySharingConsentPanel } from '@/components/FamilySharingConsentPanel';
 import { ConsentPanel } from '@/components/voice/ConsentPanel';
 import {
@@ -11,15 +12,6 @@ import {
   type ConsentRecord,
 } from '@/lib/api/consent';
 import { getRuntimeConfig, type RuntimeConfig } from '@/lib/runtime-config';
-
-const elderLinkStyle = {
-  alignItems: 'center',
-  display: 'inline-flex',
-  fontSize: 'var(--text-base)',
-  justifyContent: 'center',
-  minHeight: 'var(--touch-min)',
-  padding: '0 var(--space-4)',
-};
 
 export default function ConsentPage() {
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
@@ -99,10 +91,10 @@ export default function ConsentPage() {
           padding: 'var(--space-6)',
         }}
       >
-        <a href="/" style={elderLinkStyle}>
+        <a href="/" style={touchLinkStyle}>
           返回首頁
         </a>
-        <a href="/elder/family-access" style={elderLinkStyle}>
+        <a href="/elder/family-access" style={touchLinkStyle}>
           管理家屬邀請
         </a>
       </nav>

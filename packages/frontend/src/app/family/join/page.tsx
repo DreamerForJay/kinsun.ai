@@ -1,5 +1,6 @@
 'use client';
 
+import { touchLinkStyle } from '@/components/touch-link';
 import { useLocale } from '@/lib/i18n/locale-context';
 
 export default function FamilyJoinPage() {
@@ -46,10 +47,15 @@ export default function FamilyJoinPage() {
           {t('common.continueWithGoogle')}
         </button>
       </form>
-      <p style={{ marginTop: 24 }}>
-        {t('join.alreadyBound')} <a href="/family/sign-in">{t('join.toFamilySignIn')}</a>
+      <p style={{ marginTop: 'var(--space-6)' }}>
+        {t('join.alreadyBound')}{' '}
+        <a href="/family/sign-in" style={touchLinkStyle}>
+          {t('join.toFamilySignIn')}
+        </a>
       </p>
-      <a href="/sign-in">{t('join.backToChooser')}</a>
+      <a href="/sign-in" style={touchLinkStyle}>
+        {t('join.backToChooser')}
+      </a>
     </main>
   );
 }
