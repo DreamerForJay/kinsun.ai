@@ -26,6 +26,23 @@ from pydantic_settings import (
 
 REQUIRED_EMBEDDING_DIMENSION = 1024
 
+# Sibling directories of the approved set that hold chunks nobody has cleared
+# for embedding: `pending-revalidation` is awaiting review, `not-authorized` is
+# not in the Allowlist at all. Both sit one path segment away from the approved
+# directory, so a mistyped or copy-pasted RAG_CHUNKS_DIR is all it would take.
+# The Allowlist would still reject the chunk IDs, but that is the second line;
+# this is the first.
+FORBIDDEN_CHUNK_DIRECTORY_NAMES = frozenset({"pending-revalidation", "not-authorized"})
+
+
+def forbidden_chunk_directory(directory: Path) -> str | None:
+    """Return the disallowed path segment, if the directory contains one."""
+
+    matches = FORBIDDEN_CHUNK_DIRECTORY_NAMES.intersection(
+        part.casefold() for part in directory.parts
+    )
+    return sorted(matches)[0] if matches else None
+
 
 class SettingsError(ValueError):
     """Raised when an operation is missing safe, required configuration."""
@@ -137,10 +154,9 @@ class IngestionSettings(BaseSettings):
     def require_paths(self) -> tuple[Path, Path]:
         if self.rag_allowlist_path is None or self.rag_chunks_dir is None:
             raise SettingsError("RAG_ALLOWLIST_PATH and RAG_CHUNKS_DIR are required")
-        if "pending-revalidation" in {
-            part.casefold() for part in self.rag_chunks_dir.resolve().parts
-        }:
-            raise SettingsError("pending-revalidation is never a valid ingestion source")
+        forbidden = forbidden_chunk_directory(self.rag_chunks_dir.resolve())
+        if forbidden is not None:
+            raise SettingsError(f"{forbidden} is never a valid ingestion source")
         return self.rag_allowlist_path, self.rag_chunks_dir
 
     def require_bedrock(self) -> tuple[str, str, int]:

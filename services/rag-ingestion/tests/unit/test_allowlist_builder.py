@@ -108,6 +108,14 @@ def test_chunk_from_an_unreviewed_source_is_refused(tmp_path: Path) -> None:
         rebuild_allowlist(manifest_path=manifest_path, chunks_dir=chunks_dir)
 
 
+@pytest.mark.parametrize("forbidden", ["pending-revalidation", "not-authorized"])
+def test_builder_refuses_to_hash_uncleared_directories(forbidden: str, tmp_path: Path) -> None:
+    manifest_path, chunks_dir = write_dataset(tmp_path / forbidden)
+
+    with pytest.raises(AllowlistBuildError, match=forbidden):
+        rebuild_allowlist(manifest_path=manifest_path, chunks_dir=chunks_dir)
+
+
 def test_governance_is_carried_over_and_never_elevated(tmp_path: Path) -> None:
     manifest_path, chunks_dir = write_dataset(
         tmp_path, chunks=[synthetic_chunk(), second_chunk()], effective=False

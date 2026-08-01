@@ -168,10 +168,17 @@ def test_duplicate_chunk_id_is_rejected(tmp_path: Path) -> None:
         load_allowlisted_chunks(chunks_dir, load_allowlist(manifest_path))
 
 
-def test_pending_revalidation_directory_is_rejected(tmp_path: Path) -> None:
-    manifest_path, chunks_dir = write_dataset(tmp_path / "pending-revalidation")
+@pytest.mark.parametrize("forbidden", ["pending-revalidation", "not-authorized"])
+def test_unreviewed_sibling_directories_are_rejected(forbidden: str, tmp_path: Path) -> None:
+    """Both tiers sit beside the approved set and hold uncleared chunks.
 
-    with pytest.raises(ChunkLoadError, match="pending-revalidation"):
+    The Allowlist would also reject their chunk IDs, but that is the second
+    line of defence; pointing the loader at either directory must fail first.
+    """
+
+    manifest_path, chunks_dir = write_dataset(tmp_path / forbidden)
+
+    with pytest.raises(ChunkLoadError, match=forbidden):
         load_allowlisted_chunks(chunks_dir, load_allowlist(manifest_path))
 
 

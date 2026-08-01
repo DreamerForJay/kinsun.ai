@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from rag_ingestion.allowlist import CHUNK_ID_PATTERN
+from rag_ingestion.settings import forbidden_chunk_directory
 
 # Copied onto entries the manifest has not seen before. Every one is the
 # blocking value: a new chunk is unreviewed until a human says otherwise.
@@ -108,8 +109,9 @@ def sha256_text(value: str) -> str:
 
 def read_approved_chunks(chunks_dir: Path) -> list[ChunkRecord]:
     directory = chunks_dir.expanduser().resolve()
-    if "pending-revalidation" in {part.casefold() for part in directory.parts}:
-        raise AllowlistBuildError("pending-revalidation is never an allowed chunks directory")
+    forbidden = forbidden_chunk_directory(directory)
+    if forbidden is not None:
+        raise AllowlistBuildError(f"{forbidden} is never an allowed chunks directory")
     if not directory.is_dir():
         raise AllowlistBuildError("chunks directory does not exist")
     files = sorted(directory.glob("*.jsonl"), key=lambda item: item.name)

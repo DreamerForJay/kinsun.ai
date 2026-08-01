@@ -1,0 +1,163 @@
+{
+  "source_count": 17,
+  "chunk_count": 726,
+  "approved_source_count": 6,
+  "approved_chunk_count": 262,
+  "pending_source_count": 3,
+  "not_authorized_source_count": 8,
+  "sources": [
+    {
+      "source_number": 1,
+      "source_title": "長期照顧服務法",
+      "filename": "長期照顧服務法_Chunks_v005.jsonl",
+      "repo_path": "data/rag-chunks/approved/長期照顧服務法_Chunks_v005.jsonl",
+      "category": "approved",
+      "chunk_count": 72,
+      "sha256": "64a0a6fd670e3c33e34459c79c274af6d07eda18dd5e8e4dfcfd3c2a1bc6a34b"
+    },
+    {
+      "source_number": 2,
+      "source_title": "申請長照服務",
+      "filename": "申請長照服務_Chunks_v003.jsonl",
+      "repo_path": "data/rag-chunks/pending-revalidation/申請長照服務_Chunks_v003.jsonl",
+      "category": "pending-revalidation",
+      "chunk_count": 16,
+      "sha256": "0649daa44634a3c79816d1bd8b764f9b80d53e2632e1faf38427c94ceb99acaf"
+    },
+    {
+      "source_number": 3,
+      "source_title": "家庭照顧者支持手冊－核心",
+      "filename": "家庭照顧者支持服務據點專業人員工作手冊_核心批次_Chunks_v004.jsonl",
+      "repo_path": "data/rag-chunks/pending-revalidation/家庭照顧者支持服務據點專業人員工作手冊_核心批次_Chunks_v004.jsonl",
+      "category": "pending-revalidation",
+      "chunk_count": 102,
+      "sha256": "c0bb2386421972f76dc18fa91ae853778f5e40d4075461d572ddf21a6bb7da66"
+    },
+    {
+      "source_number": 4,
+      "source_title": "家庭照顧者支持手冊－第八章附錄",
+      "filename": "家庭照顧者支持服務據點專業人員工作手冊_第八章附錄_Chunks_v003.jsonl",
+      "repo_path": "data/rag-chunks/pending-revalidation/家庭照顧者支持服務據點專業人員工作手冊_第八章附錄_Chunks_v003.jsonl",
+      "category": "pending-revalidation",
+      "chunk_count": 30,
+      "sha256": "8a6e57abfcfc2db4ecc25e08782f8f95bc9d22cf60afab957ada8ce4adbf4f59"
+    },
+    {
+      "source_number": 5,
+      "source_title": "高負荷家庭照顧者初篩指標",
+      "filename": "高負荷家庭照顧者初篩指標_Chunks_v002.jsonl",
+      "repo_path": "data/rag-chunks/not-authorized/高負荷家庭照顧者初篩指標_Chunks_v002.jsonl",
+      "category": "not-authorized",
+      "chunk_count": 6,
+      "sha256": "471d0ee1d47de93dfd680249c50d9b6ecdd64c065888091355f5e1aa1b0a489c"
+    },
+    {
+      "source_number": 6,
+      "source_title": "高負荷家庭照顧者轉介流程",
+      "filename": "長照高負荷家庭照顧者轉介及服務流程_Chunks_v004.jsonl",
+      "repo_path": "data/rag-chunks/not-authorized/長照高負荷家庭照顧者轉介及服務流程_Chunks_v004.jsonl",
+      "category": "not-authorized",
+      "chunk_count": 10,
+      "sha256": "c4f1a16fe09643033a1d77ef04fdc9df79d8e40b9cc6924b38bb172b407eee4a"
+    },
+    {
+      "source_number": 7,
+      "source_title": "老年期營養手冊",
+      "filename": "老年期營養手冊112年版_Chunks_v001.jsonl",
+      "repo_path": "data/rag-chunks/not-authorized/老年期營養手冊112年版_Chunks_v001.jsonl",
+      "category": "not-authorized",
+      "chunk_count": 41,
+      "sha256": "80c8fe49cf609ce289fb360af32b8d31fb2bdfb783bf5d3186c7682dc9aca3b6"
+    },
+    {
+      "source_number": 8,
+      "source_title": "A 單位核心",
+      "filename": "A單位個案管理人員工作手冊_核心_Chunks_v002.jsonl",
+      "repo_path": "data/rag-chunks/approved/A單位個案管理人員工作手冊_核心_Chunks_v002.jsonl",
+      "category": "approved",
+      "chunk_count": 65,
+      "sha256": "b8d7ac0e894b062e9c983735218dfd6809de663e261d031920e5b8ee05e6bbd0"
+    },
+    {
+      "source_number": 9,
+      "source_title": "A 單位第四章附錄及表單",
+      "filename": "A單位個案管理人員工作手冊_第四章附錄及表單_Chunks_v004.jsonl",
+      "repo_path": "data/rag-chunks/approved/A單位個案管理人員工作手冊_第四章附錄及表單_Chunks_v004.jsonl",
+      "category": "approved",
+      "chunk_count": 70,
+      "sha256": "95afc72263a29fc37a253db5d9f72b6c0d877b2890d70b3c0200a4386366dc31"
+    },
+    {
+      "source_number": 10,
+      "source_title": "居家服務督導員工作手冊－核心",
+      "filename": "居家服務督導員工作手冊_核心_Chunks_v001.jsonl",
+      "repo_path": "data/rag-chunks/not-authorized/居家服務督導員工作手冊_核心_Chunks_v001.jsonl",
+      "category": "not-authorized",
+      "chunk_count": 122,
+      "sha256": "f0ccee3997b8e1247df7ecff9178f3a2e20e0d60edf266813df71686ef0947f5"
+    },
+    {
+      "source_number": 11,
+      "source_title": "居家服務督導員工作手冊－健康照護附錄",
+      "filename": "居家服務督導員工作手冊_健康照護附錄_Chunks_v001.jsonl",
+      "repo_path": "data/rag-chunks/not-authorized/居家服務督導員工作手冊_健康照護附錄_Chunks_v001.jsonl",
+      "category": "not-authorized",
+      "chunk_count": 26,
+      "sha256": "b7b9863aa5e3b06e2d8935b1a548b6899e3a2b9c06c8822d37106c43f8656040"
+    },
+    {
+      "source_number": 12,
+      "source_title": "居家服務督導員工作手冊－表單附錄",
+      "filename": "居家服務督導員工作手冊_表單附錄_Chunks_v004.jsonl",
+      "repo_path": "data/rag-chunks/approved/居家服務督導員工作手冊_表單附錄_Chunks_v004.jsonl",
+      "category": "approved",
+      "chunk_count": 5,
+      "sha256": "174debbd794372fcc214f5ba89187c4f234bfa731df3e93a467f36d7aab381e7"
+    },
+    {
+      "source_number": 13,
+      "source_title": "長者防跌妙招手冊",
+      "filename": "長者防跌妙招手冊_Chunks_v001.jsonl",
+      "repo_path": "data/rag-chunks/not-authorized/長者防跌妙招手冊_Chunks_v001.jsonl",
+      "category": "not-authorized",
+      "chunk_count": 30,
+      "sha256": "44bcdfc987f6e162f0bad4f6b3db89f0b4021a211ac0a5796dae10bd50318b3d"
+    },
+    {
+      "source_number": 14,
+      "source_title": "失智症衛教及資源手冊",
+      "filename": "失智症衛教及資源手冊_Chunks_v002.jsonl",
+      "repo_path": "data/rag-chunks/not-authorized/失智症衛教及資源手冊_Chunks_v002.jsonl",
+      "category": "not-authorized",
+      "chunk_count": 56,
+      "sha256": "4646751510cd99216a09eb20def9ff190fa8d1f8299557ce3321315ff5209584"
+    },
+    {
+      "source_number": 15,
+      "source_title": "Fetzer／UCLA 孤獨量表",
+      "filename": "Fetzer_UCLA孤獨量表_說明_Chunks_v003.jsonl",
+      "repo_path": "data/rag-chunks/approved/Fetzer_UCLA孤獨量表_說明_Chunks_v003.jsonl",
+      "category": "approved",
+      "chunk_count": 10,
+      "sha256": "53fc8910fa24e162d74fc12b7c95c019b6293762c89ff7c31e9324b827da94fc"
+    },
+    {
+      "source_number": 16,
+      "source_title": "自動語音孤獨感研究",
+      "filename": "自動語音分析高齡者孤獨感研究_Chunks_v002.jsonl",
+      "repo_path": "data/rag-chunks/not-authorized/自動語音分析高齡者孤獨感研究_Chunks_v002.jsonl",
+      "category": "not-authorized",
+      "chunk_count": 25,
+      "sha256": "4f3fe37016ceb6445f06e8b10be147a1ed63947d3e538dcbd84427ddec020029"
+    },
+    {
+      "source_number": 17,
+      "source_title": "Do Words Matter NLP 研究",
+      "filename": "Do_Words_Matter_Loneliness_NLP_Chunks_v003.jsonl",
+      "repo_path": "data/rag-chunks/approved/Do_Words_Matter_Loneliness_NLP_Chunks_v003.jsonl",
+      "category": "approved",
+      "chunk_count": 40,
+      "sha256": "6772057f294a6f01e62d16b8d41b00dd2a1e9576bd8fbb712970c5443c4ff0bc"
+    }
+  ]
+}
