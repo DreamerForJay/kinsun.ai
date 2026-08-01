@@ -60,11 +60,11 @@ _CORE_TABLES = sorted(
 )
 
 #: Total number of tables after upgrading through the current head revision.
-_TOTAL_HEAD_TABLE_COUNT = 49
+_TOTAL_HEAD_TABLE_COUNT = 50
 
 #: The baseline's revision id (see the migration file's Revision ID header).
 _BASELINE_REVISION = "f393b4452ce8"
-_HEAD_REVISION = "e4a1c8f29b73"
+_HEAD_REVISION = "c1a9e7f24b63"
 
 
 def _get_alembic_config() -> Config:
@@ -318,7 +318,9 @@ async def test_dead_letter_status_migration_roundtrip(test_engine):
             )
 
     async with test_engine.begin() as conn:
-        await conn.run_sync(_run_downgrade, "-1")
+        # Newer migrations now sit above the dead-letter migration. Target its
+        # direct parent so this test still exercises the e4 downgrade itself.
+        await conn.run_sync(_run_downgrade, "d3b7e2a4f901")
 
     async with test_engine.begin() as conn:
         row = (
@@ -437,7 +439,7 @@ async def test_upgrade_downgrade_upgrade_roundtrip(test_engine):
 
 @pytest.mark.asyncio
 async def test_head_upgrade_creates_expected_tables(test_engine):
-    """Verify all migrations through head create 49 tables, including the core 8.
+    """Verify all migrations through head create 50 tables, including the core 8.
 
     Validates: Requirement 16.1, 16.5
     """
@@ -661,7 +663,7 @@ async def test_baseline_roundtrip_upgrade_downgrade_upgrade(test_engine):
         version = await conn.run_sync(_get_alembic_version)
         assert version == _HEAD_REVISION
 
-    # Verify all 48 tables (including our core 8) are restored
+    # Verify all current-head tables (including our core 8) are restored.
     async with test_engine.begin() as conn:
         tables = await conn.run_sync(_get_tables)
     assert len(tables) == _TOTAL_HEAD_TABLE_COUNT

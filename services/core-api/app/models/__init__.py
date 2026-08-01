@@ -20,6 +20,7 @@ from app.models.deletion import (  # noqa: F401
     DeletionTombstone,
 )
 from app.models.elder import Elder  # noqa: F401
+from app.models.family_invitation import FamilyInvitation  # noqa: F401
 from app.models.graph_projection import GraphProjectionRecord  # noqa: F401
 from app.models.idempotency import IdempotencyRecord  # noqa: F401
 from app.models.knowledge import KnowledgeSource, KnowledgeSourceVersion  # noqa: F401

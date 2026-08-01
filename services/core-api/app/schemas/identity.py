@@ -37,6 +37,7 @@ class MeResponse(BaseModel):
     tenant_id: UUID
     role: str
     care_unit_ids: list[UUID]
+    elder_id: UUID | None = None
 
 
 class AuthorizedElderItem(BaseModel):

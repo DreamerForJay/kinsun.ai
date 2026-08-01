@@ -38,3 +38,20 @@ async def test_get_active_by_id_returns_none_when_unavailable() -> None:
     actor = await ActorRepository(session).get_active_by_id(uuid.uuid4())
 
     assert actor is None
+
+
+@pytest.mark.asyncio
+async def test_get_active_by_cognito_sub_uses_active_local_actor_only() -> None:
+    session = AsyncMock()
+    expected = MagicMock()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = expected
+    session.execute.return_value = result
+
+    actor = await ActorRepository(session).get_active_by_cognito_sub("verified-cognito-sub")
+
+    assert actor is expected
+    statement = session.execute.call_args.args[0]
+    compiled = str(statement.compile(compile_kwargs={"literal_binds": False}))
+    assert "actor.cognito_sub" in compiled
+    assert "actor.status" in compiled
