@@ -1,0 +1,18 @@
+{
+  "data": {
+    "items": [
+      {
+        "invitation_id": "41000000-0000-4000-8000-000000000001",
+        "status": "ISSUED",
+        "share_scope": ["REPORT_DAILY", "REPORT_WEEKLY"],
+        "expires_at": "2026-08-02T04:00:00Z",
+        "created_at": "2026-08-01T04:00:00Z"
+      }
+    ]
+  },
+  "meta": {
+    "correlation_id": "91000000-0000-4000-8000-000000000003",
+    "timestamp": "2026-08-01T04:00:00Z",
+    "schema_version": "1.0"
+  }
+}

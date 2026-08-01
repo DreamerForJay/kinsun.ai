@@ -19,6 +19,8 @@ os.environ.setdefault("APP_ENV", "development")
 from app.main import create_app  # noqa: E402
 
 MODEL_FILES = {
+    "ResolveOnboardingRequest": "domain/ResolveOnboardingRequestV1.json",
+    "CreateFamilyInvitationRequest": "domain/CreateFamilyInvitationRequestV1.json",
     "CreateConsentRequest": "domain/CreateConsentRequestV1.json",
     "RevokeConsentRequest": "domain/RevokeConsentRequestV1.json",
     "CreateVoiceSessionRequest": "domain/CreateVoiceSessionRequestV1.json",
@@ -42,6 +44,16 @@ MODEL_FILES = {
 }
 
 SUCCESS_ENVELOPE_BY_OPERATION = {
+    "resolve_onboarding_api_v1_onboarding_resolve_post": "ResolveOnboardingEnvelopeV1",
+    "create_family_invitation_api_v1_elders__elder_id__family_invitations_post": (
+        "FamilyInvitationCreatedEnvelopeV1"
+    ),
+    "list_family_invitations_api_v1_elders__elder_id__family_invitations_get": (
+        "FamilyInvitationListEnvelopeV1"
+    ),
+    "revoke_family_invitation_api_v1_elders__elder_id__family_invitations__invitation_id__revoke_post": (
+        "FamilyInvitationStatusEnvelopeV1"
+    ),
     "get_me_api_v1_me_get": "ActorProfileEnvelopeV1",
     "get_authorized_elders_api_v1_me_authorized_elders_get": (
         "AuthorizedElderListEnvelopeV1"
@@ -183,13 +195,14 @@ def main() -> None:
     document["openapi"] = "3.1.0"
     document["info"] = {
         "title": "kinsun.ai Core API",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "summary": "Implemented Core Domain, consent, security and outbox APIs.",
         "description": (
             "Current executable Core API contract. Every protected operation "
             "re-evaluates tenant, elder, relationship or assignment scope. "
-            "Cognito JWT verification is not yet wired; production therefore "
-            "fails closed with 401 as documented by bearerAuth."
+            "Cognito access tokens authenticate existing actors; the onboarding "
+            "resolver separately accepts a verified Cognito ID token and never "
+            "treats persona intent as authorization."
         ),
     }
     for path in ("/health", "/ready"):
@@ -210,11 +223,22 @@ def main() -> None:
             "scheme": "bearer",
             "bearerFormat": "JWT",
             "description": (
-                "Target JWT shape. A production verifier is not configured yet; "
-                "protected routes fail closed with 401. Development fake auth "
-                "requires the explicit FAKE_AUTH_ENABLED flag."
+                "Cognito access token. Core verifies signature, issuer, expiry, "
+                "token_use=access and client_id, then resolves actor, tenant and "
+                "role from live Core database state. Development fake auth requires "
+                "the explicit FAKE_AUTH_ENABLED flag."
             ),
-        }
+        },
+        "cognitoIdToken": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": (
+                "Cognito ID token accepted only by onboarding resolution. Core "
+                "verifies signature, issuer, expiry, token_use=id, audience and "
+                "verified email; claims do not directly grant any role or elder scope."
+            ),
+        },
     }
     components["responses"] = {
         "Unauthorized": {
@@ -285,7 +309,11 @@ def main() -> None:
                         }
                 operation["responses"].pop("422", None)
             if path not in {"/health", "/ready"}:
-                operation["security"] = [{"bearerAuth": []}]
+                operation["security"] = (
+                    [{"cognitoIdToken": []}]
+                    if path == "/api/v1/onboarding/resolve"
+                    else [{"bearerAuth": []}]
+                )
                 operation["responses"].update(
                     {
                         "401": {"$ref": "#/components/responses/Unauthorized"},

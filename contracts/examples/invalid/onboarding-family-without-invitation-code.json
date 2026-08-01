@@ -1,0 +1,6 @@
+{
+  "_why_invalid": "Family onboarding must carry the one-time invitation code; persona intent alone cannot grant elder access.",
+  "data": {
+    "intent": "FAMILY"
+  }
+}

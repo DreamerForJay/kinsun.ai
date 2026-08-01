@@ -2,9 +2,9 @@
   "openapi": "3.1.0",
   "info": {
     "title": "kinsun.ai Core API",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "summary": "Implemented Core Domain, consent, security and outbox APIs.",
-    "description": "Current executable Core API contract. Every protected operation re-evaluates tenant, elder, relationship or assignment scope. Cognito JWT verification is not yet wired; production therefore fails closed with 401 as documented by bearerAuth."
+    "description": "Current executable Core API contract. Every protected operation re-evaluates tenant, elder, relationship or assignment scope. Cognito access tokens authenticate existing actors; the onboarding resolver separately accepts a verified Cognito ID token and never treats persona intent as authorization."
   },
   "paths": {
     "/health": {
@@ -119,6 +119,170 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/onboarding/resolve": {
+      "post": {
+        "tags": ["onboarding"],
+        "summary": "Resolve Google onboarding intent",
+        "description": "Called server-to-server by the BFF after Google federation through Cognito. A verified ID token establishes external identity only. ELDER creates or replays a household actor; FAMILY must atomically redeem a valid invitation before any elder access is granted.",
+        "operationId": "resolve_onboarding_api_v1_onboarding_resolve_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {"type": "string", "minLength": 1, "maxLength": 160}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "../schemas/domain/ResolveOnboardingRequestV1.json"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Identity resolved to active Core authorization state.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "../schemas/common/ResolveOnboardingEnvelopeV1.json"}
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFoundOrForbidden"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "422": {"$ref": "#/components/responses/ValidationFailed"},
+          "503": {"$ref": "#/components/responses/Unavailable"}
+        },
+        "security": [{"cognitoIdToken": []}]
+      }
+    },
+    "/api/v1/elders/{elder_id}/family-invitations": {
+      "get": {
+        "tags": ["family-invitations"],
+        "summary": "List safe family invitation statuses",
+        "description": "Elder-only, live tenant-scoped listing. The plaintext invitation code, token hash, email digest and redeemer identity are never returned.",
+        "operationId": "list_family_invitations_api_v1_elders__elder_id__family_invitations_get",
+        "parameters": [
+          {
+            "name": "elder_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized invitation status list.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "../schemas/common/FamilyInvitationListEnvelopeV1.json"}
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFoundOrForbidden"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "422": {"$ref": "#/components/responses/ValidationFailed"},
+          "503": {"$ref": "#/components/responses/Unavailable"}
+        },
+        "security": [{"bearerAuth": []}]
+      },
+      "post": {
+        "tags": ["family-invitations"],
+        "summary": "Create one-time family invitation",
+        "description": "Elder-only and consent-gated. Returns the plaintext code once; Core persists only its keyed digest.",
+        "operationId": "create_family_invitation_api_v1_elders__elder_id__family_invitations_post",
+        "parameters": [
+          {
+            "name": "elder_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {"type": "string", "minLength": 1, "maxLength": 160}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "../schemas/domain/CreateFamilyInvitationRequestV1.json"}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Invitation issued; copy the one-time code now.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "../schemas/common/FamilyInvitationCreatedEnvelopeV1.json"}
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFoundOrForbidden"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "422": {"$ref": "#/components/responses/ValidationFailed"},
+          "503": {"$ref": "#/components/responses/Unavailable"}
+        },
+        "security": [{"bearerAuth": []}]
+      }
+    },
+    "/api/v1/elders/{elder_id}/family-invitations/{invitation_id}/revoke": {
+      "post": {
+        "tags": ["family-invitations"],
+        "summary": "Revoke an issued family invitation",
+        "description": "Elder-only, idempotent revocation. A redeemed, expired or locked invitation cannot be converted to revoked.",
+        "operationId": "revoke_family_invitation_api_v1_elders__elder_id__family_invitations__invitation_id__revoke_post",
+        "parameters": [
+          {
+            "name": "elder_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          },
+          {
+            "name": "invitation_id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {"type": "string", "minLength": 1, "maxLength": 160}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation is revoked, including a safe replay of the prior revocation.",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "../schemas/common/FamilyInvitationStatusEnvelopeV1.json"}
+              }
+            }
+          },
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "404": {"$ref": "#/components/responses/NotFoundOrForbidden"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "422": {"$ref": "#/components/responses/ValidationFailed"},
+          "503": {"$ref": "#/components/responses/Unavailable"}
+        },
+        "security": [{"bearerAuth": []}]
       }
     },
     "/api/v1/me": {
@@ -3478,7 +3642,13 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "Target JWT shape. A production verifier is not configured yet; protected routes fail closed with 401. Development fake auth requires the explicit FAKE_AUTH_ENABLED flag."
+        "description": "Cognito access token. Core verifies signature, issuer, expiry, token_use=access and client_id, then resolves actor, tenant and role from live Core database state. Development fake auth requires the explicit FAKE_AUTH_ENABLED flag."
+      },
+      "cognitoIdToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Cognito ID token accepted only by onboarding resolution. Core verifies signature, issuer, expiry, token_use=id, audience and verified email; claims do not directly grant any role or elder scope."
       }
     },
     "responses": {

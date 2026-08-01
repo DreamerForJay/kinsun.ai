@@ -1,0 +1,11 @@
+{
+  "_why_invalid": "Revoke responses expose only safe status metadata and must not reveal a redeemer identity.",
+  "data": {
+    "invitation_id": "41000000-0000-4000-8000-000000000001",
+    "status": "REVOKED",
+    "share_scope": ["REPORT_DAILY"],
+    "expires_at": "2026-08-02T04:00:00Z",
+    "created_at": "2026-08-01T04:00:00Z",
+    "redeemed_by_actor_id": "22000000-0000-4000-8000-000000000001"
+  }
+}

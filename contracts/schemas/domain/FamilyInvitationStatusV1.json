@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/domain/FamilyInvitationStatusV1.json",
+  "title": "FamilyInvitationStatusV1",
+  "description": "Safe invitation status view; excludes the plaintext code, token hash, bound email digest and redeemer identity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["invitation_id", "status", "share_scope", "expires_at", "created_at"],
+  "properties": {
+    "invitation_id": { "type": "string", "format": "uuid" },
+    "status": {
+      "type": "string",
+      "enum": ["ISSUED", "REDEEMED", "EXPIRED", "REVOKED", "LOCKED"]
+    },
+    "share_scope": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["REPORT_DAILY", "REPORT_WEEKLY", "REPORT_MONTHLY", "REPORT_IMPORTANT_EVENT"]
+      }
+    },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

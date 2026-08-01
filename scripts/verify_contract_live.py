@@ -24,6 +24,9 @@ sys.path.insert(0, str(REPO_ROOT / "services" / "core-api"))
 # This verifier is specifically a no-authenticator fail-closed check. Make it
 # deterministic even when the developer's local .env enables synthetic auth.
 os.environ["FAKE_AUTH_ENABLED"] = "false"
+# Live contract verification must never fetch Cognito JWKS or require a real
+# Google/Cognito token. These probes exercise the implemented fail-closed edge.
+os.environ["COGNITO_AUTH_ENABLED"] = "false"
 
 from app.main import create_app  # noqa: E402 - path must be installed before app import
 
@@ -156,12 +159,96 @@ async def main() -> int:
             load("common/ErrorEnvelopeV1.json"),
         )
 
+        response = await client.post(
+            "/api/v1/onboarding/resolve",
+            headers={"Idempotency-Key": "live-contract-onboarding-resolve"},
+            json={"intent": "ELDER"},
+        )
+        if response.status_code != 401:
+            failures.append(
+                "POST /api/v1/onboarding/resolve returned "
+                f"{response.status_code}, expected 401"
+            )
+            print(
+                "FAIL  POST /api/v1/onboarding/resolve fails closed: "
+                f"{response.status_code}"
+            )
+        else:
+            print("ok    POST /api/v1/onboarding/resolve fails closed with 401")
+        check(
+            "POST /api/v1/onboarding/resolve 401 body vs ErrorEnvelopeV1",
+            response.json(),
+            load("common/ErrorEnvelopeV1.json"),
+        )
+
+        sample_uuid = "2a6f9c31-8e47-4b52-9d10-3c8a7e5b1a40"
+        invitation_collection = f"/api/v1/elders/{sample_uuid}/family-invitations"
+        response = await client.post(
+            invitation_collection,
+            headers={"Idempotency-Key": "live-contract-family-invitation-create"},
+            json={"share_scope": ["REPORT_DAILY"], "expires_in_hours": 24},
+        )
+        if response.status_code != 401:
+            failures.append(
+                "POST family invitation create returned "
+                f"{response.status_code}, expected 401"
+            )
+            print(
+                "FAIL  POST family invitation create fails closed: "
+                f"{response.status_code}"
+            )
+        else:
+            print("ok    POST family invitation create fails closed with 401")
+        check(
+            "POST family invitation create 401 body vs ErrorEnvelopeV1",
+            response.json(),
+            load("common/ErrorEnvelopeV1.json"),
+        )
+
+        response = await client.get(invitation_collection)
+        if response.status_code != 401:
+            failures.append(
+                "GET family invitation list returned "
+                f"{response.status_code}, expected 401"
+            )
+            print(
+                "FAIL  GET family invitation list fails closed: "
+                f"{response.status_code}"
+            )
+        else:
+            print("ok    GET family invitation list fails closed with 401")
+        check(
+            "GET family invitation list 401 body vs ErrorEnvelopeV1",
+            response.json(),
+            load("common/ErrorEnvelopeV1.json"),
+        )
+
+        response = await client.post(
+            f"{invitation_collection}/{sample_uuid}/revoke",
+            headers={"Idempotency-Key": "live-contract-family-invitation-revoke"},
+        )
+        if response.status_code != 401:
+            failures.append(
+                "POST family invitation revoke returned "
+                f"{response.status_code}, expected 401"
+            )
+            print(
+                "FAIL  POST family invitation revoke fails closed: "
+                f"{response.status_code}"
+            )
+        else:
+            print("ok    POST family invitation revoke fails closed with 401")
+        check(
+            "POST family invitation revoke 401 body vs ErrorEnvelopeV1",
+            response.json(),
+            load("common/ErrorEnvelopeV1.json"),
+        )
+
         protected_gets = sorted(
             path
             for path, item in OPENAPI["paths"].items()
             if "get" in item and path not in {"/health", "/ready"}
         )
-        sample_uuid = "2a6f9c31-8e47-4b52-9d10-3c8a7e5b1a40"
         for path in protected_gets:
             url = re.sub(r"\{[^}]+\}", sample_uuid, path)
             params = (
