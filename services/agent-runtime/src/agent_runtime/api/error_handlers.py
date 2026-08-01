@@ -26,6 +26,7 @@ from agent_runtime.common.errors import (
     CoreDependencyError,
     DomainError,
     InvalidRequestError,
+    ModelDependencyError,
     StepLimitError,
 )
 from agent_runtime.core.envelopes import ErrorBody, ErrorEnvelope, ValidationDetail
@@ -40,6 +41,7 @@ EXCEPTION_MAP: dict[type[DomainError], int] = {
     InvalidRequestError: 422,
     StepLimitError: 422,
     CoreDependencyError: 503,
+    ModelDependencyError: 503,
 }
 
 _STATUS_CODE_SLUGS: dict[int, str] = {

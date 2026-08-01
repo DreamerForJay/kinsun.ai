@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Protocol, cast
 
+from agent_runtime.common.errors import ModelDependencyError
 from agent_runtime.contracts.models import AgentRunRequest, ContextManifest
 from agent_runtime.models.provider import ModelProvider
 
@@ -43,10 +44,6 @@ COMPANION_SYSTEM_PROMPT = """你是長照陪伴助理，正在與長者閒聊。
 3. 用溫暖、簡短、口語的說法回應，並自然地邀請對方多聊一點。
 4. 不使用恐懼、內疚或壓力促使對方互動。
 5. 回覆長度控制在兩到三句話之內。"""
-
-
-class ModelProviderError(RuntimeError):
-    """Raised when Bedrock does not return a usable reply."""
 
 
 class BedrockConverseClient(Protocol):
@@ -99,7 +96,7 @@ class BedrockModelProvider(ModelProvider):
         except Exception as exc:
             # Provider messages can quote the request, which carries the elder's
             # words. Only the exception class is safe to surface.
-            raise ModelProviderError(f"Bedrock reply failed: {type(exc).__name__}") from exc
+            raise ModelDependencyError(f"Bedrock reply failed: {type(exc).__name__}") from exc
 
         return _extract_text(response)
 
@@ -134,12 +131,12 @@ def _extract_text(response: Any) -> str:
     """Read the Converse reply, refusing anything that is not usable text."""
 
     if not isinstance(response, dict):
-        raise ModelProviderError("Bedrock response must be an object")
+        raise ModelDependencyError("Bedrock response must be an object")
     output = response.get("output")
     message = output.get("message") if isinstance(output, dict) else None
     content = message.get("content") if isinstance(message, dict) else None
     if not isinstance(content, list) or not content:
-        raise ModelProviderError("Bedrock response has no content")
+        raise ModelDependencyError("Bedrock response has no content")
     parts = [
         block["text"]
         for block in content
@@ -147,7 +144,7 @@ def _extract_text(response: Any) -> str:
     ]
     reply = "\n".join(part.strip() for part in parts if part.strip()).strip()
     if not reply:
-        raise ModelProviderError("Bedrock returned an empty reply")
+        raise ModelDependencyError("Bedrock returned an empty reply")
     return reply
 
 

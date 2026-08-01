@@ -9,7 +9,7 @@ from agent_runtime.models.bedrock_provider import (
     COMPANION_SYSTEM_PROMPT,
     KNOWLEDGE_SYSTEM_PROMPT,
     BedrockModelProvider,
-    ModelProviderError,
+    ModelDependencyError,
 )
 
 ELDER_ID = "2a6f9c31-8e47-4b52-9d10-3c8a7e5b1a40"
@@ -128,7 +128,7 @@ async def test_turn_without_excerpts_uses_the_companion_prompt() -> None:
 async def test_provider_failure_does_not_carry_the_upstream_message() -> None:
     """A provider message can quote the request, which is the elder speaking."""
 
-    with pytest.raises(ModelProviderError) as excinfo:
+    with pytest.raises(ModelDependencyError) as excinfo:
         await make_provider(ExplodingConverseClient()).generate_reply(
             make_request(), make_manifest(with_excerpts=True), "zh-TW"
         )
@@ -152,7 +152,7 @@ async def test_unusable_response_fails_closed(response: dict[str, Any]) -> None:
         def converse(self, **kwargs: Any) -> dict[str, Any]:
             return response
 
-    with pytest.raises(ModelProviderError):
+    with pytest.raises(ModelDependencyError):
         await make_provider(Client()).generate_reply(
             make_request(), make_manifest(with_excerpts=True), "zh-TW"
         )
