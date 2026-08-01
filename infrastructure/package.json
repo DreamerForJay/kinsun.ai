@@ -5,17 +5,20 @@
   "type": "commonjs",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/auth.test.ts",
+    "test": "tsx --test test/*.test.ts",
     "synth": "cdk synth",
+    "synth:application": "cdk synth --app \"npx tsx bin/canonical-staging-application.ts\"",
     "diff": "cdk diff",
-    "deploy": "cdk deploy"
+    "deploy": "cdk deploy KinsunCanonicalStagingFoundation",
+    "deploy:application": "cdk deploy --app \"npx tsx bin/canonical-staging-application.ts\" KinsunCanonicalStagingApplication",
+    "synth:legacy:audit": "cdk synth --app \"npx tsx bin/app.ts\""
   },
   "dependencies": {
-    "aws-cdk-lib": "^2.152.0",
-    "constructs": "^10.3.0"
+    "aws-cdk-lib": "2.262.0",
+    "constructs": "10.7.1"
   },
   "devDependencies": {
-    "aws-cdk": "^2.152.0",
+    "aws-cdk": "2.1133.0",
     "typescript": "^5.5.4",
     "tsx": "^4.16.5",
     "esbuild": "^0.23.1",

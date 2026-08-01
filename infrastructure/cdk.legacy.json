@@ -1,5 +1,5 @@
 {
-  "app": "npx tsx bin/canonical-staging.ts",
+  "app": "npx tsx bin/app.ts",
   "watch": {
     "include": ["**"],
     "exclude": ["README.md", "cdk*.json", "**/*.d.ts", "**/*.js", "tsconfig.json", "package*.json", "node_modules"]
