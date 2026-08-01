@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from agent_runtime.agents.companion.agent import CompanionAgent
@@ -26,7 +27,9 @@ from agent_runtime.contracts.models import (
     SafetyEvaluation,
 )
 from agent_runtime.core.agent_runs import (
+    AgentRunCompleter,
     AgentRunRegistrar,
+    CompleteAgentRunRequest,
     CoreAgentRunClientError,
     RegisterAgentRunRequest,
 )
@@ -43,7 +46,7 @@ from agent_runtime.orchestration.stop_conditions import map_to_status
 from agent_runtime.rag.citations import append_citations
 from agent_runtime.rag.fallback import failed_response
 from agent_runtime.rag.models import RetrievalResponseV1
-from agent_runtime.tools.errors import CoreToolClientError
+from agent_runtime.tools.errors import CoreToolClientError, CoreToolTimeoutError
 from agent_runtime.tools.executor import ToolExecutor
 from agent_runtime.tools.requests import (
     CREATE_EVENT_CANDIDATE_TOOL,
@@ -87,6 +90,7 @@ class AgentOrchestrator:
         *,
         rag_retriever: RagRetriever | None = None,
         agent_run_registrar: AgentRunRegistrar | None = None,
+        agent_run_completer: AgentRunCompleter | None = None,
         tool_executor: ToolExecutor | None = None,
     ) -> AgentRunResponse:
         if request.max_steps > self.max_steps:
@@ -168,6 +172,7 @@ class AgentOrchestrator:
                 trace_id=trace_id,
                 selected_agent=selected_agent,
                 agent_run_registrar=agent_run_registrar,
+                agent_run_completer=agent_run_completer,
                 tool_executor=tool_executor,
             )
 
@@ -191,6 +196,7 @@ class AgentOrchestrator:
         trace_id: str,
         selected_agent: str,
         agent_run_registrar: AgentRunRegistrar | None,
+        agent_run_completer: AgentRunCompleter | None,
         tool_executor: ToolExecutor | None,
     ) -> tuple[str | None, ResultStatus | None, list[str]]:
         session_id = self._parse_uuid(request.session_id, "session_id")
@@ -204,9 +210,11 @@ class AgentOrchestrator:
 
         if self.max_tool_rounds < 1 or self.max_total_tools < 1:
             raise StepLimitError("Tool execution is disabled by system limits")
-        if agent_run_registrar is None or tool_executor is None:
+        if agent_run_registrar is None or agent_run_completer is None or tool_executor is None:
             raise CoreDependencyError("Core Tool execution is unavailable")
 
+        self._validate_tool_identifier(trace_id, "trace_id")
+        self._validate_tool_identifier(request.request_id, "request_id")
         consent_version = self._parse_consent_version(request.consent_version)
         registration_request = RegisterAgentRunRequest(
             session_id=session_id,
@@ -225,32 +233,110 @@ class AgentOrchestrator:
                     selected_agent,
                 ),
             )
-            tool_call_id = uuid5(
-                registration.agent_run_id,
-                f"{CREATE_EVENT_CANDIDATE_TOOL}:{request.request_id}",
-            )
-            tool_request = build_create_event_candidate_request(
-                candidate=extraction,
-                tool_call_id=tool_call_id,
-                agent_run_id=registration.agent_run_id,
-                elder_id=elder_id,
-                consent_version=consent_version,
-                policy_version=request.policy_version,
-                request_id=request.request_id,
-                idempotency_key=f"tool:{tool_call_id}",
-            )
-            tool_result = await tool_executor.execute(tool_request)
-        except (CoreAgentRunClientError, CoreToolClientError):
+        except CoreAgentRunClientError:
             raise CoreDependencyError("Core Tool execution is unavailable") from None
 
-        result_status_override = None
-        if tool_result.result_status == "BLOCKED":
-            result_status_override = ResultStatus.BLOCKED
-        elif tool_result.result_status == "FAILED":
-            result_status_override = ResultStatus.FAILED
+        tool_call_id = uuid5(
+            registration.agent_run_id,
+            f"{CREATE_EVENT_CANDIDATE_TOOL}:{request.request_id}",
+        )
+        tool_request = build_create_event_candidate_request(
+            candidate=extraction,
+            tool_call_id=tool_call_id,
+            agent_run_id=registration.agent_run_id,
+            elder_id=elder_id,
+            consent_version=consent_version,
+            policy_version=request.policy_version,
+            request_id=request.request_id,
+            idempotency_key=f"tool:{tool_call_id}",
+        )
 
+        try:
+            tool_result = await tool_executor.execute(tool_request)
+        except asyncio.CancelledError:
+            await self._best_effort_complete(
+                agent_run_completer,
+                registration.agent_run_id,
+                result_status="CANCELLED",
+                stop_reason="AGENT_EXECUTION_CANCELLED",
+            )
+            raise
+        except CoreToolTimeoutError:
+            await self._best_effort_complete(
+                agent_run_completer,
+                registration.agent_run_id,
+                result_status="TIME_BUDGET_EXCEEDED",
+                stop_reason="CORE_TOOL_TIMEOUT",
+            )
+            raise CoreDependencyError("Core Tool execution is unavailable") from None
+        except CoreToolClientError as exc:
+            await self._best_effort_complete(
+                agent_run_completer,
+                registration.agent_run_id,
+                result_status="DEPENDENCY_FAILED",
+                stop_reason=self._bounded_stop_reason(exc.reason_code),
+            )
+            raise CoreDependencyError("Core Tool execution is unavailable") from None
+
+        terminal_status = {
+            "SUCCESS": "SUCCESS",
+            "NO_DATA": "NO_DATA",
+            "BLOCKED": "BLOCKED",
+            "FAILED": "DEPENDENCY_FAILED",
+        }[tool_result.result_status]
+        stop_reason = self._bounded_stop_reason(tool_result.reason_code)
+        if tool_result.result_status == "FAILED" and stop_reason is None:
+            stop_reason = "CORE_TOOL_FAILED"
+
+        completion_request = CompleteAgentRunRequest(
+            result_status=terminal_status,
+            stop_reason=stop_reason,
+        )
+        try:
+            await agent_run_completer.complete(
+                registration.agent_run_id,
+                completion_request,
+                idempotency_key=self._completion_idempotency_key(registration.agent_run_id),
+            )
+        except asyncio.CancelledError:
+            await self._best_effort_complete(
+                agent_run_completer,
+                registration.agent_run_id,
+                result_status=terminal_status,
+                stop_reason=stop_reason,
+            )
+            raise
+        except CoreAgentRunClientError:
+            raise CoreDependencyError("Core Tool execution is unavailable") from None
+
+        if tool_result.result_status == "FAILED":
+            raise CoreDependencyError("Core Tool execution is unavailable")
+
+        result_status_override = (
+            ResultStatus.BLOCKED if tool_result.result_status == "BLOCKED" else None
+        )
         reason_codes = [tool_result.reason_code] if tool_result.reason_code else []
         return str(registration.agent_run_id), result_status_override, reason_codes
+
+    async def _best_effort_complete(
+        self,
+        completer: AgentRunCompleter,
+        agent_run_id: UUID,
+        *,
+        result_status: str,
+        stop_reason: str | None,
+    ) -> None:
+        try:
+            await completer.complete(
+                agent_run_id,
+                CompleteAgentRunRequest(
+                    result_status=result_status,
+                    stop_reason=stop_reason,
+                ),
+                idempotency_key=self._completion_idempotency_key(agent_run_id),
+            )
+        except CoreAgentRunClientError:
+            return
 
     @staticmethod
     def _parse_uuid(value: str, field: str) -> UUID:
@@ -274,6 +360,20 @@ class AgentOrchestrator:
             )
         return parsed
 
+    @staticmethod
+    def _validate_tool_identifier(value: str, field: str) -> None:
+        if len(value) > 80:
+            raise InvalidRequestError(
+                f"{field} must be at most 80 characters when Tool execution is requested"
+            )
+
+    @staticmethod
+    def _bounded_stop_reason(value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized[:160] or None
+
     def _registration_idempotency_key(
         self,
         request: AgentRunRequest,
@@ -289,6 +389,10 @@ class AgentOrchestrator:
             )
         )
         return f"agent-run:{uuid5(NAMESPACE_URL, identity)}"
+
+    @staticmethod
+    def _completion_idempotency_key(agent_run_id: UUID) -> str:
+        return f"agent-run-complete:{agent_run_id}"
 
     @staticmethod
     def _response(

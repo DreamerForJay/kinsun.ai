@@ -45,9 +45,13 @@ retrieval HTTP boundary 已可呼叫：未設定 Bedrock／OpenSearch 時仍回 
 | `agent/HandoffEnvelopeV1` | 有 Pydantic model 與測試，但 orchestrator 從未產生 handoff |
 | `tools/ToolResponseV1` | Agent Runtime 的 legacy target；Core endpoint 實際回傳 `ToolResultV1` |
 
-Core 的 `ToolRequestV1`／`ToolResultV1` 已由 `POST /api/v1/internal/tools/execute` 實際使用，
-並列在 `core-api.v1.yaml`，不屬於例外。Agent Runtime 後續接 Tool 迴圈時，必須以 adapter
-把 legacy `ToolResponseV1` 轉成 Core result，不得把兩份 schema 視為同一型別。
+Core 的 `ToolRequestV1`／`ToolResultV1` 已由 `POST /api/v1/internal/tools/execute` 實際使用；
+`RegisterAgentRunRequestV1`／`AgentRunRegistrationV1` 與
+`CompleteAgentRunRequestV1`／`AgentRunCompletionV1` 則分別描述 Tool 執行前的 Core-owned
+registration 與執行後的 terminal compare-and-set completion。三個 endpoint 都列在
+`core-api.v1.yaml`，不屬於例外。Agent Runtime 的受控 `create_event_candidate` 路徑已以
+adapter 串起 register → Tool → complete；通用多 Tool 迴圈仍未實作，且不得把 legacy
+`ToolResponseV1` 與 Core `ToolResultV1` 視為同一型別。
 
 上述兩支例外 schema 不在 executable OpenAPI path 裡。
 要判斷「這個能不能現在呼叫」，看 OpenAPI，不要看 `schemas/` 底下有沒有檔案。

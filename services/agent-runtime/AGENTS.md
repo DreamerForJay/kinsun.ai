@@ -25,11 +25,14 @@ production。
 
 目前只接通一條受控 Tool 路徑：request `allowed_tools` 明確包含
 `create_event_candidate`、Safety 為 `ALLOW` 且 deterministic Event Extractor 產生 Candidate
-時，Runtime 先向 Core 註冊正式 UUID AgentRun，再以同一 UUID 呼叫 Core Tool。這不是通用
-Tool loop；Runtime 不建立 service credential，只轉交呼叫端既有 Authorization，由 Core
-重新驗證所有正式 scope。尚未實作（不要描述成已完成）：Memory Candidate、Model Router、
-Prompt Registry、Agent Trace 終態持久化、Neptune、通用 Tool 執行迴圈、RAG／Graph
-Evaluation，以及能實際使用 RAG context 生成回答的外部 Model Provider。
+時，Runtime 先向 Core 註冊正式 UUID AgentRun，以同一 UUID 呼叫 Core Tool，再同步寫入終態。
+Tool `SUCCESS`／`NO_DATA`／`BLOCKED` 對應同名終態；失敗、逾時與取消分別以
+`DEPENDENCY_FAILED`、`TIME_BUDGET_EXCEEDED`、`CANCELLED` fail closed。completion 失敗不得
+回報成功。這不是通用 Tool loop；Runtime 不建立 service credential，只轉交呼叫端既有
+Authorization，由 Core 重新驗證所有正式 scope。尚未實作（不要描述成已完成）：Memory
+Candidate、Model Router、Prompt Registry、完整 Agent Trace（Core AgentRun lifecycle 以外）、
+Neptune、通用 Tool 執行迴圈、RAG／Graph Evaluation，以及能實際使用 RAG context 生成回答的
+外部 Model Provider。
 
 ## 硬性規則
 

@@ -3,6 +3,7 @@ from agent_runtime.tools.errors import (
     CoreToolClientError,
     CoreToolHttpError,
     CoreToolProtocolError,
+    CoreToolTimeoutError,
     CoreToolTransportError,
 )
 from agent_runtime.tools.executor import ToolExecutor
@@ -22,6 +23,7 @@ __all__ = [
     "CoreToolHttpError",
     "CoreToolHttpClient",
     "CoreToolProtocolError",
+    "CoreToolTimeoutError",
     "CoreToolTransportError",
     "ToolExecutor",
     "build_create_event_candidate_request",

@@ -28,11 +28,15 @@ provider 時，retrieval endpoint 會明確回傳 `FAILED` fallback 與空結果
 路徑。
 
 若 `allowed_tools` 明確包含 `create_event_candidate`，Safety 允許且 Event Extractor 真的產生
-Candidate，Runtime 才會要求 `CORE_API_BASE_URL`，向 Core 註冊正式 UUID AgentRun，並把該
-UUID 放入 `ToolRequest.agent_run_id` 後執行 Core Tool。Runtime 不建立或保存 service token；
-它只轉交呼叫端既有的 `Authorization`，由 Core 重新驗證 `SYSTEM_SERVICE`、tenant／elder／
-session／policy、consent、scope 與 idempotency。缺少 Core 設定、Core 拒絕或 transport／
-protocol 失敗一律 503 fail closed，不會用本地 `run-<UUID>` 寫入。
+Candidate，Runtime 才會要求 `CORE_API_BASE_URL`，向 Core 註冊正式 UUID AgentRun、以同一
+UUID 執行 Core Tool，並同步完成該 AgentRun。Tool `SUCCESS`／`NO_DATA`／`BLOCKED` 對應同名
+終態；Tool `FAILED` 或 dependency failure 先 best-effort 完成 `DEPENDENCY_FAILED` 再回傳
+sanitized 503，逾時與取消則分別完成 `TIME_BUDGET_EXCEEDED`／`CANCELLED`。completion 本身失敗
+也會 fail closed，不會把未確認的終態當成功。
+
+Runtime 不建立或保存 service token；它只轉交呼叫端既有的 `Authorization`，由 Core 重新驗證
+`SYSTEM_SERVICE`、tenant／elder／session／policy、consent、scope 與 idempotency。缺少 Core
+設定、Core 拒絕或 transport／protocol 失敗一律 fail closed，不會用本地 `run-<UUID>` 寫入。
 
 未簽署 Allowlist 只有在 staging 明確設定 `RAG_REQUIRE_OWNER_SIGNATURE=false` 時才可使用；
 `RAG_ALLOWLIST_EXPECTED_SHA256` 精確比對，以及來源、Chunk、數量與完整 Allowlist 驗證仍為
@@ -85,8 +89,8 @@ uv run --with pyyaml --with jsonschema --with referencing python ../../scripts/v
 ## 尚未實作
 
 通用多 Tool 執行迴圈、Memory Candidate、Graph 查詢、Prompt Registry、Model Router、
-AgentRun 終態回寫、Agent Trace 持久化、RAG Evaluation、能實際使用 RAG context 生成回答的
-外部 Model Provider，以及 production index。
+完整 Agent Trace 持久化（Core AgentRun register／complete lifecycle 以外）、RAG Evaluation、
+能實際使用 RAG context 生成回答的外部 Model Provider，以及 production index。
 
 `contracts/schemas/agent/HandoffEnvelopeV1` 仍是目標形狀；`contracts/schemas/tools/` 現已由
 受控的 Core Tool adapter 使用，但目前只接通 `create_event_candidate`。

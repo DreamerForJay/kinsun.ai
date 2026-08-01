@@ -16,11 +16,26 @@ class CoreToolClientError(Exception):
 
 
 class CoreToolTransportError(CoreToolClientError):
+    def __init__(
+        self,
+        message: str = "Core Tool service is unavailable",
+        *,
+        reason_code: str = "CORE_TOOL_UNAVAILABLE",
+    ) -> None:
+        super().__init__(
+            message,
+            reason_code=reason_code,
+            retryable=True,
+        )
+
+
+class CoreToolTimeoutError(CoreToolTransportError):
+    """Specific retryable transport failure used for timeout terminal mapping."""
+
     def __init__(self) -> None:
         super().__init__(
-            "Core Tool service is unavailable",
-            reason_code="CORE_TOOL_UNAVAILABLE",
-            retryable=True,
+            "Core Tool request timed out",
+            reason_code="CORE_TOOL_TIMEOUT",
         )
 
 

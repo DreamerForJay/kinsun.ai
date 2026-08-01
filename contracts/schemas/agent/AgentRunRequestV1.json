@@ -77,7 +77,7 @@
       "maxLength": 4000
     },
     "allowed_tools": {
-      "description": "Explicit per-run allowlist. Only create_event_candidate currently executes; it registers a Core-owned AgentRun before sending the Tool request and never falls back to a local run ID for that write.",
+      "description": "Explicit per-run allowlist. Only create_event_candidate currently executes; it registers a Core-owned AgentRun before the Tool request, uses that same UUID through terminal completion, and fails closed rather than substituting a local run ID or leaving a known Tool failure as a successful run.",
       "type": "array",
       "items": {
         "type": "string",

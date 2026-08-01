@@ -48,10 +48,12 @@ async def run_agent(
         headers=headers,
         timeout=settings.CORE_API_TIMEOUT_SECONDS,
     ) as core_http_client:
+        lifecycle_client = CoreAgentRunHttpClient(core_http_client)
         response = await orchestrator.run(
             payload,
             **run_arguments,
-            agent_run_registrar=CoreAgentRunHttpClient(core_http_client),
+            agent_run_registrar=lifecycle_client,
+            agent_run_completer=lifecycle_client,
             tool_executor=CoreToolHttpClient(core_http_client),
         )
     return _envelope(response)

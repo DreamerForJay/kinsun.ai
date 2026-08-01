@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -47,4 +48,6 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    if os.getenv("APP_ENV", "").casefold() == "test":
+        return Settings(_env_file=None)
     return Settings()

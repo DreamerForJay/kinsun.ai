@@ -6,6 +6,7 @@ from agent_runtime.core.envelopes import ErrorEnvelope, SuccessEnvelope
 from agent_runtime.tools.errors import (
     CoreToolHttpError,
     CoreToolProtocolError,
+    CoreToolTimeoutError,
     CoreToolTransportError,
 )
 
@@ -24,6 +25,8 @@ class CoreToolHttpClient:
                 TOOL_EXECUTION_PATH,
                 json=request.model_dump(mode="json"),
             )
+        except httpx.TimeoutException:
+            raise CoreToolTimeoutError from None
         except httpx.RequestError:
             raise CoreToolTransportError from None
 

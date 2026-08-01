@@ -100,13 +100,19 @@ paths:
 
         When `allowed_tools` explicitly includes `create_event_candidate`, a
         safety-allowed turn may run one deterministic extraction. Only if a
-        Candidate exists does the Runtime register a Core-owned AgentRun and
-        use that returned UUID in the allowlisted Core Tool request. The
-        caller's existing Authorization value is forwarded unchanged to Core;
-        the Runtime does not create credentials or trust actor/tenant fields in
-        the body. Missing Core configuration, rejected registration, or Tool
-        transport/protocol failure returns 503 and never falls back to a local
-        UUID for the write.
+        Candidate exists does the Runtime register a Core-owned AgentRun, use
+        that UUID in the allowlisted Core Tool request, and synchronously
+        complete the same run. Tool `SUCCESS`, `NO_DATA`, and `BLOCKED` map to
+        the matching terminal status; Tool `FAILED` and dependency failures map
+        to `DEPENDENCY_FAILED`, while timeout and cancellation map to
+        `TIME_BUDGET_EXCEEDED` and `CANCELLED`.
+
+        The caller's existing Authorization value is forwarded unchanged to
+        every Core call; the Runtime does not create credentials or trust
+        actor/tenant fields in the body. Missing Core configuration, rejected
+        registration, Tool transport/protocol failure, or terminal-completion
+        failure returns a sanitized 503 and never falls back to a local UUID.
+        Known Tool failures are completed best-effort before returning 503.
 
         Tool execution additionally requires UUID-form `session_id` and
         `elder_id`, plus a positive-integer string `consent_version`; Core
