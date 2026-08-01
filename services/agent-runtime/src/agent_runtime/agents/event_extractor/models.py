@@ -73,7 +73,7 @@ EvidenceReference = Annotated[
 
 
 class EventExtractionContext(ContractBaseModel):
-    """Opaque source metadata supplied by the caller, never inferred from transcript text."""
+    """Opaque source metadata supplied by the caller, never inferred from input text."""
 
     source_id: UUID
     source_version: int = Field(default=1, ge=1)

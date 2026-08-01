@@ -89,10 +89,7 @@ class EventExtractorAgent:
         if _EXPECTED_CONTACT_MISSED_PATTERN.search(text):
             return (
                 CareEventType.EXPECTED_CONTACT_MISSED,
-                {
-                    "observation_basis": "ELDER_STATEMENT",
-                    "contact_status": "MISSED",
-                },
+                {"observation_basis": "ELDER_STATEMENT", "contact_status": "MISSED"},
                 ConfidenceBand.MEDIUM,
             )
         if _ACTIVITY_CANCELLED_PATTERN.search(text):
@@ -126,10 +123,7 @@ class EventExtractorAgent:
         if _COMPANIONSHIP_PATTERN.search(text):
             return (
                 CareEventType.COMPANIONSHIP_NEED,
-                {
-                    "observation_basis": "ELDER_STATEMENT",
-                    "need_status": "EXPRESSED",
-                },
+                {"observation_basis": "ELDER_STATEMENT", "need_status": "EXPRESSED"},
                 ConfidenceBand.MEDIUM,
             )
         if _EMOTION_PATTERN.search(text):
@@ -190,10 +184,7 @@ class EventExtractorAgent:
             sleep_status = "REST_REPORTED"
         else:
             sleep_status = "MENTIONED"
-        return {
-            "observation_basis": "ELDER_STATEMENT",
-            "sleep_status": sleep_status,
-        }
+        return {"observation_basis": "ELDER_STATEMENT", "sleep_status": sleep_status}
 
     @staticmethod
     def _social_contact_payload(text: str) -> dict[str, JsonValue]:
@@ -222,10 +213,7 @@ class EventExtractorAgent:
             if any(term in text for term in terms):
                 expression = category
                 break
-        return {
-            "observation_basis": "ELDER_STATEMENT",
-            "expression": expression,
-        }
+        return {"observation_basis": "ELDER_STATEMENT", "expression": expression}
 
     @staticmethod
     def _activity_payload(text: str) -> dict[str, JsonValue]:
@@ -239,7 +227,4 @@ class EventExtractorAgent:
             if term in text:
                 activity_kind = category
                 break
-        return {
-            "observation_basis": "ELDER_STATEMENT",
-            "activity_kind": activity_kind,
-        }
+        return {"observation_basis": "ELDER_STATEMENT", "activity_kind": activity_kind}
