@@ -10,6 +10,12 @@ ROOT = Path(__file__).resolve().parents[1]
 CORE_API = ROOT / "services" / "core-api"
 sys.path.insert(0, str(CORE_API))
 
+from app.schemas.agent_run import (  # noqa: E402
+    AgentRunCompletionResponse,
+    AgentRunRegistrationResponse,
+    CompleteAgentRunRequest,
+    RegisterAgentRunRequest,
+)
 from app.schemas.assignment import (  # noqa: E402
     AssignmentCommandRequest,
     AssignmentListResponse,
@@ -65,6 +71,10 @@ from app.schemas.tool import ToolRequest, ToolResult  # noqa: E402
 
 EXPORTS = {
     "domain": {
+        "RegisterAgentRunRequestV1": RegisterAgentRunRequest,
+        "AgentRunRegistrationV1": AgentRunRegistrationResponse,
+        "CompleteAgentRunRequestV1": CompleteAgentRunRequest,
+        "AgentRunCompletionV1": AgentRunCompletionResponse,
         "CreateConsentRequestV1": CreateConsentRequest,
         "RevokeConsentRequestV1": RevokeConsentRequest,
         "ConsentV1": ConsentResponse,
@@ -114,6 +124,8 @@ SUCCESS_ENVELOPES = {
     "AuthorizedElderListEnvelopeV1": "domain/AuthorizedElderListV1.json",
     "ElderSummaryEnvelopeV1": "domain/ElderSummaryV1.json",
     "ElderAccessContextEnvelopeV1": "domain/ElderAccessContextV1.json",
+    "AgentRunRegistrationEnvelopeV1": "domain/AgentRunRegistrationV1.json",
+    "AgentRunCompletionEnvelopeV1": "domain/AgentRunCompletionV1.json",
     "ConsentEnvelopeV1": "domain/ConsentV1.json",
     "ConsentListEnvelopeV1": "domain/ConsentListV1.json",
     "VoiceSessionEnvelopeV1": "domain/VoiceSessionV1.json",

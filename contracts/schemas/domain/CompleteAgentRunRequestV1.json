@@ -1,0 +1,41 @@
+{
+  "$id": "https://kinsun.ai/contracts/schemas/domain/CompleteAgentRunRequestV1.json",
+  "title": "CompleteAgentRunRequestV1",
+  "description": "Terminal outcome accepted by Core's compare-and-set AgentRun completion command. Identity and ownership are derived from authentication and the path, not from this body.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "result_status"
+  ],
+  "properties": {
+    "result_status": {
+      "type": "string",
+      "enum": [
+        "SUCCESS",
+        "NEEDS_CLARIFICATION",
+        "BLOCKED",
+        "HUMAN_REVIEW",
+        "NO_DATA",
+        "SCHEMA_FAILED",
+        "DEPENDENCY_FAILED",
+        "TIME_BUDGET_EXCEEDED",
+        "COST_BUDGET_EXCEEDED",
+        "CANCELLED"
+      ]
+    },
+    "stop_reason": {
+      "description": "Bounded, non-sensitive machine-readable reason for the terminal outcome.",
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  }
+}

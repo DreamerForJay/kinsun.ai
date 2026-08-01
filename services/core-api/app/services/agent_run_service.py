@@ -1,7 +1,8 @@
-"""Core-owned AgentRun registration service."""
+"""Core-owned AgentRun registration and terminal transition service."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,11 +11,11 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.models.agent import AgentRun
 from app.repositories.agent_run_repo import AgentRunRepository
 from app.repositories.conversation_repo import ConversationRepository
-from app.schemas.agent_run import RegisterAgentRunRequest
+from app.schemas.agent_run import CompleteAgentRunRequest, RegisterAgentRunRequest
 
 
 class AgentRunService:
-    """Create AgentRun rows only after validating their trusted session scope."""
+    """Validate trusted scope and enforce RUNNING-to-terminal state transitions."""
 
     def __init__(self, session: AsyncSession, tenant_id: UUID) -> None:
         self._session = session
@@ -61,3 +62,38 @@ class AgentRunService:
         self._runs.add(agent_run)
         await self._session.flush()
         return agent_run
+
+    async def complete(
+        self,
+        *,
+        agent_run_id: UUID,
+        actor_id: UUID,
+        request: CompleteAgentRunRequest,
+    ) -> AgentRun:
+        completed = await self._runs.complete_running_for_actor(
+            agent_run_id=agent_run_id,
+            actor_id=actor_id,
+            result_status=request.result_status,
+            stop_reason=request.stop_reason,
+            completed_at=datetime.now(UTC),
+        )
+        if completed is not None:
+            return completed
+
+        existing = await self._runs.get_for_actor(agent_run_id, actor_id)
+        if existing is None:
+            raise NotFoundError("Resource not found")
+        self.require_matching_completion(existing, request)
+        return existing
+
+    @staticmethod
+    def require_matching_completion(
+        agent_run: AgentRun,
+        request: CompleteAgentRunRequest,
+    ) -> None:
+        if (
+            agent_run.completed_at is None
+            or agent_run.result_status != request.result_status
+            or agent_run.stop_reason != request.stop_reason
+        ):
+            raise ConflictError("Agent run is already terminal with a different outcome")

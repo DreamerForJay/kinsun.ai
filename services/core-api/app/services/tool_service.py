@@ -100,6 +100,8 @@ class ToolExecutionService:
             raise NotFoundError("Resource not found")
         if existing_call is not None:
             self._validate_replay_request(existing_call, request)
+        elif run.result_status != "RUNNING":
+            raise ConflictError("Tool execution requires a RUNNING AgentRun")
         if run.policy_version != request.policy_version:
             if existing_call is not None:
                 raise ConflictError("Tool call cannot be replayed under a different policy version")

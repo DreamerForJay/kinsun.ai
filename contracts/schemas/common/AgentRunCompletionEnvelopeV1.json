@@ -1,0 +1,18 @@
+{
+  "$id": "https://kinsun.ai/contracts/schemas/common/AgentRunCompletionEnvelopeV1.json",
+  "title": "AgentRunCompletionEnvelopeV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "data",
+    "meta"
+  ],
+  "properties": {
+    "data": {
+      "$ref": "https://kinsun.ai/contracts/schemas/domain/AgentRunCompletionV1.json"
+    },
+    "meta": {
+      "$ref": "https://kinsun.ai/contracts/schemas/common/ResponseMetaV1.json"
+    }
+  }
+}

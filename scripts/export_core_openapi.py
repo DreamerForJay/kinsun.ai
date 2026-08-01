@@ -135,6 +135,21 @@ SUCCESS_ENVELOPE_BY_OPERATION = {
     ),
     "list_assignments_api_v1_home_care_assignments_get": "CareAssignmentListEnvelopeV1",
     "get_assignment_api_v1_home_care_assignments__assignment_id__get": (
+MODEL_FILES.update(
+    {
+        "RegisterAgentRunRequest": "domain/RegisterAgentRunRequestV1.json",
+        "CompleteAgentRunRequest": "domain/CompleteAgentRunRequestV1.json",
+    }
+)
+SUCCESS_ENVELOPE_BY_OPERATION.update(
+    {
+        "register_agent_run_api_v1_internal_agent_runs_post": ("AgentRunRegistrationEnvelopeV1"),
+        "complete_agent_run_api_v1_internal_agent_runs__agent_run_id__complete_post": (
+            "AgentRunCompletionEnvelopeV1"
+        ),
+    }
+)
+
         "CareAssignmentEnvelopeV1"
     ),
     "confirm_assignment_api_v1_internal_home_care_assignments__assignment_id__confirm_post": (

@@ -1,0 +1,19 @@
+{
+  "data": {
+    "agent_run_id": "a0000000-0000-4000-8000-000000000001",
+    "session_id": "90000000-0000-4000-8000-000000000001",
+    "elder_id": "30000000-0000-4000-8000-000000000001",
+    "agent_id": "event-extractor",
+    "agent_version": "1.0.0",
+    "result_status": "SUCCESS",
+    "policy_version": "demo-consent-v1",
+    "trace_id": "trace-5f07cf3d-6d86-46a6-80cf-2e8ab71ee903",
+    "stop_reason": "CARE_EVENT_CANDIDATE_CREATED",
+    "completed_at": "2026-08-01T12:00:01Z"
+  },
+  "meta": {
+    "correlation_id": "5f07cf3d-6d86-46a6-80cf-2e8ab71ee903",
+    "timestamp": "2026-08-01T12:00:01Z",
+    "schema_version": "1.0"
+  }
+}

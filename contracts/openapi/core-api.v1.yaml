@@ -3482,6 +3482,84 @@
       },
       "ReportType": {
         "type": "string",
+    "/api/v1/internal/agent-runs/{agent_run_id}/complete": {
+      "post": {
+        "tags": [
+          "agent-runs"
+        ],
+        "summary": "Complete Agent Run",
+        "description": "Atomically transition the creator actor's Core-owned AgentRun from RUNNING to one terminal outcome. Requires an active SYSTEM_SERVICE identity and Idempotency-Key. An identical terminal replay returns the canonical state; a different terminal payload conflicts, and missing or foreign-scoped runs remain undisclosed as 404.",
+        "operationId": "complete_agent_run_api_v1_internal_agent_runs__agent_run_id__complete_post",
+        "parameters": [
+          {
+            "name": "agent_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Agent Run Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../schemas/domain/CompleteAgentRunRequestV1.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AgentRun completed, or the canonical terminal state replayed for an identical completion.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/common/AgentRunCompletionEnvelopeV1.json"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundOrForbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
         "enum": [
           "DAILY",
           "WEEKLY",

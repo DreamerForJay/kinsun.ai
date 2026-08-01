@@ -1,0 +1,7 @@
+{
+  "_why_invalid": "Completion is terminal-only. RUNNING is the registration state and must be rejected by the compare-and-set completion command.",
+  "data": {
+    "result_status": "RUNNING",
+    "stop_reason": null
+  }
+}
