@@ -1,0 +1,4 @@
+gradio>=6.0,<7
+gradio_client>=2.0,<3
+boto3>=1.40,<2
+httpx>=0.27,<1

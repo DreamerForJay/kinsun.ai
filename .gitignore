@@ -39,3 +39,6 @@ Thumbs.db
 docker/postgres/data/
 .rag-work/
 rag-embeddings-*.jsonl
+
+# Speech eval 產物：可能包含第三方生成音訊，只保留在本機，不進版控。
+evals/reports/tts/

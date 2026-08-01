@@ -1,0 +1,41 @@
+# 第一階段只部署 ASR，不把尚未通過漢字輸入驗證的 TTS 套件放進 image。
+# faster-whisper 目前的 GPU runtime 需要 CUDA 12 與 cuDNN 9。
+FROM nvidia/cuda:12.3.2-cudnn9-runtime-ubuntu22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG ASR_MODEL_ID=adi-gov-tw/Taiwan-Tongues-ASR-CE-v2.0
+ARG ASR_MODEL_REVISION=853363cf70e50d9771497a1c5dc88bf17f687f30
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       ffmpeg \
+       libsndfile1 \
+       python3 \
+       python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/program
+
+COPY requirements-asr-runtime.txt ./
+RUN python3 -m pip install --no-cache-dir --upgrade pip \
+    && python3 -m pip install --no-cache-dir -r requirements-asr-runtime.txt
+
+# 在 build 階段下載並固定模型，不讓 SageMaker Endpoint 啟動時依賴外網或 main 分支。
+RUN python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='${ASR_MODEL_ID}', revision='${ASR_MODEL_REVISION}', local_dir='/opt/models/taiwan-tongues-asr')"
+
+COPY requirements-asr-serving.txt ./
+RUN python3 -m pip install --no-cache-dir -r requirements-asr-serving.txt
+
+COPY core/ ./core/
+COPY inference_asr.py serve ./
+
+ENV SAGEMAKER_INFERENCE_MODE=asr \
+    KINSUN_ASR_MODEL_PATH=/opt/models/taiwan-tongues-asr \
+    KINSUN_ASR_MODEL_ID=adi-gov-tw/Taiwan-Tongues-ASR-CE-v2.0 \
+    KINSUN_ASR_MODEL_REVISION=853363cf70e50d9771497a1c5dc88bf17f687f30 \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 8080
+# 單一 worker 避免每個 worker 各載入一份大型模型而耗盡 GPU VRAM。
+# access log 關閉，避免未來誤把 request metadata 當成一般應用 log。
+ENTRYPOINT ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--timeout", "60", "--access-logfile", "/dev/null", "inference_asr:app"]

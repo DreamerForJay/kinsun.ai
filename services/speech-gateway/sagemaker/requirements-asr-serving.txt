@@ -1,0 +1,2 @@
+# 模型 layer 之後才安裝 serving server，調整 HTTP server 時不必重新下載模型。
+gunicorn==23.0.0

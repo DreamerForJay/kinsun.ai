@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/evals/speech/SpeechEvalCaseV1.json",
+  "title": "SpeechEvalCaseV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id",
+    "data_manifest",
+    "language",
+    "reference_hanji",
+    "asr_raw_output",
+    "required_keywords",
+    "required_negations",
+    "semantic_intent_correct",
+    "model",
+    "latency_ms"
+  ],
+  "properties": {
+    "case_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$" },
+    "data_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "data_origin",
+        "real_person",
+        "contains_personal_data",
+        "contains_health_data",
+        "contains_biometric_identifier",
+        "approved_for_hackathon_aws"
+      ],
+      "properties": {
+        "data_origin": { "const": "team-authored-synthetic" },
+        "real_person": { "const": false },
+        "contains_personal_data": { "const": false },
+        "contains_health_data": { "const": false },
+        "contains_biometric_identifier": { "const": false },
+        "approved_for_hackathon_aws": { "const": true }
+      }
+    },
+    "language": { "enum": ["zh-TW", "en-US", "nan-TW", "hak-TW"] },
+    "dialect": { "type": ["string", "null"], "maxLength": 40 },
+    "reference_hanji": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "reference_tailo": { "type": ["string", "null"], "maxLength": 1000 },
+    "asr_raw_output": { "type": "string", "maxLength": 500 },
+    "asr_tailo_output": { "type": ["string", "null"], "maxLength": 1000 },
+    "required_keywords": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 40 },
+      "uniqueItems": true
+    },
+    "required_negations": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 20 },
+      "uniqueItems": true
+    },
+    "semantic_intent_correct": { "type": ["boolean", "null"] },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_id", "revision", "decoder_settings"],
+      "properties": {
+        "model_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "revision": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "decoder_settings": { "type": "object" }
+      }
+    },
+    "latency_ms": { "type": "number", "minimum": 0 },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+  }
+}
