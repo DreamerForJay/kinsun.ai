@@ -1,0 +1,18 @@
+{
+  "$id": "https://kinsun.ai/contracts/schemas/common/AgentRunRegistrationEnvelopeV1.json",
+  "title": "AgentRunRegistrationEnvelopeV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "data",
+    "meta"
+  ],
+  "properties": {
+    "data": {
+      "$ref": "https://kinsun.ai/contracts/schemas/domain/AgentRunRegistrationV1.json"
+    },
+    "meta": {
+      "$ref": "https://kinsun.ai/contracts/schemas/common/ResponseMetaV1.json"
+    }
+  }
+}

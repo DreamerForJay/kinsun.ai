@@ -23,6 +23,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api.agent_runs import router as agent_runs_router
 from app.api.assignments import router as assignments_router
 from app.api.care_events import router as care_events_router
 from app.api.consents import router as consents_router
@@ -172,6 +173,7 @@ def create_app() -> FastAPI:
     app.include_router(summaries_router)
     app.include_router(reports_router)
     app.include_router(assignments_router)
+    app.include_router(agent_runs_router)
     app.include_router(tools_router)
 
     # ── Register exception handlers ──────────────────────────────────────────

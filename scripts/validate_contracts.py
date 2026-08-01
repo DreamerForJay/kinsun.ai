@@ -20,6 +20,7 @@ from pathlib import Path
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 
 CONTRACTS = Path(sys.argv[1])
 SCHEMAS = CONTRACTS / "schemas"
@@ -39,6 +40,9 @@ DATA_SCHEMA_FOR = {
     "agent-run-response.json": "agent/AgentRunResponseV1.json",
     "agent-run-request-extra-field.json": "agent/AgentRunRequestV1.json",
     "agent-run-request-missing-required.json": "agent/AgentRunRequestV1.json",
+    "agent-run-registration-request.json": "domain/RegisterAgentRunRequestV1.json",
+    "agent-run-registration-response.json": "domain/AgentRunRegistrationV1.json",
+    "agent-run-registration-with-identity.json": "domain/RegisterAgentRunRequestV1.json",
     "tool-response.json": "tools/ToolResponseV1.json",
     "tool-request-missing-consent-version.json": "tools/ToolRequestV1.json",
     "tool-response-missing-retryable.json": "tools/ToolResponseV1.json",
@@ -75,7 +79,10 @@ def load_registry() -> Registry:
     registry = Registry()
     for path in sorted(SCHEMAS.rglob("*.json")):
         schema = json.loads(path.read_text(encoding="utf-8"))
-        registry = registry.with_resource(schema["$id"], Resource.from_contents(schema))
+        registry = registry.with_resource(
+            schema["$id"],
+            Resource.from_contents(schema, default_specification=DRAFT202012),
+        )
     return registry
 
 
