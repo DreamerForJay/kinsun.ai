@@ -71,8 +71,10 @@ def get_database_url() -> str:
     FastAPI 走非同步的 asyncpg，Alembic 走同步的 psycopg。這裡把 asyncpg 的
     scheme 換掉，讓同一份 .env 兩邊都能用，不必維護兩個變數。
     """
-    _load_dotenv()
     url = os.environ.get("DATABASE_URL")
+    if not url:
+        _load_dotenv()
+        url = os.environ.get("DATABASE_URL")
     if not url:
         raise RuntimeError(
             "DATABASE_URL 未設定。請複製 .env.example 成 .env，或直接匯出環境變數，例如：\n"
