@@ -29,6 +29,11 @@
 
   /* ---- semantic: colour ---- */
   --color-primary: var(--cyan-600);
+  /* Filled buttons whose label is under 24px. White on --color-primary is only
+     3.68:1, which clears the 3:1 large-text bar but not the 4.5:1 body bar
+     (§13), and §4.1 already restricts --color-primary to fills, borders and
+     ≥24px text. cyan-700 takes white to 5.36:1. */
+  --color-primary-strong: var(--cyan-700);
   --color-primary-text: var(--cyan-700);
   --color-primary-weak: var(--cyan-100);
   --color-accent: var(--green-600);

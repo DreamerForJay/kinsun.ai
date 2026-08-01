@@ -85,7 +85,8 @@ Surface 由 route group 決定，掛在 `<body data-surface="...">`。
 
 | Token | Hex | 白底對比 | 允許用途 |
 | --- | --- | --- | --- |
-| `--color-primary` | `#0891B2` | 3.68:1 | 填色按鈕、元件邊界、≥24px 大字 |
+| `--color-primary` | `#0891B2` | 3.68:1 | 元件邊界、≥24px 大字、**標籤 ≥24px 的**填色按鈕 |
+| `--color-primary-strong` | `#0E7490` | 5.36:1 ✅ | **標籤 <24px 的填色按鈕**（見下） |
 | `--color-primary-text` | `#0E7490` | 5.36:1 ✅ | 連結、內文級主色文字 |
 | `--color-primary-weak` | `#CFFAFE` | — | 選取態底色 |
 | `--color-accent` | `#059669` | 3.77:1 | 填色 CTA、圖示 |
@@ -98,6 +99,15 @@ Surface 由 route group 決定，掛在 `<body data-surface="...">`。
 | `--color-border-strong` | `#67E8F9` | — | 卡片外框 |
 | `--color-destructive` | `#DC2626` | 4.83:1 ✅ | 撤回、刪除、拒絕 |
 | `--color-ring` | `#0891B2` | — | focus ring |
+
+白字配 `--color-primary` 只有 **3.68:1**：過得了大字與 UI 元件的 3:1，過不了內文的 4.5:1。
+所以**填色按鈕的標籤未達 24px 時必須改用 `--color-primary-strong`**，否則違反 §13。
+長者端的主按鈕字級本來就 ≥26px，用 `--color-primary` 沒問題；家屬端與照護端的按鈕多半在 18–20px，
+要用 strong。
+
+同理，`--color-border` 與 `--color-border-strong` 在白底只有 1.25:1 與 1.45:1。它們是**分隔線**，
+不是可辨識元件的邊界；當邊框是某個可點元件唯一的輪廓時（例如登入角色卡），
+必須改用至少 3:1 的顏色。
 
 Surface 覆寫：
 
@@ -422,6 +432,15 @@ Wave 3 若確有需求再評估 Recharts，並須先確認不構成健康評估�
 ---
 
 ## 13. 無障礙驗收（每頁必過）
+
+對比度那一項**已自動化**：`packages/frontend/src/app/tokens.contrast.test.ts` 直接讀
+`tokens.css` 計算，改壞 token 會讓測試紅。其餘各項仍是人工，**尚未有任何一頁實際跑過**。
+
+**已知未解衝突**：§4.2 指定的 Candidate（`#64748B` on `#F1F5F9` ＝ 4.34:1）與
+Withdrawn（`#DC2626` on `#FEF2F2` ＝ 4.41:1）都達不到本節要求的 4.5:1。
+§4.2 與 §13 目前互相矛盾，需要 Owner 決定要放寬哪一邊；在決定之前不要各自改色，
+兩個數值已由上述測試釘住，避免繼續漂移。
+
 
 - [ ] 內文對比 ≥4.5:1，大字與 UI 元件 ≥3:1
 - [ ] focus ring 可見且未被移除，Tab 順序符合視覺順序

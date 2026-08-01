@@ -25,8 +25,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
+    /* The default surface is `voice`, not `care`.
+       tokens.css's :root values happen to equal the care scale, which meant any
+       page that forgot to declare a surface silently rendered at 16px — the
+       smallest scale, on a product whose primary user is 75+. MASTER.md §5.1
+       calls 22px a floor, not a preference, so the safe failure mode is the
+       elder scale. The care and family surfaces override this explicitly in
+       SurfaceShell; nothing renders at the elder scale by accident. */
     <html lang="zh-Hant-TW">
-      <body>
+      <body data-surface="voice">
         {children}
         <ServiceWorkerRegistration />
       </body>

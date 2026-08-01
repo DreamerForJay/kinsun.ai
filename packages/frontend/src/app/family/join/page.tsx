@@ -30,13 +30,16 @@ export default function FamilyJoinPage() {
         />
         <button
           style={{
-            background: 'var(--color-primary)',
+            /* --color-primary-strong, not --color-primary: this label is 18px,
+               so it needs 4.5:1 rather than the 3:1 large-text bar (§13). */
+            background: 'var(--color-primary-strong)',
             border: 0,
             borderRadius: 'var(--radius-md)',
             color: 'var(--color-on-primary)',
-            fontSize: 18,
-            marginTop: 14,
-            padding: '14px 18px',
+            fontSize: 'var(--text-base)',
+            marginTop: 'var(--space-4)',
+            minHeight: 'var(--touch-min)',
+            padding: 'var(--space-3) var(--space-5)',
           }}
           type="submit"
         >
