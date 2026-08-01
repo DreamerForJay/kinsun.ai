@@ -26,6 +26,8 @@ from app.models.membership import ActorTenantMembership
 from app.models.tenant import Tenant
 from app.repositories.care_assignment_repo import CareAssignmentRepository
 from app.repositories.care_relationship_repo import CareRelationshipRepository
+from app.repositories.care_unit_membership_repo import CareUnitMembershipRepository
+from app.repositories.tenant_membership_repo import TenantMembershipRepository
 
 # ─── Helper: fixed time ──────────────────────────────────────────────────────
 
@@ -126,12 +128,16 @@ async def seed_data(db_session):
         tenant_id=tenant_a_id,
         care_unit_id=care_unit_a_id,
         role_code="DAYCARE_CARE_WORKER",
+        effective_from=NOW - timedelta(days=30),
+        effective_to=NOW + timedelta(days=1),
     )
     tm_worker = ActorTenantMembership(
         actor_id=worker_id,
         tenant_id=tenant_a_id,
         care_unit_id=None,
         role_code="HOME_CARE_WORKER",
+        effective_from=NOW - timedelta(days=30),
+        effective_to=NOW + timedelta(days=1),
     )
     db_session.add_all([tm_daycare, tm_worker])
     await db_session.flush()
@@ -287,6 +293,86 @@ async def seed_data(db_session):
         "care_unit_a_id": care_unit_a_id,
         "care_unit_b_id": care_unit_b_id,
     }
+
+
+# ─── Membership Repository Tests ─────────────────────────────────────────────
+
+
+class TestMembershipEffectiveWindows:
+    """Membership access must respect role and both time boundaries."""
+
+    async def test_tenant_membership_respects_role_and_effective_window(
+        self, db_session, seed_data
+    ):
+        repo = TenantMembershipRepository(db_session)
+        actor_id = seed_data["daycare_worker_id"]
+        tenant_id = seed_data["tenant_a_id"]
+        role_code = "DAYCARE_CARE_WORKER"
+
+        assert await repo.get_active_membership(actor_id, tenant_id, role_code, NOW) is not None
+        assert (
+            await repo.get_active_membership(actor_id, tenant_id, "HOME_CARE_WORKER", NOW) is None
+        )
+        assert (
+            await repo.get_active_membership(
+                actor_id,
+                tenant_id,
+                role_code,
+                NOW - timedelta(days=60),
+            )
+            is None
+        )
+        assert (
+            await repo.get_active_membership(
+                actor_id,
+                tenant_id,
+                role_code,
+                NOW + timedelta(days=1),
+            )
+            is None
+        )
+
+    async def test_care_unit_membership_respects_role_and_effective_window(
+        self, db_session, seed_data
+    ):
+        repo = CareUnitMembershipRepository(db_session)
+        actor_id = seed_data["daycare_worker_id"]
+        tenant_id = seed_data["tenant_a_id"]
+        care_unit_id = seed_data["care_unit_a_id"]
+        role_code = "DAYCARE_CARE_WORKER"
+
+        assert await repo.is_member(actor_id, care_unit_id, tenant_id, role_code, NOW) is True
+        assert await repo.get_care_unit_ids(actor_id, tenant_id, role_code, NOW) == [care_unit_id]
+        assert (
+            await repo.is_member(
+                actor_id,
+                care_unit_id,
+                tenant_id,
+                "HOME_CARE_WORKER",
+                NOW,
+            )
+            is False
+        )
+        assert await repo.get_care_unit_ids(actor_id, tenant_id, "HOME_CARE_WORKER", NOW) == []
+        assert (
+            await repo.is_member(
+                actor_id,
+                care_unit_id,
+                tenant_id,
+                role_code,
+                NOW - timedelta(days=60),
+            )
+            is False
+        )
+        assert (
+            await repo.get_care_unit_ids(
+                actor_id,
+                tenant_id,
+                role_code,
+                NOW + timedelta(days=1),
+            )
+            == []
+        )
 
 
 # ─── CareRelationshipRepository Tests ────────────────────────────────────────

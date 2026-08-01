@@ -1,12 +1,17 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { NotLoggedIn } from '@/components/NotLoggedIn';
 import { ConsentPanel } from '@/components/voice/ConsentPanel';
-import { getRuntimeConfig } from '@/lib/runtime-config';
+import { AUTH_STORAGE_KEYS, getRuntimeConfig } from '@/lib/runtime-config';
 
 export default function ConsentPage() {
   const router = useRouter();
   const config = getRuntimeConfig();
+
+  if (!config.token || !config.elderId) {
+    return <NotLoggedIn reason="尚未設定登入資訊，請先完成登入設定" />;
+  }
 
   return (
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -15,7 +20,7 @@ export default function ConsentPage() {
         elderId={config.elderId}
         initialGranted={false}
         onChange={(granted) => {
-          window.localStorage.setItem('elderly_care_consent_granted', String(granted));
+          window.localStorage.setItem(AUTH_STORAGE_KEYS.consentGranted, String(granted));
           if (granted) router.push('/');
         }}
       />

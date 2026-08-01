@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { SummaryRecord } from '@elderly-care/shared';
 import Link from 'next/link';
+import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { ApiRequestError } from '@/lib/api/client';
 import { listSummaries } from '@/lib/api/summaries';
 import { getRuntimeConfig } from '@/lib/runtime-config';
 
@@ -23,12 +25,22 @@ export default function FamilyReportCenterPage() {
   const load = useCallback(() => {
     listSummaries(apiConfig, elderId)
       .then((res) => setSummaries(res.items))
-      .catch(() => setError('讀取報表失敗，請重新整理'));
+      .catch((err) => {
+        setError(
+          err instanceof ApiRequestError && err.status === 403
+            ? '您目前沒有查看權限，請聯絡照護單位重新授權。'
+            : '讀取報表失敗，請重新整理',
+        );
+      });
   }, [elderId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (config.token && elderId) load();
+  }, [config.token, elderId, load]);
+
+  if (!config.token || !elderId) {
+    return <NotLoggedIn reason="尚未設定登入資訊，請先完成登入設定" />;
+  }
 
   return (
     <main style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>

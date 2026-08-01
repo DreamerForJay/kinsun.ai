@@ -1,16 +1,28 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { EventSummary, ListMemoriesResponse, ReviewStatus, SummaryRecord } from '@elderly-care/shared';
+import type { EventSummary, ListMemoriesResponse, PersonaContext, ReviewStatus, SummaryRecord } from '@elderly-care/shared';
 import { EventFilterBar } from '@/components/dashboard/EventFilterBar';
 import { EventTable } from '@/components/dashboard/EventTable';
 import { MemoryList } from '@/components/dashboard/MemoryList';
+import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { PersonaForm } from '@/components/dashboard/PersonaForm';
+import { ApiRequestError } from '@/lib/api/client';
 import { listEvents, updateEvent, type ListEventsFilters } from '@/lib/api/events';
 import { confirmMemory, deleteMemory, listMemories, rejectMemory } from '@/lib/api/memories';
+import { getPersona, updatePersona } from '@/lib/api/persona';
 import { listSummaries, publishSummary, withdrawSummary } from '@/lib/api/summaries';
 import { getRuntimeConfig } from '@/lib/runtime-config';
 
-type Tab = 'events' | 'memories' | 'summaries';
+type Tab = 'events' | 'memories' | 'summaries' | 'persona';
+
+/** 403 always means the same thing here — caregiver JWT valid, but this elder isn't in their authorizedElderIds. */
+function describeError(err: unknown, fallback: string): string {
+  if (err instanceof ApiRequestError && err.status === 403) {
+    return '您目前沒有查看這位長者資料的權限，請聯絡系統管理員確認授權。';
+  }
+  return fallback;
+}
 
 export default function ElderDetailPage({ params }: { params: { elderId: string } }) {
   const { elderId } = params;
@@ -19,33 +31,48 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
   const [eventFilters, setEventFilters] = useState<ListEventsFilters>({});
   const [memories, setMemories] = useState<ListMemoriesResponse>({ candidates: [], confirmed: [] });
   const [summaries, setSummaries] = useState<SummaryRecord[]>([]);
+  const [persona, setPersona] = useState<PersonaContext | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const config = getRuntimeConfig();
   const apiConfig = { apiBaseUrl: config.apiBaseUrl, token: config.token };
-  const caregiverId = typeof window !== 'undefined' ? window.localStorage.getItem('elderly_care_caregiver_id') ?? '' : '';
+  const caregiverId = config.caregiverId;
 
   const loadEvents = useCallback(() => {
     listEvents(apiConfig, elderId, eventFilters)
       .then((res) => setEvents(res.items))
-      .catch(() => setError('讀取事件失敗'));
+      .catch((err) => setError(describeError(err, '讀取事件失敗')));
   }, [elderId, eventFilters]);
 
   const loadMemories = useCallback(() => {
-    listMemories(apiConfig, elderId).then(setMemories).catch(() => setError('讀取記憶失敗'));
+    listMemories(apiConfig, elderId)
+      .then(setMemories)
+      .catch((err) => setError(describeError(err, '讀取記憶失敗')));
   }, [elderId]);
 
   const loadSummaries = useCallback(() => {
     listSummaries(apiConfig, elderId)
       .then((res) => setSummaries(res.items))
-      .catch(() => setError('讀取摘要失敗'));
+      .catch((err) => setError(describeError(err, '讀取摘要失敗')));
+  }, [elderId]);
+
+  const loadPersona = useCallback(() => {
+    getPersona(apiConfig, elderId)
+      .then(setPersona)
+      .catch((err) => setError(describeError(err, '讀取個人化設定失敗')));
   }, [elderId]);
 
   useEffect(() => {
+    if (!config.token) return;
     if (tab === 'events') loadEvents();
     if (tab === 'memories') loadMemories();
     if (tab === 'summaries') loadSummaries();
-  }, [tab, loadEvents, loadMemories, loadSummaries]);
+    if (tab === 'persona') loadPersona();
+  }, [tab, config.token, loadEvents, loadMemories, loadSummaries, loadPersona]);
+
+  if (!config.token) {
+    return <NotLoggedIn reason="尚未設定登入資訊，請先完成登入設定" />;
+  }
 
   async function handleSaveEvent(eventId: string, eventDate: string, content: string, reviewStatus: ReviewStatus) {
     await updateEvent(apiConfig, eventId, { elderId, eventDate, content, reviewStatus, updatedBy: caregiverId });
@@ -62,13 +89,18 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
     loadSummaries();
   }
 
+  async function handleSavePersona(updates: PersonaContext) {
+    const saved = await updatePersona(apiConfig, elderId, { ...updates, updatedBy: caregiverId });
+    setPersona(saved);
+  }
+
   return (
     <main style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontSize: 22, marginBottom: 4 }}>長者詳情</h1>
       <p style={{ color: '#718096', marginBottom: 20 }}>Elder ID: {elderId}</p>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, borderBottom: '1px solid #e2e8f0' }}>
-        {(['events', 'memories', 'summaries'] as Tab[]).map((t) => (
+        {(['events', 'memories', 'summaries', 'persona'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
@@ -82,7 +114,7 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
               cursor: 'pointer',
             }}
           >
-            {t === 'events' ? 'AI 擷取事件' : t === 'memories' ? '記憶管理' : '每日摘要'}
+            {t === 'events' ? 'AI 擷取事件' : t === 'memories' ? '記憶管理' : t === 'summaries' ? '每日摘要' : '個人化設定'}
           </button>
         ))}
       </div>
@@ -149,6 +181,8 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
           ))}
         </div>
       )}
+
+      {tab === 'persona' && <PersonaForm persona={persona} onSave={handleSavePersona} />}
     </main>
   );
 }

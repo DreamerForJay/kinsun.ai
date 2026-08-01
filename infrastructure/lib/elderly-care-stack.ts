@@ -88,6 +88,7 @@ export class ElderlyCareStack extends cdk.Stack {
     const withdrawSummaryFn = makeApiFn('WithdrawSummaryFn', apiSrc('summary-withdraw.ts'), 'handler');
     const searchHealthFn = makeApiFn('SearchHealthFn', apiSrc('search.ts'), 'handler');
     const dashboardFn = makeApiFn('CaregiverDashboardFn', apiSrc('dashboard.ts'), 'handler');
+    const getPersonaFn = makeApiFn('GetPersonaFn', apiSrc('persona.ts'), 'getPersonaHandler');
     const updatePersonaFn = makeApiFn('UpdatePersonaFn', apiSrc('persona.ts'), 'handler');
     const grantConsentFn = makeApiFn('GrantConsentFn', apiSrc('consent.ts'), 'grantHandler');
     const revokeConsentFn = makeApiFn('RevokeConsentFn', apiSrc('consent.ts'), 'revokeHandler');
@@ -176,6 +177,7 @@ export class ElderlyCareStack extends cdk.Stack {
         'POST /v1/search/health': searchHealthFn,
         'GET /v1/caregivers/{caregiverId}/dashboard': dashboardFn,
         'GET /v1/elders/{elderId}/reports': reportsFn,
+        'GET /v1/elders/{elderId}/persona': getPersonaFn,
         'PUT /v1/elders/{elderId}/persona': updatePersonaFn,
         'POST /v1/consent/grant': grantConsentFn,
         'POST /v1/consent/revoke': revokeConsentFn,

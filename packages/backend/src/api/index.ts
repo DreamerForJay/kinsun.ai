@@ -7,6 +7,6 @@ export { handler as publishSummaryHandler } from './summary-publish.js';
 export { handler as withdrawSummaryHandler } from './summary-withdraw.js';
 export { handler as searchHealthHandler } from './search.js';
 export { handler as caregiverDashboardHandler } from './dashboard.js';
-export { handler as updatePersonaHandler } from './persona.js';
+export { getPersonaHandler, handler as updatePersonaHandler } from './persona.js';
 export { grantHandler as grantConsentHandler, revokeHandler as revokeConsentHandler } from './consent.js';
 export { handler as reportsHandler } from './reports.js';

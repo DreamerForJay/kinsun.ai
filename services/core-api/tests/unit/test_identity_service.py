@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core.exceptions import AuthorizationDeniedError
 from app.middleware.auth import ActorContext
 from app.models.enums import ActorType
 from app.policies import RoleModeIncompatibleError
@@ -28,6 +30,13 @@ from app.services.identity_service import (
 )
 
 # --- Fixtures ---
+
+
+@pytest.fixture
+def actor_repo() -> AsyncMock:
+    repo = AsyncMock()
+    repo.get_active_by_id = AsyncMock(return_value=None)
+    return repo
 
 
 @pytest.fixture
@@ -61,12 +70,14 @@ def care_assignment_repo() -> AsyncMock:
 
 @pytest.fixture
 def service(
+    actor_repo,
     tenant_membership_repo,
     care_unit_membership_repo,
     care_relationship_repo,
     care_assignment_repo,
 ) -> IdentityService:
     return IdentityService(
+        actor_repo=actor_repo,
         tenant_membership_repo=tenant_membership_repo,
         care_unit_membership_repo=care_unit_membership_repo,
         care_relationship_repo=care_relationship_repo,
@@ -149,19 +160,76 @@ class TestModeRoleValidation:
 
 class TestGetActorProfile:
     @pytest.mark.asyncio
-    async def test_returns_profile_with_care_units(self, service, care_unit_membership_repo):
+    async def test_returns_formal_actor_profile_with_care_units(
+        self,
+        service,
+        actor_repo,
+        tenant_membership_repo,
+        care_unit_membership_repo,
+    ):
         cu_id1 = uuid.uuid4()
         cu_id2 = uuid.uuid4()
+        ctx = _actor_context(ActorType.DAYCARE_CARE_WORKER)
+        tenant_membership_repo.get_active_membership.return_value = SimpleNamespace(
+            role_code=ctx.actor_role
+        )
         care_unit_membership_repo.get_care_unit_ids.return_value = [cu_id1, cu_id2]
 
-        ctx = _actor_context(ActorType.DAYCARE_CARE_WORKER)
-        profile = await service.get_actor_profile(ctx)
+        actor_repo.get_active_by_id.return_value = SimpleNamespace(
+            id=ctx.actor_id,
+            actor_type=ctx.actor_role,
+            display_name="張照服員",
+        )
+        current_time = datetime.now(UTC)
+        profile = await service.get_actor_profile(ctx, current_time)
 
         assert isinstance(profile, ActorProfile)
         assert profile.actor_id == ctx.actor_id
         assert profile.actor_type == ctx.actor_role
+        assert profile.display_name == "張照服員"
         assert profile.tenant_id == ctx.tenant_id
+        assert profile.role == ctx.actor_role
         assert profile.care_unit_ids == [cu_id1, cu_id2]
+        tenant_membership_repo.get_active_membership.assert_awaited_once_with(
+            actor_id=ctx.actor_id,
+            tenant_id=ctx.tenant_id,
+            role_code=ctx.actor_role,
+            current_time=current_time,
+        )
+        care_unit_membership_repo.get_care_unit_ids.assert_awaited_once_with(
+            actor_id=ctx.actor_id,
+            tenant_id=ctx.tenant_id,
+            role_code=ctx.actor_role,
+            current_time=current_time,
+        )
+        actor_repo.get_active_by_id.assert_awaited_once_with(ctx.actor_id)
+
+    @pytest.mark.asyncio
+    async def test_denies_profile_without_active_tenant_membership(
+        self, service, actor_repo, tenant_membership_repo
+    ):
+        ctx = _actor_context(ActorType.FAMILY_MEMBER)
+        tenant_membership_repo.get_active_membership.return_value = None
+
+        with pytest.raises(AuthorizationDeniedError):
+            await service.get_actor_profile(ctx, datetime.now(UTC))
+
+        actor_repo.get_active_by_id.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_denies_profile_when_formal_role_differs_from_context(
+        self, service, actor_repo, tenant_membership_repo
+    ):
+        ctx = _actor_context(ActorType.FAMILY_MEMBER)
+        tenant_membership_repo.get_active_membership.return_value = MagicMock()
+        actor_repo.get_active_by_id.return_value = SimpleNamespace(
+            id=ctx.actor_id,
+            actor_type=ActorType.ADMIN,
+            display_name="Mismatch",
+        )
+
+        with pytest.raises(AuthorizationDeniedError):
+            await service.get_actor_profile(ctx, datetime.now(UTC))
 
 
 # --- get_authorized_elders Dispatch Tests ---

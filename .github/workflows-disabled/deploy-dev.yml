@@ -57,8 +57,9 @@ jobs:
           npx cdk deploy --all -c env=dev --require-approval never
 
       - name: Run DB Migration
-        if: hashFiles('services/core-api/migrations/**') != ''
-        run: |
+      
+        if: hashFiles('services/core-api/alembic/**') != ''
+
           echo "TODO: Run Alembic migration via ECS task or CodeBuild"
           # aws ecs run-task --cluster ... --task-definition migration-task ...
 

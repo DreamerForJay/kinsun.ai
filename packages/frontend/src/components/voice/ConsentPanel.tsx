@@ -1,7 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import { ApiRequestError } from '@/lib/api/client';
 import { grantConsent, revokeConsent, type ConsentApiConfig } from '@/lib/api/consent';
+
+function describeConsentError(err: unknown): string {
+  if (err instanceof ApiRequestError && err.status === 403) {
+    return '您目前沒有權限設定這位長者的錄音同意，請聯絡照護單位確認身分。';
+  }
+  return '設定失敗，請稍後再試';
+}
 
 export interface ConsentPanelProps {
   apiConfig: ConsentApiConfig;
@@ -23,8 +31,8 @@ export function ConsentPanel({ apiConfig, elderId, initialGranted, onChange }: C
       await grantConsent(apiConfig, elderId);
       setGranted(true);
       onChange(true);
-    } catch {
-      setError('設定失敗，請稍後再試');
+    } catch (err) {
+      setError(describeConsentError(err));
     } finally {
       setBusy(false);
     }
@@ -37,8 +45,8 @@ export function ConsentPanel({ apiConfig, elderId, initialGranted, onChange }: C
       await revokeConsent(apiConfig, elderId);
       setGranted(false);
       onChange(false);
-    } catch {
-      setError('設定失敗，請稍後再試');
+    } catch (err) {
+      setError(describeConsentError(err));
     } finally {
       setBusy(false);
     }

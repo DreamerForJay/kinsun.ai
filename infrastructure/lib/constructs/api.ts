@@ -37,6 +37,7 @@ const REST_ROUTES = [
   'GET /v1/caregivers/{caregiverId}/dashboard',
   'POST /v1/search/health',
   'GET /v1/elders/{elderId}/reports',
+  'GET /v1/elders/{elderId}/persona',
   'PUT /v1/elders/{elderId}/persona',
   'POST /v1/consent/grant',
   'POST /v1/consent/revoke',

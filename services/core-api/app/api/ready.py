@@ -19,7 +19,7 @@ from app.db.session import get_db_engine
 
 router = APIRouter()
 
-_CONNECTIVITY_TIMEOUT_SECONDS = 3.0
+_CONNECTIVITY_TIMEOUT_SECONDS = 10.0
 
 
 @router.get("/ready")

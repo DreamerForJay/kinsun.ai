@@ -79,7 +79,9 @@ docker compose --profile tools up -d
 ## Core API
 
 程式在 [`services/core-api/`](services/core-api/)：FastAPI ＋ SQLAlchemy 2.0 async，
-目前涵蓋 Identity、Elder 授權 policy、tenant 隔離的 repository 層與 transactional outbox。
+目前涵蓋 Identity、Elder 授權、Consent、Voice Session metadata、Care Event、Memory、
+Daily Summary、Family Report、Assignment、受控 Agent Tool、Deletion workflow，以及具
+tenant 隔離與 replay protection 的 transactional outbox／consumer foundation。
 
 ```powershell
 cd services/core-api
@@ -129,9 +131,11 @@ Safety Evaluator 目前是 deterministic 的關鍵字規則（停藥、改藥、
 
 ## API Contract
 
-[`contracts/`](contracts/) 放 OpenAPI 3.1 與 JSON Schema。core-api 涵蓋 6 個已實作的
-endpoint；agent-runtime 涵蓋 Agent Run、Handoff、Context Manifest、Safety Evaluation
-與 Tool 的 JSON Schema（尚無 OpenAPI，見 [`contracts/README.md`](contracts/README.md)）。
+[`contracts/`](contracts/) 放 OpenAPI 3.1、AsyncAPI 3.0 與 JSON Schema。core-api 合約涵蓋
+目前 runtime 的 44 個 operations；agent-runtime 另有 `/health` 與
+`POST /api/v1/agent/runs` 的 executable OpenAPI。Handoff、Context Manifest、Safety
+Evaluation 與 Tool schema 中仍有尚未接上 executable endpoint 的目標形狀，邊界見
+[`contracts/README.md`](contracts/README.md) 與 [`contracts/DIVERGENCE.md`](contracts/DIVERGENCE.md)。
 
 ```powershell
 uv run --with pyyaml --with jsonschema --with referencing python scripts/validate_contracts.py contracts
@@ -179,8 +183,9 @@ uv run alembic revision -m "PROJ-123 add xxx table"
 
 檔名格式為 `YYYYMMDD_HHMM_<slug>.py`（文件 13 §3.3）。
 
-**`--autogenerate` 目前不能用**：v0.1 baseline 來自手寫 SQL，專案還沒有 SQLAlchemy
-models，所以要自己寫 `op.execute()` 或 `op.create_table(..., schema="eldercare_ai")`。
+**`--autogenerate` 目前不能直接採用**：v0.1 baseline 來自手寫 SQL，48 張 baseline
+table 中目前只有 33 張有 SQLAlchemy model；autogenerate 會把未映射的 table 誤判為
+應刪除。新增 migration 時必須人工撰寫或逐項審查產物，不得套用自動產生的 drop。
 原因與後續打算見 [ADR 0002](docs/adr/0002-alembic-baseline-strategy.md)。
 
 ### baseline 與 `docs/` 那份 SQL 的關係

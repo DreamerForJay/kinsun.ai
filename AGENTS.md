@@ -298,8 +298,8 @@ uv run --with pyyaml --with jsonschema --with referencing python ../../scripts/v
     新增 model 時必須宣告 `__pk_name__`，否則 SQLAlchemy 會在 class 建立時失敗。
   - **domain enum 的每個值都必須在 baseline 中存在**（PG ENUM 的 label 或 CHECK 的允許值）。
     加了沒有 migration 的值，錯誤會在 INSERT 當下才爆，不是驗證期。
-  - models 目前只涵蓋 48 張表中的 9 張，`alembic revision --autogenerate` 會把其餘 39 張
-    誤判為應刪除；產生的 migration 一律需人工檢查後才可使用。
+  - models 目前只涵蓋 48 張 baseline table 中的 33 張，`alembic revision --autogenerate`
+    仍會把未映射 table 誤判為應刪除；產生的 migration 一律需人工檢查後才可使用。
 - 優先做最小、可測試、可回復且能貫穿 Vertical Slice 的變更。
 - 不進行與任務無關的大規模重構、格式化、依賴升級或文件重寫。
 - 保留使用者既有變更；不要以 Reset、Checkout 或大量覆寫清除未知修改。

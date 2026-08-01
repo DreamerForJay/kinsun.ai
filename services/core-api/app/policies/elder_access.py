@@ -274,6 +274,8 @@ class ElderAccessPolicy:
         membership = await self._tenant_membership_repo.get_active_membership(
             actor_id=request.actor_id,
             tenant_id=request.tenant_id,
+            role_code=request.actor_role,
+            current_time=request.current_time,
         )
         if membership is None:
             return self._deny(NO_TENANT_MEMBERSHIP)
@@ -298,6 +300,8 @@ class ElderAccessPolicy:
             actor_id=request.actor_id,
             care_unit_id=relationship.care_unit_id,
             tenant_id=request.tenant_id,
+            role_code=request.actor_role,
+            current_time=request.current_time,
         )
         if not is_unit_member:
             return self._deny(WRONG_CARE_UNIT)
@@ -310,6 +314,8 @@ class ElderAccessPolicy:
         membership = await self._tenant_membership_repo.get_active_membership(
             actor_id=request.actor_id,
             tenant_id=request.tenant_id,
+            role_code=request.actor_role,
+            current_time=request.current_time,
         )
         if membership is None:
             return self._deny(NO_TENANT_MEMBERSHIP)

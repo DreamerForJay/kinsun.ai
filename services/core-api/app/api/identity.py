@@ -17,6 +17,7 @@ from app.db.session import get_db_session
 from app.middleware.actor_guard import require_active_actor
 from app.middleware.auth import ActorContext
 from app.middleware.logging import correlation_id_var
+from app.repositories.actor_repo import ActorRepository
 from app.repositories.care_assignment_repo import CareAssignmentRepository
 from app.repositories.care_relationship_repo import CareRelationshipRepository
 from app.repositories.care_unit_membership_repo import CareUnitMembershipRepository
@@ -36,6 +37,7 @@ router = APIRouter(prefix="/api/v1", tags=["identity"])
 def _build_identity_service(session: AsyncSession, actor_context: ActorContext) -> IdentityService:
     """Construct IdentityService with all required repositories."""
     return IdentityService(
+        actor_repo=ActorRepository(session),
         tenant_membership_repo=TenantMembershipRepository(session),
         care_unit_membership_repo=CareUnitMembershipRepository(session),
         care_relationship_repo=CareRelationshipRepository(session, actor_context.tenant_id),
@@ -64,7 +66,7 @@ async def get_me(
     the actor belongs to.
     """
     service = _build_identity_service(session, actor_context)
-    profile = await service.get_actor_profile(actor_context)
+    profile = await service.get_actor_profile(actor_context, datetime.now(UTC))
 
     me_response = MeResponse(
         actor_id=profile.actor_id,

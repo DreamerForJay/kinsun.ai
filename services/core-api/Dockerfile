@@ -1,6 +1,6 @@
 # Migration Job image（文件 13 §七）。
-# 這不是 Core API 的應用程式映像 —— Python Web Framework 仍待 ADR（AGENTS.md §11），
-# 目前只裝 Alembic 跑 migration 需要的東西。
+# 這不是 Core API 的應用程式映像；FastAPI 已由 ADR 0003 定案，但本 image 只安裝並
+# 執行 Alembic migration 所需的 Core dependency lock 與程式碼。
 FROM python:3.12-slim-bookworm
 
 # 版本鎖死，避免 CI 某天突然換到不同的 uv 行為

@@ -9,11 +9,13 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
 };
 
+/* §7.4 — must NOT restrict zoom. `maximumScale` is deliberately absent:
+   capping it blocks pinch-zoom, which is the same accessibility failure as
+   user-scalable=no and is disallowed for a 75+ audience. */
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  themeColor: '#2b6cb0',
+  themeColor: '#0891B2',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

@@ -39,18 +39,72 @@
 ## 本次整理已驗證
 
 ```text
-Unit tests:          369 passed
-Ruff check:          All checks passed
-Ruff format:         149 files already formatted
-Static contracts:    all contract checks passed (41 OpenAPI paths, 1 AsyncAPI channel)
-Docker Compose config: passed
-Git diff check:      passed
+Source base:             fef3009 (origin/main)
+Working branch:          feature/member-b-core-hardening
+Unit tests:              406 passed
+Integration tests:       95 passed
+Total Core tests:        501 passed
+Ruff check:              All checks passed
+Ruff format:             162 files already formatted
+Static contracts:        all checks passed (44 Core operations, 1 AsyncAPI channel)
+Live contract verifier:  all 44 runtime operations contracted; protected GET fail-closed passed
+Docker Compose config:   passed
+Git diff check:          passed
 ```
 
-Integration tests、runtime live contract verifier 與 migration reset／Synthetic Seed
-有先前執行紀錄，但本次整理未重跑，因此不列為本次驗證結果。原因是尚未安全確認
-`TEST_DATABASE_URL` 只指向 `kinsun_test`，且未確認 live verifier 所需的本機服務正在執行。
-在確認環境後，仍需依下方指令重跑並記錄結果。
+本次使用 Python 3.12.10、PostgreSQL 16，並將 `TEST_DATABASE_URL` 明確限制到本機
+`localhost:15432/kinsun_test`。Integration suite 已實際執行 Alembic upgrade／downgrade／
+rebuild 測試；live verifier 也已在 process 內啟動 Core lifespan 並驗證 `/ready` 與所有
+protected GET 的 fail-closed response。
+
+本次沒有執行 `scripts/reset_demo.ps1`，因此沒有覆寫本機 `kinsun` demo 資料，也不把
+Synthetic Seed reset 列為本次結果。需要重建 Demo 時，必須另外明確執行帶
+`-ConfirmLocalReset` 的破壞性指令。
+
+## Core Gate Evidence｜2026-08-01T14:08:24+08:00
+
+- `release_candidate`：`feature/member-b-core-hardening`
+- `git_commit`：`585a9990e7cf07daee25bad3d7d3cf52ed3f4603`（已通過本文件所列 Core Gate；後續僅有本證據紀錄 commit）。
+- `infrastructure_version`：PostgreSQL 16 Alpine，Docker Compose 本機環境，host port `15432`。
+- `contract_version`：Core API v1、Agent Runtime v1、Domain Event Envelope v1。
+- `policy_version`：目前 branch 的 Core authorization／consent policy；model、prompt 與 dataset 不屬本次 Core Gate。
+- `test_run_id`：`core-local-20260801-1408-tw`
+- `environment`：Windows、PowerShell、Python 3.12.10、pytest 8.4.2；因 `uv` 不在 PATH，本次以明確 `-SkipSync` 執行既有 `.venv`，屬 degraded local verification，不冒充 locked release gate。
+- `passed／failed／skipped`：Core pytest `501／0／0`；Ruff、static contract、live contract、Compose config 與 diff check 全部通過。
+- `zero_tolerance_results`：Core negative authorization、tenant-local role mismatch、cross-tenant／cross-elder、consent、restricted payload 與 fail-closed 測試為 0 failure。
+- `defects`：本次 Core Gate 無未解失敗。
+- `known_risks`：repository 尚無可執行的 Staging E2E／rehearsal harness；停用中的 deploy-staging workflow 仍只有 TODO，故未宣稱 E2E 五連跑完成。AWS resource binding 與正式政策核准亦仍待 Owner 決策。
+- `approvers`：B 本機自驗完成；Backup A Pair Review 與 Quality Owner E Gate approval 待 PR。
+- `links`：`scripts/verify_core.ps1`、`services/core-api/tests/`、`contracts/`、本文件。
+- `trace／log／screenshot／video`：Core CLI 可由單一 script 重現；Staging 級 artifacts 待 A／E 提供環境與 E2E harness 後產出。
+
+### Definition of Done 狀態
+
+- [x] Unit／Contract／必要 Integration Test 通過。
+- [x] Authorization、Consent、Cross-Elder Negative Test 通過。
+- [x] Schema、Error、Idempotency、Version 規則由 contract 與測試驗證。
+- [x] 文件與本機重跑指令已更新。
+- [ ] Code 合併 main；目前待 commit／PR／merge。
+- [ ] Backup A Pair Review 與 Quality Owner E approval。
+- [ ] Staging Vertical Slice E2E 連續成功五次與完整 Demo artifacts。
+
+## 2026-08-01 B hardening 補強
+
+- `GET /api/v1/me` 不再用 `actor_role` 偽裝 `display_name`；現在從正式 `actor` table
+  讀取姓名，並先確認 active tenant membership、active actor 與正式角色一致。
+- Tenant 與 care-unit membership 現在都必須符合 authentication context 的 tenant-local
+  `role_code`；全域 `actor_type` 不再能替代另一個租戶角色，並有 PostgreSQL role-mismatch
+  negative test 防止角色混淆回歸。
+- 新增 `ActorRepository`、unit tests，以及會驗證 `DC Worker` 正式姓名的 PostgreSQL
+  integration assertion。
+- 新增 `scripts/verify_core.ps1`，一次執行 locked sync、test DB safety probe、unit、
+  integration、Ruff、static contract、live contract、Compose config 與 `git diff HEAD --check`；
+  migration roundtrip 需要明確確認，無 `uv` 時預設 fail closed，只有顯式 `-SkipSync` 才允許
+  degraded local verification，且任何 native command 非零 exit code 都會立即失敗。
+- 修正 README 的 API 數量、Agent Runtime OpenAPI 與 ORM coverage 過時資訊。
+- 修正停用中的 PR workflow：改用 `uv.lock`、PostgreSQL service、獨立 test DB、Core
+  unit／integration、Agent Runtime、contract parity 與 dependency audit。workflow 仍依
+  團隊最新 commit 保持停用，重新啟用需 A／E 決策與 GitHub runner 驗證。
 
 ## 需要 Owner／其他工作流決策，不可由 B 假裝完成
 
@@ -65,19 +119,23 @@ Integration tests、runtime live contract verifier 與 migration reset／Synthet
 
 ## 本機重跑
 
+完整 Core Gate 不會重設 demo 資料：
+
 ```powershell
 docker compose up -d postgres
-.\scripts\reset_demo.ps1 -ConfirmLocalReset
-
-cd services/core-api
-..\..\.venv\Scripts\python.exe -m pytest tests/unit
-..\..\.venv\Scripts\python.exe -m pytest tests/integration
-..\..\.venv\Scripts\python.exe -m ruff check .
-..\..\.venv\Scripts\python.exe -m ruff format --check .
-
-cd ..\..
-.\.venv\Scripts\python.exe scripts/validate_contracts.py contracts
-.\.venv\Scripts\python.exe scripts/verify_contract_live.py contracts
+.\scripts\verify_core.ps1 -ConfirmTestDatabaseMigrations
 ```
 
-若本機 5432 已被其他 PostgreSQL 使用，可在不改 `.env.example` 的前提下，於未版控的 `.env` 將 `POSTGRES_PORT`、`DATABASE_URL` 與 `TEST_DATABASE_URL` 改為同一個可用本機埠；目前工作環境使用 15432。
+若需要刻意重建 Synthetic Demo Seed，才另外執行以下破壞性指令：
+
+```powershell
+.\scripts\reset_demo.ps1 -ConfirmLocalReset
+```
+
+有安裝 `uv` 時，驗證 script 會先執行 frozen sync；若 `uv` 不在 `PATH`，預設會
+fail closed。只有本機已存在可信 `.venv` 且接受非 locked 結果時，才可明確加入
+`-SkipSync`。若本機 5432 已被其他 PostgreSQL 使用，可指定替代測試埠：
+
+```powershell
+.\scripts\verify_core.ps1 -PostgresPort 15432 -SkipSync -ConfirmTestDatabaseMigrations
+```

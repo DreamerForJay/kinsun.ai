@@ -6,6 +6,7 @@ Tests the repository logic using a mocked async session.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -39,8 +40,11 @@ class TestGetActiveMembership:
 
         actor_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
+        current_time = datetime.now(UTC)
 
-        result = await repo.get_active_membership(actor_id, tenant_id)
+        result = await repo.get_active_membership(
+            actor_id, tenant_id, "DAYCARE_CARE_WORKER", current_time
+        )
 
         assert result is expected
         session.execute.assert_called_once()
@@ -57,8 +61,11 @@ class TestGetActiveMembership:
 
         actor_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
+        current_time = datetime.now(UTC)
 
-        result = await repo.get_active_membership(actor_id, tenant_id)
+        result = await repo.get_active_membership(
+            actor_id, tenant_id, "DAYCARE_CARE_WORKER", current_time
+        )
 
         assert result is None
 
@@ -74,8 +81,9 @@ class TestGetActiveMembership:
 
         actor_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
+        current_time = datetime.now(UTC)
 
-        await repo.get_active_membership(actor_id, tenant_id)
+        await repo.get_active_membership(actor_id, tenant_id, "DAYCARE_CARE_WORKER", current_time)
 
         # Verify execute was called (query construction tested via integration)
         session.execute.assert_called_once()
@@ -87,4 +95,7 @@ class TestGetActiveMembership:
         assert "actor_tenant_membership" in compiled
         assert "actor_id" in compiled
         assert "tenant_id" in compiled
+        assert "role_code" in compiled
         assert "status" in compiled
+        assert "effective_from" in compiled
+        assert "effective_to" in compiled

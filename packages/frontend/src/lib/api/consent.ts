@@ -6,7 +6,8 @@ export interface ConsentApiConfig {
 }
 
 async function postConsent(config: ConsentApiConfig, path: string, elderId: string, type: ConsentType): Promise<void> {
-  const response = await fetch(`${config.apiBaseUrl}${path}`, {
+  const base = config.apiBaseUrl.replace(/\/+$/, '');
+  const response = await fetch(`${base}${path}`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${config.token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ elderId, type }),

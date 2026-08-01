@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 
 from app.db.base import Base, BaseModel, TenantScopedMixin
-from app.events.outbox_writer import write_outbox_entry
+from app.events.outbox_writer import RESTRICTED_PAYLOAD_KEYS, write_outbox_entry
 from app.models.outbox import OutboxEvent
 from app.models.tenant import Tenant
 
@@ -106,8 +106,16 @@ _event_types = text(
     max_size=50,
 )
 
+_payload_keys = text(
+    alphabet="abcdefghijklmnopqrstuvwxyz_",
+    min_size=1,
+    max_size=10,
+).filter(lambda key: key.lower() not in RESTRICTED_PAYLOAD_KEYS)
+
 _payloads = dictionaries(
-    keys=text(alphabet="abcdefghijklmnopqrstuvwxyz_", min_size=1, max_size=10),
+    # Atomicity is defined for valid events. Restricted payload rejection is
+    # covered separately and must not turn this property into a validation test.
+    keys=_payload_keys,
     # Excludes the NUL character: PostgreSQL's text/JSONB types cannot store
     # it (raises "unsupported Unicode escape sequence") — a real Postgres
     # limitation, not something write_outbox_entry should (or could) work

@@ -1,0 +1,149 @@
+/* Design tokens — implements design-system/MASTER.md §3–§6, §8.2–8.3.
+   Three layers: primitive -> semantic -> surface.
+   Components MUST reference semantic/surface tokens only. No raw hex in components (§14). */
+
+:root {
+  /* ---- primitive: colour scale ---- */
+  --cyan-50: #ECFEFF;
+  --cyan-100: #CFFAFE;
+  --cyan-200: #A5F3FC;
+  --cyan-300: #67E8F9;
+  --cyan-600: #0891B2;
+  --cyan-700: #0E7490;
+  --cyan-900: #164E63;
+  --green-600: #059669;
+  --green-700: #047857;
+  --green-50: #ECFDF5;
+  --amber-700: #B45309;
+  --amber-50: #FFFBEB;
+  --red-600: #DC2626;
+  --red-50: #FEF2F2;
+  --slate-500: #64748B;
+  --slate-100: #F1F5F9;
+  --white: #FFFFFF;
+
+  /* ---- semantic: colour ---- */
+  --color-primary: var(--cyan-600);
+  --color-primary-text: var(--cyan-700);
+  --color-primary-weak: var(--cyan-100);
+  --color-accent: var(--green-600);
+  --color-accent-text: var(--green-700);
+  --color-foreground: var(--cyan-900);
+  --color-muted-foreground: var(--slate-500);
+  --color-background: var(--cyan-50);
+  --color-surface: var(--white);
+  --color-border: var(--cyan-200);
+  --color-border-strong: var(--cyan-300);
+  --color-destructive: var(--red-600);
+  --color-ring: var(--cyan-600);
+  --color-on-primary: var(--white);
+  --color-on-accent: var(--white);
+
+  /* ---- semantic: workflow state (§4.2) — colour + icon + text always together ---- */
+  --state-candidate-fg: var(--slate-500);
+  --state-candidate-bg: var(--slate-100);
+  --state-review-fg: var(--amber-700);
+  --state-review-bg: var(--amber-50);
+  --state-confirmed-fg: var(--green-700);
+  --state-confirmed-bg: var(--green-50);
+  --state-published-fg: var(--cyan-700);
+  --state-published-bg: var(--cyan-50);
+  --state-withdrawn-fg: var(--red-600);
+  --state-withdrawn-bg: var(--red-50);
+
+  /* ---- semantic: spacing (4pt base, §6) ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---- semantic: radius (§8.3) ---- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* ---- semantic: elevation — exactly three (§8.3) ---- */
+  --shadow-1: 0 1px 3px rgba(22, 78, 99, 0.10);
+  --shadow-2: 0 4px 12px rgba(22, 78, 99, 0.12);
+  --shadow-3: 0 12px 32px rgba(22, 78, 99, 0.18);
+
+  /* ---- semantic: motion (§9) 150-300ms, subtle ---- */
+  --motion-fast: 150ms;
+  --motion-base: 220ms;
+  --motion-slow: 300ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---- default type scale = care (most neutral); surfaces override ---- */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --leading-body: 1.5;
+
+  --touch-min: 48px;
+  --touch-rec: 56px;
+  --card-pad: var(--space-4);
+  --block-gap: var(--space-6);
+}
+
+/* ---- surface: voice (elder). 22px base is a FLOOR, not a choice (§5.1) ---- */
+[data-surface='voice'] {
+  --color-background: var(--cyan-50);
+  --text-xs: 18px;
+  --text-sm: 20px;
+  --text-base: 22px;
+  --text-lg: 26px;
+  --text-xl: 32px;
+  --text-2xl: 40px;
+  --text-3xl: 48px;
+  --leading-body: 1.75;
+  --touch-min: 64px;
+  --touch-rec: 72px;
+  --card-pad: var(--space-8);
+  --block-gap: var(--space-12);
+}
+
+/* ---- surface: care (professional). Deliberately more neutral background —
+       a saturated background fatigues over a long shift (§4.1). ---- */
+[data-surface='care'] {
+  --color-background: #F6FAFB;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --leading-body: 1.5;
+  --touch-min: 48px;
+  --touch-rec: 56px;
+  --card-pad: var(--space-4);
+  --block-gap: var(--space-6);
+}
+
+/* ---- surface: family ---- */
+[data-surface='family'] {
+  --color-background: #F8FDFE;
+  --text-xs: 14px;
+  --text-sm: 16px;
+  --text-base: 18px;
+  --text-lg: 20px;
+  --text-xl: 24px;
+  --text-2xl: 30px;
+  --text-3xl: 36px;
+  --leading-body: 1.6;
+  --touch-min: 48px;
+  --touch-rec: 48px;
+  --card-pad: var(--space-6);
+  --block-gap: var(--space-8);
+}

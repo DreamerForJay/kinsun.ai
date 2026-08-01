@@ -951,12 +951,14 @@ def test_property_role_mode_incompatibility_enforcement(
         )
 
         # IdentityService with mocked repos (won't be reached due to early validation)
+        actor_repo = AsyncMock()
         tenant_membership_repo = AsyncMock()
         care_unit_membership_repo = AsyncMock()
         care_relationship_repo = AsyncMock()
         care_assignment_repo = AsyncMock()
 
         service = IdentityService(
+            actor_repo=actor_repo,
             tenant_membership_repo=tenant_membership_repo,
             care_unit_membership_repo=care_unit_membership_repo,
             care_relationship_repo=care_relationship_repo,
@@ -1002,6 +1004,7 @@ def test_property_authorized_elders_result_validity(num_elders, role):
         ]
 
         # Setup repos
+        actor_repo = AsyncMock()
         tenant_membership_repo = AsyncMock()
         tenant_membership_repo.get_active_membership = AsyncMock(return_value=MagicMock())
         care_unit_membership_repo = AsyncMock()
@@ -1012,6 +1015,7 @@ def test_property_authorized_elders_result_validity(num_elders, role):
         care_assignment_repo.find_authorized_elders_by_worker = AsyncMock(return_value=elders)
 
         service = IdentityService(
+            actor_repo=actor_repo,
             tenant_membership_repo=tenant_membership_repo,
             care_unit_membership_repo=care_unit_membership_repo,
             care_relationship_repo=care_relationship_repo,

@@ -1,6 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as kms from 'aws-cdk-lib/aws-kms';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 
@@ -10,24 +9,18 @@ export interface DataStoreProps {
 
 /**
  * Core data layer: single-table DynamoDB (see backend/src/db/keys.ts for the
- * PK/SK/GSI1/GSI2 scheme this table must match), the audio/knowledge/exports
- * S3 buckets, and the CMK used to encrypt all of them at rest (H02).
+ * PK/SK/GSI1/GSI2 scheme this table must match) plus the audio/knowledge/exports
+ * S3 buckets. Uses AWS-default (not customer-managed KMS) encryption throughout
+ * by design — no CMK is provisioned anywhere in this construct.
  */
 export class DataStore extends Construct {
   public readonly table: dynamodb.Table;
   public readonly audioBucket: s3.Bucket;
   public readonly knowledgeBucket: s3.Bucket;
   public readonly exportsBucket: s3.Bucket;
-  public readonly kmsKey: kms.Key;
 
   constructor(scope: Construct, id: string, props: DataStoreProps) {
     super(scope, id);
-
-    this.kmsKey = new kms.Key(this, 'DataKmsKey', {
-      description: `elderly-care-${props.envName} data encryption key`,
-      enableKeyRotation: true,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
-    });
 
     // Single-table design — see design.md §DynamoDB Single-Table Design for the
     // full PK/SK/GSI key scheme (ELDER#, CG#, FM#, AUDIT# partitions).
@@ -36,8 +29,6 @@ export class DataStore extends Construct {
       partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      encryption: dynamodb.TableEncryption.CUSTOMER_MANAGED,
-      encryptionKey: this.kmsKey,
       timeToLiveAttribute: 'ttl',
       pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
       removalPolicy: cdk.RemovalPolicy.RETAIN,
@@ -62,8 +53,7 @@ export class DataStore extends Construct {
     });
 
     const commonBucketProps: Partial<s3.BucketProps> = {
-      encryption: s3.BucketEncryption.KMS,
-      encryptionKey: this.kmsKey,
+      encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       enforceSSL: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
