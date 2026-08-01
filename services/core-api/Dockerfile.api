@@ -1,0 +1,51 @@
+# syntax=docker/dockerfile:1
+
+# Core API runtime image. The existing Dockerfile remains the one-shot Alembic
+# migration image so application startup never acquires DDL responsibilities.
+FROM python:3.12-slim-bookworm AS dependencies
+
+COPY --from=ghcr.io/astral-sh/uv:0.11.25 /uv /bin/uv
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv
+
+WORKDIR /build
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-dev --no-install-project
+
+
+FROM python:3.12-slim-bookworm AS runtime
+
+LABEL io.kinsun.artifact="core-api"
+
+ENV APP_ENV=production \
+    HOME=/tmp \
+    HOST=0.0.0.0 \
+    PATH="/opt/venv/bin:$PATH" \
+    PORT=8000 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /app \
+        --shell /usr/sbin/nologin app
+
+WORKDIR /app
+
+COPY --from=dependencies --chown=10001:10001 /opt/venv /opt/venv
+COPY --chown=10001:10001 app ./app
+
+EXPOSE 8000
+
+USER 10001:10001
+
+# Liveness deliberately does not depend on Aurora. ECS/ALB readiness should use
+# /ready so an unavailable database removes the task from traffic without a
+# destructive container restart loop.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).close()"]
+
+ENTRYPOINT ["python", "-m", "app.container_entrypoint", "postgresql+asyncpg"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
