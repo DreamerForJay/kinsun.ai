@@ -16,9 +16,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
+from app.core.exceptions import AuthorizationDeniedError
 from app.middleware.auth import ActorContext
 from app.models.enums import ActorType
 from app.policies import RoleModeIncompatibleError
+from app.repositories.actor_repo import ActorRepository
 from app.repositories.care_assignment_repo import CareAssignmentRepository
 from app.repositories.care_relationship_repo import CareRelationshipRepository
 from app.repositories.care_unit_membership_repo import CareUnitMembershipRepository
@@ -64,7 +66,7 @@ class ActorProfile:
     Attributes:
         actor_id: The actor's UUID.
         actor_type: The actor's role/type.
-        display_name: Currently same as actor_type (placeholder).
+        display_name: Formal display name loaded from the actor table.
         tenant_id: The actor's tenant UUID.
         role: Same as actor_type (from ActorContext).
         care_unit_ids: List of care unit UUIDs the actor belongs to.
@@ -125,6 +127,7 @@ class IdentityService:
 
     def __init__(
         self,
+        actor_repo: ActorRepository,
         tenant_membership_repo: TenantMembershipRepository,
         care_unit_membership_repo: CareUnitMembershipRepository,
         care_relationship_repo: CareRelationshipRepository,
@@ -133,36 +136,58 @@ class IdentityService:
         """Initialize with repository dependencies.
 
         Args:
+            actor_repo: For loading formal actor identity state.
             tenant_membership_repo: For checking actor's tenant membership.
             care_unit_membership_repo: For getting actor's care unit IDs.
             care_relationship_repo: For querying care relationships.
             care_assignment_repo: For querying care assignments.
         """
+        self._actor_repo = actor_repo
         self._tenant_membership_repo = tenant_membership_repo
         self._care_unit_membership_repo = care_unit_membership_repo
         self._care_relationship_repo = care_relationship_repo
         self._care_assignment_repo = care_assignment_repo
 
-    async def get_actor_profile(self, actor_context: ActorContext) -> ActorProfile:
+    async def get_actor_profile(
+        self,
+        actor_context: ActorContext,
+        current_time: datetime,
+    ) -> ActorProfile:
         """Return actor profile information including care unit IDs.
 
         Args:
             actor_context: The authenticated actor's context.
+            current_time: Trusted server time for membership evaluation.
 
         Returns:
             ActorProfile with actor info and care_unit_ids.
         """
+        membership = await self._tenant_membership_repo.get_active_membership(
+            actor_id=actor_context.actor_id,
+            tenant_id=actor_context.tenant_id,
+            role_code=actor_context.actor_role,
+            current_time=current_time,
+        )
+        if membership is None:
+            raise AuthorizationDeniedError("Resource not found")
+
+        actor = await self._actor_repo.get_active_by_id(actor_context.actor_id)
+        if actor is None or actor.actor_type != actor_context.actor_role:
+            raise AuthorizationDeniedError("Resource not found")
+
         care_unit_ids = await self._care_unit_membership_repo.get_care_unit_ids(
             actor_id=actor_context.actor_id,
             tenant_id=actor_context.tenant_id,
+            role_code=actor_context.actor_role,
+            current_time=current_time,
         )
 
         return ActorProfile(
-            actor_id=actor_context.actor_id,
-            actor_type=actor_context.actor_role,
-            display_name=actor_context.actor_role,
+            actor_id=actor.id,
+            actor_type=actor.actor_type,
+            display_name=actor.display_name,
             tenant_id=actor_context.tenant_id,
-            role=actor_context.actor_role,
+            role=membership.role_code,
             care_unit_ids=care_unit_ids,
         )
 
@@ -280,6 +305,8 @@ class IdentityService:
         membership = await self._tenant_membership_repo.get_active_membership(
             actor_id=actor_context.actor_id,
             tenant_id=actor_context.tenant_id,
+            role_code=actor_context.actor_role,
+            current_time=current_time,
         )
         if membership is None:
             raise RoleModeIncompatibleError("Actor does not have an active TenantMembership.")
@@ -288,6 +315,8 @@ class IdentityService:
         care_unit_ids = await self._care_unit_membership_repo.get_care_unit_ids(
             actor_id=actor_context.actor_id,
             tenant_id=actor_context.tenant_id,
+            role_code=actor_context.actor_role,
+            current_time=current_time,
         )
 
         # Step 3: No care unit memberships = no access (deny by default)

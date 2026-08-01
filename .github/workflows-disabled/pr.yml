@@ -11,6 +11,25 @@ permissions:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+        env:
+          POSTGRES_DB: kinsun
+          POSTGRES_USER: kinsun
+          POSTGRES_PASSWORD: kinsun_local_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kinsun -d kinsun"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://kinsun:kinsun_local_dev@localhost:5432/kinsun
+      TEST_DATABASE_URL: postgresql+asyncpg://kinsun:kinsun_local_dev@localhost:5432/kinsun_test
+      APP_ENV: development
+      FAKE_AUTH_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
 
@@ -28,31 +47,47 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Python dependencies
-        run: |
-          pip install ruff pytest pytest-cov
-          if [ -f services/core-api/requirements.txt ]; then
-            pip install -r services/core-api/requirements.txt
-          fi
+      - name: Setup uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          version: '0.11.25'
+          enable-cache: true
 
-      - name: Python Lint
+      - name: Install locked Python dependencies
         run: |
-          if [ -d services/ ]; then
-            ruff check services/ --output-format=github
-          fi
-        continue-on-error: false
+          uv sync --frozen --project services/core-api --extra test --extra dev
+          uv sync --frozen --project services/agent-runtime --extra test --extra dev
 
-      - name: Python Format Check
-        run: |
-          if [ -d services/ ]; then
-            ruff format --check services/
-          fi
+      - name: Create isolated test database
+        run: >-
+          uv run --project services/core-api python -c
+          "import psycopg;
+          connection = psycopg.connect('postgresql://kinsun:kinsun_local_dev@localhost:5432/postgres', autocommit=True);
+          connection.execute('CREATE DATABASE kinsun_test');
+          connection.close()"
 
-      - name: Python Unit Tests
+      - name: Core API lint and format
         run: |
-          if [ -d services/core-api/tests ]; then
-            pytest services/core-api/tests/ --cov --cov-report=xml
-          fi
+          uv run --project services/core-api ruff check services/core-api --output-format=github
+          uv run --project services/core-api ruff format --check services/core-api
+
+      - name: Core API unit tests
+        run: |
+          uv run --project services/core-api pytest services/core-api/tests/unit --cov=services/core-api/app --cov-report=xml
+
+      - name: Core API integration tests
+        run: uv run --project services/core-api pytest services/core-api/tests/integration
+
+      - name: Contract validation and runtime parity
+        run: |
+          uv run --project services/core-api --with "pyyaml==6.0.2" --with "jsonschema==4.23.0" --with "referencing==0.35.1" python scripts/validate_contracts.py contracts
+          uv run --project services/core-api --with "pyyaml==6.0.2" --with "jsonschema==4.23.0" --with "referencing==0.35.1" python scripts/verify_contract_live.py contracts
+
+      - name: Agent Runtime tests and lint
+        run: |
+          uv run --project services/agent-runtime pytest services/agent-runtime/tests
+          uv run --project services/agent-runtime ruff check services/agent-runtime --output-format=github
+          uv run --project services/agent-runtime ruff format --check services/agent-runtime
 
       - name: CDK Lint & Synth
         working-directory: infra
@@ -69,10 +104,8 @@ jobs:
 
       - name: Security Scan (dependencies)
         run: |
-          pip install pip-audit
-          if [ -f services/core-api/requirements.txt ]; then
-            pip-audit -r services/core-api/requirements.txt || true
-          fi
+          uv export --frozen --project services/core-api --no-dev --no-hashes --format requirements-txt --output-file /tmp/core-requirements.txt
+          uvx --from "pip-audit==2.9.0" pip-audit -r /tmp/core-requirements.txt
 
   cdk-diff:
     runs-on: ubuntu-latest

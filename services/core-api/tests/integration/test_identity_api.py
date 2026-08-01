@@ -103,6 +103,7 @@ def api_ids():
         "worker_id": uuid.UUID("20000000-0000-4000-a000-000000000001"),
         "daycare_worker_id": uuid.UUID("20000000-0000-4000-a000-000000000002"),
         "family_member_id": uuid.UUID("20000000-0000-4000-a000-000000000003"),
+        "role_mismatch_id": uuid.UUID("20000000-0000-4000-a000-000000000004"),
         "elder_1_id": uuid.UUID("30000000-0000-4000-a000-000000000001"),
         "elder_2_id": uuid.UUID("30000000-0000-4000-a000-000000000002"),
         "elder_3_id": uuid.UUID("30000000-0000-4000-a000-000000000003"),
@@ -139,7 +140,12 @@ async def seed_api_data(committed_session, api_ids):
     family_member = Actor(
         id=ids["family_member_id"], actor_type="FAMILY_MEMBER", display_name="Family One"
     )
-    committed_session.add_all([worker, daycare_worker, family_member])
+    role_mismatch_actor = Actor(
+        id=ids["role_mismatch_id"],
+        actor_type="DAYCARE_CARE_WORKER",
+        display_name="Mismatched Worker",
+    )
+    committed_session.add_all([worker, daycare_worker, family_member, role_mismatch_actor])
     await committed_session.flush()
 
     # Care Unit (depends on Tenant)
@@ -198,7 +204,13 @@ async def seed_api_data(committed_session, api_ids):
         care_unit_id=None,
         role_code="FAMILY_MEMBER",
     )
-    committed_session.add_all([tm_daycare, tm_worker, tm_family])
+    tm_role_mismatch = ActorTenantMembership(
+        actor_id=ids["role_mismatch_id"],
+        tenant_id=ids["tenant_id"],
+        care_unit_id=None,
+        role_code="FAMILY_MEMBER",
+    )
+    committed_session.add_all([tm_daycare, tm_worker, tm_family, tm_role_mismatch])
     await committed_session.flush()
 
     # CareRelationships
@@ -273,10 +285,28 @@ class TestGetMe:
         assert "meta" in body
         data = body["data"]
         assert data["actor_id"] == str(ids["daycare_worker_id"])
+        assert data["actor_type"] == "DAYCARE_CARE_WORKER"
+        assert data["display_name"] == "DC Worker"
         assert data["tenant_id"] == str(ids["tenant_id"])
         assert data["role"] == "DAYCARE_CARE_WORKER"
         assert isinstance(data["care_unit_ids"], list)
         assert str(ids["care_unit_id"]) in data["care_unit_ids"]
+
+    @pytest.mark.asyncio
+    async def test_rejects_tenant_membership_role_mismatch(self, test_engine, seed_api_data):
+        """A global actor type cannot substitute for a different tenant-local role."""
+        ids = seed_api_data
+        app = _build_client_app(
+            test_engine,
+            actor_id=ids["role_mismatch_id"],
+            actor_role="DAYCARE_CARE_WORKER",
+            tenant_id=ids["tenant_id"],
+        )
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/v1/me")
+
+        assert response.status_code == 404
 
     @pytest.mark.asyncio
     async def test_worker_returns_empty_care_units(self, test_engine, seed_api_data):

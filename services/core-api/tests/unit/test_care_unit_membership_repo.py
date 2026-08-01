@@ -6,6 +6,7 @@ Tests the repository logic using a mocked async session.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -39,8 +40,11 @@ class TestIsMember:
         actor_id = uuid.uuid4()
         care_unit_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
+        current_time = datetime.now(UTC)
 
-        result = await repo.is_member(actor_id, care_unit_id, tenant_id)
+        result = await repo.is_member(
+            actor_id, care_unit_id, tenant_id, "DAYCARE_CARE_WORKER", current_time
+        )
 
         assert result is True
         session.execute.assert_called_once()
@@ -58,8 +62,11 @@ class TestIsMember:
         actor_id = uuid.uuid4()
         care_unit_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
+        current_time = datetime.now(UTC)
 
-        result = await repo.is_member(actor_id, care_unit_id, tenant_id)
+        result = await repo.is_member(
+            actor_id, care_unit_id, tenant_id, "DAYCARE_CARE_WORKER", current_time
+        )
 
         assert result is False
 
@@ -76,8 +83,9 @@ class TestIsMember:
         actor_id = uuid.uuid4()
         care_unit_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
+        current_time = datetime.now(UTC)
 
-        await repo.is_member(actor_id, care_unit_id, tenant_id)
+        await repo.is_member(actor_id, care_unit_id, tenant_id, "DAYCARE_CARE_WORKER", current_time)
 
         session.execute.assert_called_once()
         stmt = session.execute.call_args[0][0]
@@ -86,7 +94,10 @@ class TestIsMember:
         assert "actor_id" in compiled
         assert "care_unit_id" in compiled
         assert "tenant_id" in compiled
+        assert "role_code" in compiled
         assert "status" in compiled
+        assert "effective_from" in compiled
+        assert "effective_to" in compiled
 
 
 class TestGetCareUnitIds:
@@ -108,8 +119,11 @@ class TestGetCareUnitIds:
 
         actor_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
+        current_time = datetime.now(UTC)
 
-        result = await repo.get_care_unit_ids(actor_id, tenant_id)
+        result = await repo.get_care_unit_ids(
+            actor_id, tenant_id, "DAYCARE_CARE_WORKER", current_time
+        )
 
         assert result == [cu_id_1, cu_id_2]
         session.execute.assert_called_once()
@@ -128,8 +142,11 @@ class TestGetCareUnitIds:
 
         actor_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
+        current_time = datetime.now(UTC)
 
-        result = await repo.get_care_unit_ids(actor_id, tenant_id)
+        result = await repo.get_care_unit_ids(
+            actor_id, tenant_id, "DAYCARE_CARE_WORKER", current_time
+        )
 
         assert result == []
 
@@ -147,8 +164,9 @@ class TestGetCareUnitIds:
 
         actor_id = uuid.uuid4()
         tenant_id = uuid.uuid4()
+        current_time = datetime.now(UTC)
 
-        await repo.get_care_unit_ids(actor_id, tenant_id)
+        await repo.get_care_unit_ids(actor_id, tenant_id, "DAYCARE_CARE_WORKER", current_time)
 
         session.execute.assert_called_once()
         stmt = session.execute.call_args[0][0]
@@ -156,4 +174,7 @@ class TestGetCareUnitIds:
         assert "actor_tenant_membership" in compiled
         assert "actor_id" in compiled
         assert "tenant_id" in compiled
+        assert "role_code" in compiled
         assert "status" in compiled
+        assert "effective_from" in compiled
+        assert "effective_to" in compiled

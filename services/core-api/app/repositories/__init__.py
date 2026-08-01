@@ -1,5 +1,6 @@
 """Repository layer — tenant-scoped data access for domain entities."""
 
+from app.repositories.actor_repo import ActorRepository  # noqa: F401
 from app.repositories.base import BaseRepository  # noqa: F401
 from app.repositories.care_assignment_repo import CareAssignmentRepository  # noqa: F401
 from app.repositories.care_relationship_repo import CareRelationshipRepository  # noqa: F401

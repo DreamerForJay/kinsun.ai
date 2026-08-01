@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 "db_startup_degraded",
                 extra={
                     "component": "DatabaseEngine",
-                    "message": "Database unreachable at startup — running in degraded mode",
+                    "detail": "Database unreachable at startup — running in degraded mode",
                 },
             )
     except Exception as exc:
@@ -95,7 +95,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             extra={
                 "component": "DatabaseEngine",
                 "error": str(exc),
-                "message": "Database unreachable at startup — running in degraded mode",
+                "detail": "Database unreachable at startup — running in degraded mode",
             },
         )
         # db_engine.is_ready remains False → session dependency will 503

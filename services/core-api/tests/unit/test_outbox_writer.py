@@ -12,7 +12,24 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.core.exceptions import ValidationError
-from app.events.outbox_writer import MAX_PAYLOAD_BYTES, write_outbox_entry
+from app.events.outbox_writer import (
+    MAX_PAYLOAD_BYTES,
+    RESTRICTED_PAYLOAD_KEYS,
+    write_outbox_entry,
+)
+
+EXPECTED_RESTRICTED_PAYLOAD_KEYS = frozenset(
+    {
+        "audio",
+        "audio_uri",
+        "full_prompt",
+        "prompt",
+        "secret",
+        "token",
+        "transcript",
+        "transcript_text",
+    }
+)
 
 
 @pytest.fixture
@@ -161,13 +178,23 @@ class TestWriteOutboxEntryValidation:
         assert exc_info.value.details[0]["reason"] == "payload must be valid finite UTF-8 JSON"
 
     @pytest.mark.asyncio
-    async def test_rejects_nested_restricted_field(self, mock_session, valid_params):
-        valid_params["payload"] = {"evidence": {"transcript": "restricted"}}
+    async def test_rejects_every_restricted_field_case_insensitively_and_when_nested(
+        self, mock_session, valid_params
+    ):
+        assert RESTRICTED_PAYLOAD_KEYS == EXPECTED_RESTRICTED_PAYLOAD_KEYS
 
-        with pytest.raises(ValidationError) as exc_info:
-            await write_outbox_entry(mock_session, **valid_params)
+        for key in sorted(EXPECTED_RESTRICTED_PAYLOAD_KEYS):
+            payloads = [
+                {key: "restricted"},
+                {key.upper(): "restricted"},
+                {"evidence": [{key: "restricted"}]},
+            ]
+            for payload in payloads:
+                valid_params["payload"] = payload
+                with pytest.raises(ValidationError) as exc_info:
+                    await write_outbox_entry(mock_session, **valid_params)
 
-        assert any(d["field"] == "payload" for d in exc_info.value.details)
+                assert any(d["field"] == "payload" for d in exc_info.value.details)
 
     @pytest.mark.asyncio
     async def test_rejects_oversized_payload(self, mock_session, valid_params):

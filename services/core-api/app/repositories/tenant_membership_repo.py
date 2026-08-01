@@ -7,9 +7,10 @@ actors and tenants. It takes a session directly.
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.membership import ActorTenantMembership
@@ -30,29 +31,41 @@ class TenantMembershipRepository:
         self._session = session
 
     async def get_active_membership(
-        self, actor_id: UUID, tenant_id: UUID
+        self,
+        actor_id: UUID,
+        tenant_id: UUID,
+        role_code: str,
+        current_time: datetime,
     ) -> ActorTenantMembership | None:
-        """Return an active membership for actor in the given tenant.
+        """Return a currently effective membership for the tenant and acting role.
 
         An actor may legitimately hold several rows for one tenant — one
         tenant-wide plus one per care unit — so this returns the first match
-        rather than requiring exactly one. Without the limit, an actor
-        belonging to two care units would raise MultipleResultsFound and fail
-        authorization for a reason that has nothing to do with permissions.
+        rather than requiring exactly one. The acting role is mandatory: a
+        membership under another tenant-local role must never authorize the
+        role asserted by the authentication context.
 
         Args:
             actor_id: The actor's UUID.
             tenant_id: The tenant's UUID.
+            role_code: The tenant-local role being exercised.
+            current_time: Trusted server time used for the effective window.
 
         Returns:
-            An active ActorTenantMembership, or None.
+            A matching active ActorTenantMembership, or None.
         """
         result = await self._session.execute(
             select(ActorTenantMembership)
             .where(
                 ActorTenantMembership.actor_id == actor_id,
                 ActorTenantMembership.tenant_id == tenant_id,
+                ActorTenantMembership.role_code == role_code,
                 ActorTenantMembership.status == "ACTIVE",
+                ActorTenantMembership.effective_from <= current_time,
+                or_(
+                    ActorTenantMembership.effective_to.is_(None),
+                    current_time < ActorTenantMembership.effective_to,
+                ),
             )
             .limit(1)
         )

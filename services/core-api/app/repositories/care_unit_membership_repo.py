@@ -10,9 +10,10 @@ TenantMembershipRepository uses, filtered to rows that name a care unit.
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.membership import ActorTenantMembership
@@ -28,19 +29,29 @@ class CareUnitMembershipRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def is_member(self, actor_id: UUID, care_unit_id: UUID, tenant_id: UUID) -> bool:
-        """Check whether actor has an active membership in the given care unit.
+    async def is_member(
+        self,
+        actor_id: UUID,
+        care_unit_id: UUID,
+        tenant_id: UUID,
+        role_code: str,
+        current_time: datetime,
+    ) -> bool:
+        """Check active care-unit membership for a tenant-local acting role.
 
-        tenant_id is required, not optional: this is a cross-tenant boundary
-        check, and a default that silently skips it is a trap.
+        tenant_id and role_code are required: omitting either would allow a
+        membership from another tenant or role to satisfy this authorization
+        boundary.
 
         Args:
             actor_id: The actor's UUID.
             care_unit_id: The care unit's UUID.
             tenant_id: The tenant the care unit must belong to.
+            role_code: The tenant-local role being exercised.
+            current_time: Trusted server time used for the effective window.
 
         Returns:
-            True if an active membership exists, False otherwise.
+            True if a matching active membership exists, False otherwise.
         """
         result = await self._session.execute(
             select(ActorTenantMembership.id)
@@ -48,14 +59,26 @@ class CareUnitMembershipRepository:
                 ActorTenantMembership.actor_id == actor_id,
                 ActorTenantMembership.care_unit_id == care_unit_id,
                 ActorTenantMembership.tenant_id == tenant_id,
+                ActorTenantMembership.role_code == role_code,
                 ActorTenantMembership.status == "ACTIVE",
+                ActorTenantMembership.effective_from <= current_time,
+                or_(
+                    ActorTenantMembership.effective_to.is_(None),
+                    current_time < ActorTenantMembership.effective_to,
+                ),
             )
             .limit(1)
         )
         return result.scalar_one_or_none() is not None
 
-    async def get_care_unit_ids(self, actor_id: UUID, tenant_id: UUID) -> list[UUID]:
-        """Return all active care unit IDs for actor within a tenant.
+    async def get_care_unit_ids(
+        self,
+        actor_id: UUID,
+        tenant_id: UUID,
+        role_code: str,
+        current_time: datetime,
+    ) -> list[UUID]:
+        """Return active care-unit IDs for a tenant-local acting role.
 
         Rows with a NULL care_unit_id are tenant-wide memberships and are
         excluded — they name no specific care unit.
@@ -63,17 +86,24 @@ class CareUnitMembershipRepository:
         Args:
             actor_id: The actor's UUID.
             tenant_id: The tenant's UUID.
+            role_code: The tenant-local role being exercised.
+            current_time: Trusted server time used for the effective window.
 
         Returns:
-            List of care_unit_id UUIDs the actor actively belongs to
-            within the specified tenant.
+            Care-unit UUIDs for matching active memberships in the tenant.
         """
         result = await self._session.execute(
             select(ActorTenantMembership.care_unit_id).where(
                 ActorTenantMembership.actor_id == actor_id,
                 ActorTenantMembership.tenant_id == tenant_id,
+                ActorTenantMembership.role_code == role_code,
                 ActorTenantMembership.care_unit_id.is_not(None),
                 ActorTenantMembership.status == "ACTIVE",
+                ActorTenantMembership.effective_from <= current_time,
+                or_(
+                    ActorTenantMembership.effective_to.is_(None),
+                    current_time < ActorTenantMembership.effective_to,
+                ),
             )
         )
         return list(result.scalars().all())
