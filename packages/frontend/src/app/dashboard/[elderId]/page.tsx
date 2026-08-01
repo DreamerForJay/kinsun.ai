@@ -1,17 +1,21 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EventFilterBar } from '@/components/dashboard/EventFilterBar';
 import { EventTable } from '@/components/dashboard/EventTable';
 import { MemoryList } from '@/components/dashboard/MemoryList';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { StateCard } from '@/components/StateCard';
 import { ApiRequestError } from '@/lib/api/client';
 import {
   listEvents,
   reviewEvent,
+  summariseNeedsReview,
   type CareEventDecision,
   type EventView,
   type ListEventsFilters,
+  type NeedsReviewSummary,
 } from '@/lib/api/events';
 import {
   confirmMemory,
@@ -59,6 +63,7 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
   const [eventFilters, setEventFilters] = useState<ListEventsFilters>({});
   const [memories, setMemories] = useState<MemoryListView>({ candidates: [], confirmed: [] });
   const [summaries, setSummaries] = useState<SummaryView[]>([]);
+  const [needsReview, setNeedsReview] = useState<NeedsReviewSummary | null>(null);
   const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
 
   useEffect(() => {
@@ -92,12 +97,27 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
       .catch((caught) => setErrorKey(describeError(caught, 'error.loadSummariesFailed')));
   }, [apiConfig, elderId]);
 
+  /* Independent of the active tab: §10.2 requires the review queue to be
+     visible whichever tab the caregiver is on, not only inside the events one.
+     A failure here is deliberately swallowed — the queue count is secondary,
+     and blanking the page over it would be worse than not showing it. */
+  const loadNeedsReview = useCallback(() => {
+    summariseNeedsReview(apiConfig, elderId)
+      .then(setNeedsReview)
+      .catch(() => setNeedsReview(null));
+  }, [apiConfig, elderId]);
+
   useEffect(() => {
     if (runtimeConfig?.credentialStatus !== 'present') return;
     if (tab === 'events') loadEvents();
     if (tab === 'memories') loadMemories();
     if (tab === 'summaries') loadSummaries();
   }, [tab, runtimeConfig?.credentialStatus, loadEvents, loadMemories, loadSummaries]);
+
+  useEffect(() => {
+    if (runtimeConfig?.credentialStatus !== 'present') return;
+    loadNeedsReview();
+  }, [runtimeConfig?.credentialStatus, loadNeedsReview]);
 
   if (!runtimeConfig) return null;
   if (runtimeConfig.credentialStatus === 'unavailable') {
@@ -115,6 +135,9 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
     try {
       await reviewEvent(apiConfig, elderId, event, decision, correctedContent);
       loadEvents();
+      // The queue just shrank; leaving the banner stale would send the reviewer
+      // looking for work that is already done.
+      loadNeedsReview();
     } catch (caught) {
       setErrorKey(describeError(caught, 'error.reviewEventFailed'));
       throw caught;
@@ -138,10 +161,68 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
 
   const listSeparator = locale === 'en' ? ', ' : '、';
 
+  /* §10.2 Permission Denied. A denial replaces the page rather than being
+     appended to it (§1 "不得先畫再遮"), and it carries no elder identity — not
+     the name, and not the id either, even though the caller already has the id
+     from the URL.
+
+     Deliberately NOT a StateCard: §2 reserves that colour vocabulary for
+     workflow state. A denial is not a state the record is in, and dressing it
+     as one would teach the palette a second, conflicting meaning. */
+  if (errorKey === 'error.noElderDataPermission') {
+    return (
+      <main
+        style={{
+          maxWidth: 480,
+          margin: '80px auto',
+          padding: 'var(--space-6)',
+          textAlign: 'center',
+        }}
+      >
+        <h1 style={{ fontSize: 'var(--text-xl)', color: 'var(--color-foreground)' }}>
+          {t('denied.title')}
+        </h1>
+        <p style={{ color: 'var(--color-muted-foreground)', margin: 'var(--space-5) 0' }}>
+          {t('error.noElderDataPermission')}
+        </p>
+        <Link href="/dashboard">{t('denied.back')}</Link>
+      </main>
+    );
+  }
+
   return (
     <main style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontSize: 22, marginBottom: 4 }}>{t('elderDetail.title')}</h1>
       <p style={{ color: '#718096', marginBottom: 20 }}>Elder ID: {elderId}</p>
+
+      {/* §10.2 Needs Review: the count and the reason, on every tab. */}
+      {needsReview && needsReview.count > 0 && (
+        <div style={{ marginBottom: 'var(--space-5)' }}>
+          <StateCard
+            state="needsReview"
+            title={t(needsReview.atLeast ? 'needsReview.countAtLeast' : 'needsReview.count', {
+              count: needsReview.count,
+            })}
+            actions={
+              <button
+                type="button"
+                onClick={() => {
+                  setEventFilters({ status: 'NEEDS_REVIEW' });
+                  setTab('events');
+                }}
+              >
+                {t('needsReview.reviewNow')}
+              </button>
+            }
+          >
+            {t('needsReview.byConfidence', {
+              low: needsReview.byConfidence.LOW,
+              medium: needsReview.byConfidence.MEDIUM,
+              high: needsReview.byConfidence.HIGH,
+            })}
+          </StateCard>
+        </div>
+      )}
 
       <div
         style={{

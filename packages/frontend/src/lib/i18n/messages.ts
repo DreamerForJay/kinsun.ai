@@ -82,6 +82,14 @@ const zhHant = {
   'elderDetail.summaryEmpty': '目前沒有正式摘要。',
   'elderDetail.summaryNoItems': '沒有可顯示的來源支持項目。',
   'elderDetail.dataGaps': '資料缺口：{fields}',
+  // §10.2 Needs Review — 數量與原因
+  'needsReview.count': '有 {count} 筆照護事件等你覆核',
+  'needsReview.countAtLeast': '至少有 {count} 筆照護事件等你覆核',
+  'needsReview.byConfidence': '辨識信心：低 {low}｜中 {medium}｜高 {high}',
+  'needsReview.reviewNow': '前往覆核',
+  // §10.2 Permission Denied — 不顯示長者姓名或任何敏感內容
+  'denied.title': '沒有查看權限',
+  'denied.back': '返回長者總覽',
 
   // ---- event filters ----
   'eventFilter.dateFrom': '起始日期',
@@ -272,6 +280,13 @@ const en: Record<MessageKey, string> = {
   'elderDetail.summaryEmpty': 'No formal summaries yet.',
   'elderDetail.summaryNoItems': 'No source-backed items to show.',
   'elderDetail.dataGaps': 'Data gaps: {fields}',
+  'needsReview.count': '{count} care events are waiting for your review',
+  'needsReview.countAtLeast': 'At least {count} care events are waiting for your review',
+  'needsReview.byConfidence':
+    'Recognition confidence — low: {low} | medium: {medium} | high: {high}',
+  'needsReview.reviewNow': 'Review now',
+  'denied.title': 'No access',
+  'denied.back': 'Back to elder list',
 
   'eventFilter.dateFrom': 'From',
   'eventFilter.dateTo': 'To',
