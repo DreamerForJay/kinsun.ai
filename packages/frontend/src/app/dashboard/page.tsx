@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ElderOverviewList } from '@/components/dashboard/ElderOverviewList';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { Skeleton } from '@/components/Skeleton';
 import { ApiRequestError } from '@/lib/api/client';
 import { getCaregiverDashboard, type DashboardElder } from '@/lib/api/dashboard';
 import { useLocale } from '@/lib/i18n/locale-context';
@@ -30,6 +31,9 @@ export default function CaregiverDashboardPage() {
   const load = useCallback(() => {
     if (!config) return;
     setErrorKey(null);
+    // §10.2: drop the previous result before refetching. Leaving it on screen
+    // would present a stale list as a finished load.
+    setElders(null);
     getCaregiverDashboard(config)
       .then((response) => setElders(response.elders))
       .catch((caught) => {
@@ -60,7 +64,7 @@ export default function CaregiverDashboardPage() {
         {t('dashboard.subtitle')}
       </p>
       {errorKey && <p style={{ color: 'var(--color-destructive)' }}>{t(errorKey)}</p>}
-      {!elders && !errorKey && <p>{t('common.loading')}</p>}
+      {!elders && !errorKey && <Skeleton rows={4} />}
       {elders && <ElderOverviewList elders={elders} />}
     </main>
   );

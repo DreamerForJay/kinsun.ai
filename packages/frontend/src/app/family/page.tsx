@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { Skeleton } from '@/components/Skeleton';
 import { StateCard } from '@/components/StateCard';
 import { ApiRequestError } from '@/lib/api/client';
 import { listFamilyReports, type FamilyReportView } from '@/lib/api/family-reports';
@@ -39,6 +40,8 @@ export default function FamilyHomePage() {
 
   const load = useCallback(() => {
     setErrorKey(null);
+    // §10.2: never leave the previous result on screen during a refetch.
+    setReports(null);
     listFamilyReports(apiConfig, elderId)
       .then(setReports)
       .catch((caught) => {
@@ -73,7 +76,7 @@ export default function FamilyHomePage() {
   if (!reports) {
     return (
       <main style={{ maxWidth: 720, margin: '0 auto', padding: 24 }}>
-        <p>{t('common.loading')}</p>
+        <Skeleton rows={5} />
       </main>
     );
   }

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { Skeleton } from '@/components/Skeleton';
 import { familyReportState, StateCard } from '@/components/StateCard';
 import { ApiRequestError } from '@/lib/api/client';
 import { listFamilyReports, type FamilyReportView } from '@/lib/api/family-reports';
@@ -33,6 +34,8 @@ export default function FamilyReportCenterPage() {
 
   const load = useCallback(() => {
     setErrorKey(null);
+    // §10.2: never leave the previous result on screen during a refetch.
+    setReports(null);
     listFamilyReports(apiConfig, elderId)
       .then(setReports)
       .catch((caught) => {
@@ -67,7 +70,7 @@ export default function FamilyReportCenterPage() {
       </p>
 
       {errorKey && <p style={{ color: 'var(--color-destructive)' }}>{t(errorKey)}</p>}
-      {!reports && !errorKey && <p>{t('common.loading')}</p>}
+      {!reports && !errorKey && <Skeleton rows={3} />}
       {reports && reports.length === 0 && (
         <p style={{ color: 'var(--color-muted-foreground)' }}>{t('reports.empty')}</p>
       )}

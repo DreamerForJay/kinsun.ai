@@ -6,6 +6,7 @@ import { EventFilterBar } from '@/components/dashboard/EventFilterBar';
 import { EventTable } from '@/components/dashboard/EventTable';
 import { MemoryList } from '@/components/dashboard/MemoryList';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { Skeleton } from '@/components/Skeleton';
 import { StateCard } from '@/components/StateCard';
 import { ApiRequestError } from '@/lib/api/client';
 import {
@@ -64,6 +65,10 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
   const [memories, setMemories] = useState<MemoryListView>({ candidates: [], confirmed: [] });
   const [summaries, setSummaries] = useState<SummaryView[]>([]);
   const [needsReview, setNeedsReview] = useState<NeedsReviewSummary | null>(null);
+  /* Distinguishes Loading from Empty (§10.2). Without it an in-flight fetch
+     renders the empty-state copy — "沒有符合條件的事件紀錄" — which asserts
+     something the page does not yet know. */
+  const [loading, setLoading] = useState(true);
   const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
 
   useEffect(() => {
@@ -78,23 +83,29 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
 
   const loadEvents = useCallback(() => {
     setErrorKey(null);
+    setLoading(true);
     listEvents(apiConfig, elderId, eventFilters)
       .then((response) => setEvents(response.items))
-      .catch((caught) => setErrorKey(describeError(caught, 'error.loadEventsFailed')));
+      .catch((caught) => setErrorKey(describeError(caught, 'error.loadEventsFailed')))
+      .finally(() => setLoading(false));
   }, [apiConfig, elderId, eventFilters]);
 
   const loadMemories = useCallback(() => {
     setErrorKey(null);
+    setLoading(true);
     listMemories(apiConfig, elderId)
       .then(setMemories)
-      .catch((caught) => setErrorKey(describeError(caught, 'error.loadMemoriesFailed')));
+      .catch((caught) => setErrorKey(describeError(caught, 'error.loadMemoriesFailed')))
+      .finally(() => setLoading(false));
   }, [apiConfig, elderId]);
 
   const loadSummaries = useCallback(() => {
     setErrorKey(null);
+    setLoading(true);
     listSummaries(apiConfig, elderId)
       .then((response) => setSummaries(response.items))
-      .catch((caught) => setErrorKey(describeError(caught, 'error.loadSummariesFailed')));
+      .catch((caught) => setErrorKey(describeError(caught, 'error.loadSummariesFailed')))
+      .finally(() => setLoading(false));
   }, [apiConfig, elderId]);
 
   /* Independent of the active tab: §10.2 requires the review queue to be
@@ -260,21 +271,33 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
       {tab === 'events' && (
         <>
           <EventFilterBar filters={eventFilters} onChange={setEventFilters} />
-          <EventTable events={events} onReview={handleReviewEvent} />
+          {/* Skeleton replaces the previous rows rather than sitting beside
+              them: on a care dashboard, rows belonging to a previous filter or
+              a previous elder are worse than a visibly empty panel (§10.2). */}
+          {loading ? (
+            <Skeleton rows={5} />
+          ) : (
+            <EventTable events={events} onReview={handleReviewEvent} />
+          )}
         </>
       )}
 
-      {tab === 'memories' && (
-        <MemoryList
-          candidates={memories.candidates}
-          confirmed={memories.confirmed}
-          onConfirm={handleConfirmMemory}
-          onReject={handleRejectMemory}
-          onDelete={handleDeleteMemory}
-        />
-      )}
+      {tab === 'memories' &&
+        (loading ? (
+          <Skeleton rows={4} />
+        ) : (
+          <MemoryList
+            candidates={memories.candidates}
+            confirmed={memories.confirmed}
+            onConfirm={handleConfirmMemory}
+            onReject={handleRejectMemory}
+            onDelete={handleDeleteMemory}
+          />
+        ))}
 
-      {tab === 'summaries' && (
+      {tab === 'summaries' && loading && <Skeleton rows={3} />}
+
+      {tab === 'summaries' && !loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <p style={{ color: 'var(--color-muted-foreground)' }}>{t('elderDetail.summaryNotice')}</p>
           {summaries.length === 0 && (
