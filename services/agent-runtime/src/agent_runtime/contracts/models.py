@@ -1,8 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
 
 from agent_runtime.common.enums import ActorRole, ResultStatus, RiskLevel, SafetyDecision
 
@@ -10,6 +10,18 @@ SCHEMA_VERSION = "1.0.0"
 ID_REGEX = r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
 LANGUAGE_REGEX = r"^[a-z]{2,3}(?:-[A-Za-z]{2})?$"
 TOOL_NAME_REGEX = r"^[a-z][a-z0-9_]{1,40}$"
+TOOL_RESTRICTED_PARAMETER_KEYS = frozenset(
+    {
+        "audio",
+        "audio_uri",
+        "full_prompt",
+        "prompt",
+        "secret",
+        "token",
+        "transcript",
+        "transcript_text",
+    }
+)
 
 SchemaVersion = Literal["1.0.0"]
 ToolName = Annotated[str, Field(pattern=TOOL_NAME_REGEX)]
@@ -37,6 +49,55 @@ class ContractBaseModel(BaseModel):
 
 def _new_id() -> str:
     return f"id-{uuid4()}"
+
+
+def _contains_restricted_tool_key(value: JsonValue) -> bool:
+    if isinstance(value, dict):
+        return any(
+            key.casefold() in TOOL_RESTRICTED_PARAMETER_KEYS or _contains_restricted_tool_key(item)
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(_contains_restricted_tool_key(item) for item in value)
+    return False
+
+
+class ToolRequest(ContractBaseModel):
+    """Executable wire request for Core's internal Tool endpoint."""
+
+    tool_call_id: UUID
+    agent_run_id: UUID
+    tool_name: str = Field(min_length=1, max_length=120)
+    tool_version: str = Field(pattern=r"^1\.", max_length=40)
+    elder_id: UUID
+    purpose: str = Field(min_length=1, max_length=64)
+    consent_version: int = Field(ge=1)
+    policy_version: str = Field(min_length=1, max_length=80)
+    request_id: str = Field(min_length=1, max_length=80)
+    idempotency_key: str | None = Field(default=None, max_length=160)
+    expected_resource_version: int | None = Field(default=None, ge=1)
+    parameters: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @field_validator("parameters")
+    @classmethod
+    def reject_restricted_parameters(cls, parameters: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        if _contains_restricted_tool_key(parameters):
+            raise ValueError("parameters contain a restricted field")
+        return parameters
+
+
+class ToolResult(ContractBaseModel):
+    """Executable wire result returned by Core, not legacy ToolResponseV1."""
+
+    result_status: Literal["SUCCESS", "NO_DATA", "BLOCKED", "FAILED"]
+    data: JsonValue | None = None
+    resource_id: UUID | None = None
+    resource_version: int | None = None
+    source_refs: list[UUID] = Field(default_factory=list)
+    reason_code: str | None = None
+    retryable: bool = False
+    redactions: list[str] = Field(default_factory=list)
+    trace_id: str
 
 
 class ContextItem(ContractBaseModel):
