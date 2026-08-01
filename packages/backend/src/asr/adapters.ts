@@ -22,8 +22,35 @@ const TRANSCRIBE_LANGUAGE_CODES: Record<'zh-TW' | 'en-US', LanguageCode> = {
   'en-US': LanguageCode.EN_US,
 };
 
+const PCM_BYTES_PER_SAMPLE = 2;
+const STREAM_CHUNK_DURATION_MS = 100;
+
+const wait = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
 async function* singleChunkAudioStream(data: Uint8Array) {
   yield { AudioEvent: { AudioChunk: data } };
+}
+
+export async function* pcmAudioStream(
+  data: Uint8Array,
+  sampleRate: number,
+  chunkDelayMilliseconds = STREAM_CHUNK_DURATION_MS,
+) {
+  // PCM 契約是單聲道 16-bit little-endian；新增雙聲道時必須同步納入聲道數。
+  if (!Number.isFinite(sampleRate) || sampleRate <= 0) {
+    throw new RangeError('PCM sampleRate must be a positive finite number.');
+  }
+  const bytesPerSecond = sampleRate * PCM_BYTES_PER_SAMPLE;
+  const chunkSize = Math.floor((bytesPerSecond * STREAM_CHUNK_DURATION_MS) / 1000);
+
+  for (let offset = 0; offset < data.byteLength; offset += chunkSize) {
+    const end = Math.min(offset + chunkSize, data.byteLength);
+    yield { AudioEvent: { AudioChunk: data.subarray(offset, end) } };
+    if (end < data.byteLength && chunkDelayMilliseconds > 0) {
+      await wait(chunkDelayMilliseconds);
+    }
+  }
 }
 
 /** AWS Transcribe Streaming — handles Mandarin and English (A02.1, A02.3). */
@@ -35,7 +62,11 @@ export class TranscribeAdapter implements AsrAdapter {
       LanguageCode: TRANSCRIBE_LANGUAGE_CODES[language],
       MediaEncoding: audio.encoding === 'opus' ? 'ogg-opus' : 'pcm',
       MediaSampleRateHertz: audio.sampleRate,
-      AudioStream: singleChunkAudioStream(audio.data),
+      // PCM 依實際音訊時間分塊送出；Opus byte rate 不可套用 PCM 算式。
+      AudioStream:
+        audio.encoding === 'pcm'
+          ? pcmAudioStream(audio.data, audio.sampleRate)
+          : singleChunkAudioStream(audio.data),
     });
     const response = await this.client.send(command);
 

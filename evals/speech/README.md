@@ -9,9 +9,12 @@
 - `notebooks/speech_evaluation.ipynb`：圖表、逐字差異與可下載報告。
 - `run_local_asr.py`：下一階段的單一命令列入口，執行真實 Taiwan-Tongues ASR。
 - `generate_synthetic_wav.py`：產生不含真人聲音的 Mock 提示音。
+- `speech_workbench.py`：本機 Gradio 工作台，支援台語／客語 ASR、低信心確認、
+  Core → Agent/RAG 與 TTS 測試；固定綁定 `127.0.0.1` 且不建立公開分享網址。
+- `asr_benchmark_summary.json`：既有本機公開語料 benchmark 的彙總數字，不包含音訊、
+  逐字稿、個資或聲紋；與 Synthetic case-level CER 分開呈現。
 
-本專案不再提供 Gradio Web 介面。Notebook 負責視覺化，命令列工具負責可重現推論，兩者
-都共用同一套評測函式，避免出現多套指標。
+Notebook 負責完整評估視覺化，Gradio 負責人工操作流程，命令列工具負責可重現推論。
 
 ## 安裝 Notebook 環境
 
@@ -57,6 +60,19 @@ HTML 報告。`DISPLAY_CER_GUIDE` 只控制圖上的參考線，不是正式驗�
 
 Raw 模型輸出不得被正規化結果覆寫。華語意譯可能語意接近，但仍不是正確的台語逐字稿；
 因此 CER 與人工語意判定必須分開呈現。
+
+## 語言覆蓋與目前品質證據
+
+`kinsun-speech-asr-v1` 只開放 `nan-TW` 與 `hak-TW`。底層 Taiwan-Tongues
+v2.0 還支援 `zh`、`en`、`id`，但目標架構的華語／英語走 AWS Transcribe。
+
+| 評估來源 | 語言 | Micro CER | Micro WER | 解讀 |
+| --- | --- | ---: | ---: | --- |
+| 既有本機公開語料 benchmark | 台語 `nan` | 76.9% | 83.3% | 品質差，必須人工確認 |
+| 既有本機公開語料 benchmark | 客語 `hak` | 32.3% | 91.7% | 詞錯誤仍高，不可宣稱通過 |
+| 團隊 Synthetic case | 台語 `nan-TW` | 83.3%（正規化） | N/A | 只有一例，不能當整體準確率 |
+
+目前沒有可誠實加入的客語 Synthetic case-level 輸出；不可為了表格完整而虛構結果。
 
 ## 測試資料與參數
 

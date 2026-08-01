@@ -3,6 +3,7 @@
 Heavy SDKs and model libraries are imported lazily. This keeps evaluation and
 mock regression runnable on a machine without AWS credentials or model weights.
 """
+
 from __future__ import annotations
 
 import json
@@ -14,7 +15,7 @@ import types
 import wave
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from speech_contracts import ASRResult, SessionContext, TTSResult
 from speech_normalization import (
@@ -91,7 +92,9 @@ class TransformersASRAdapter(ASRAdapter):
     provider = "huggingface-transformers"
 
     def __init__(
-        self, model_id: str, device: int = -1,
+        self,
+        model_id: str,
+        device: int = -1,
         language_code: str | dict[str, str] | None = None,
         chunk_length_s: float | None = 30,
     ):
@@ -120,6 +123,7 @@ class TransformersASRAdapter(ASRAdapter):
     def _load(self) -> Any:
         if self._pipeline is None:
             from transformers import pipeline
+
             pipeline_kwargs = {}
             if self.chunk_length_s:
                 pipeline_kwargs["chunk_length_s"] = self.chunk_length_s
@@ -207,6 +211,7 @@ class CTranslate2ASRAdapter(ASRAdapter):
                 sys.modules["av"] = types.ModuleType("av")
             try:
                 from faster_whisper import WhisperModel
+
                 self._model = WhisperModel(
                     self.model_id, device=self.device, compute_type=self.compute_type
                 )
@@ -221,6 +226,7 @@ class CTranslate2ASRAdapter(ASRAdapter):
         started = time.perf_counter()
         import numpy as np
         import soundfile as sf
+
         waveform, sample_rate = sf.read(str(audio), dtype="float32")
         if waveform.ndim > 1:
             waveform = waveform.mean(axis=1)
@@ -236,10 +242,11 @@ class CTranslate2ASRAdapter(ASRAdapter):
         # those locale codes. Use the shared Chinese decoder token while
         # retaining the requested locale in our provider-neutral result.
         inference_language = (
-            "zh" if requested_language in {"nan", "hak", "mixed-zh-nan"}
+            "zh"
+            if requested_language in {"nan", "hak", "mixed-zh-nan"}
             else requested_language
         )
-        segments, info = self._load().transcribe(
+        segments, _info = self._load().transcribe(
             waveform, language=inference_language, vad_filter=True
         )
         segments = list(segments)
@@ -250,7 +257,8 @@ class CTranslate2ASRAdapter(ASRAdapter):
         # and must not be presented as transcript confidence. Use the
         # segment decoding log-probabilities as an explicit proxy instead.
         scored_segments = [
-            segment for segment in segments
+            segment
+            for segment in segments
             if getattr(segment, "avg_logprob", None) is not None
         ]
         if scored_segments:
@@ -286,7 +294,10 @@ class AmazonPollyAdapter(TTSAdapter):
     provider = "amazon-polly"
     model_id = "polly-neural"
 
-    LANGUAGE_VOICES = {"zh": ("cmn-CN", "Zhiyu"), "en": ("en-US", "Joanna")}
+    LANGUAGE_VOICES: ClassVar[dict[str, tuple[str, str]]] = {
+        "zh": ("cmn-CN", "Zhiyu"),
+        "en": ("en-US", "Joanna"),
+    }
 
     def __init__(self, region: str):
         self.region = region
@@ -297,6 +308,7 @@ class AmazonPollyAdapter(TTSAdapter):
         if language not in self.LANGUAGE_VOICES:
             return TextFallbackTTS().synthesize(text, language, voice, speed, output)
         import boto3
+
         language_code, default_voice = self.LANGUAGE_VOICES[language]
         started = time.perf_counter()
         response = boto3.client("polly", region_name=self.region).synthesize_speech(
@@ -316,8 +328,16 @@ class AmazonPollyAdapter(TTSAdapter):
         output.write_bytes(payload)
         total_ms = (time.perf_counter() - started) * 1000
         return TTSResult(
-            str(output), self.provider, self.model_id, voice or default_voice,
-            language, 24000, first_ms, total_ms, None, True,
+            str(output),
+            self.provider,
+            self.model_id,
+            voice or default_voice,
+            language,
+            24000,
+            first_ms,
+            total_ms,
+            None,
+            True,
         )
 
 
@@ -343,6 +363,7 @@ class MeloTTSAdapter(TTSAdapter):
     def _load(self) -> Any:
         if self._model is None:
             from melo.api import TTS
+
             self._model = TTS(language="ZH", device="cuda")
             self._speaker_id = self._model.hps.data.spk2id["ZH"]
         return self._model
@@ -359,8 +380,16 @@ class MeloTTSAdapter(TTSAdapter):
         model.tts_to_file(text, self._speaker_id, str(output), speed=speed)
         first_ms = total_ms = (time.perf_counter() - started) * 1000
         return TTSResult(
-            str(output), self.provider, self.model_id, "ZH-default",
-            language, model.hps.data.sampling_rate, first_ms, total_ms, None, True,
+            str(output),
+            self.provider,
+            self.model_id,
+            "ZH-default",
+            language,
+            model.hps.data.sampling_rate,
+            first_ms,
+            total_ms,
+            None,
+            True,
         )
 
 
@@ -380,7 +409,14 @@ class VoxHakkaAdapter(TTSAdapter):
     provider = "voxhakka"
     model_id = "formospeech/yourtts-htia-240704"
 
-    DIALECTS = {"sixian", "hailu", "dapu", "raoping", "zhaoan", "nansixian"}
+    DIALECTS: ClassVar[set[str]] = {
+        "sixian",
+        "hailu",
+        "dapu",
+        "raoping",
+        "zhaoan",
+        "nansixian",
+    }
 
     def __init__(self, venv_python: Path | None = None, dialect: str = "sixian"):
         local_poc = Path(__file__).parent.parent  # this file lives in core/
@@ -409,19 +445,38 @@ class VoxHakkaAdapter(TTSAdapter):
         env = dict(os.environ, PYTHONUTF8="1")
         proc = subprocess.run(
             [
-                str(self.venv_python), str(self.script),
-                "--text", text, "--dialect", dialect,
-                "--speed", str(speed), "--out", str(output),
+                str(self.venv_python),
+                str(self.script),
+                "--text",
+                text,
+                "--dialect",
+                dialect,
+                "--speed",
+                str(speed),
+                "--out",
+                str(output),
             ],
-            capture_output=True, text=True, encoding="utf-8", env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=env,
+            check=False,
         )
         total_ms = (time.perf_counter() - started) * 1000
         if proc.returncode != 0:
             raise RuntimeError(f"voxhakka_synthesize.py failed: {proc.stderr[-2000:]}")
         info = json.loads(proc.stdout.strip().splitlines()[-1])
         return TTSResult(
-            str(output), self.provider, self.model_id, f"hak-{dialect}",
-            language, info["sample_rate"], total_ms, total_ms, None, True,
+            str(output),
+            self.provider,
+            self.model_id,
+            f"hak-{dialect}",
+            language,
+            info["sample_rate"],
+            total_ms,
+            total_ms,
+            None,
+            True,
         )
 
 
@@ -450,7 +505,7 @@ class MmsTTSAdapter(TTSAdapter):
     # confirmed by exhausting every plausible repo id (cmn, zho, chi, zh,
     # cmn-script_simplified/traditional) against the HF Hub API. Do not
     # re-add a "zh" entry here without first confirming a real repo id.
-    LANGUAGE_MODELS = {
+    LANGUAGE_MODELS: ClassVar[dict[str, str]] = {
         "nan": "facebook/mms-tts-nan",
         "hak": "facebook/mms-tts-hak",
         "en": "facebook/mms-tts-eng",
@@ -462,9 +517,12 @@ class MmsTTSAdapter(TTSAdapter):
     def _load(self, language: str) -> Any:
         if language not in self._pipelines:
             from transformers import pipeline
-            self._pipelines[language] = pipeline(
-                "text-to-speech", model=self.LANGUAGE_MODELS[language]
-            )
+
+            model_source = self.LANGUAGE_MODELS[language]
+            if language == "nan":
+                # 正式 TTS image 在 build 階段固定權重，避免 endpoint 首次請求連外。
+                model_source = os.environ.get("KINSUN_NAN_TTS_MODEL_PATH", model_source)
+            self._pipelines[language] = pipeline("text-to-speech", model=model_source)
         return self._pipelines[language]
 
     def synthesize(
@@ -473,6 +531,7 @@ class MmsTTSAdapter(TTSAdapter):
         if language not in self.LANGUAGE_MODELS:
             return TextFallbackTTS().synthesize(text, language, voice, speed, output)
         import soundfile as sf
+
         started = time.perf_counter()
         # The nan/hak checkpoints' tokenizers only cover romanized text; Han
         # input tokenizes to 0 ids and crashes VitsModel.forward. taibun is
@@ -495,9 +554,16 @@ class MmsTTSAdapter(TTSAdapter):
         sf.write(output, generated["audio"].squeeze(), generated["sampling_rate"])
         total_ms = (time.perf_counter() - started) * 1000
         return TTSResult(
-            str(output), self.provider, self.LANGUAGE_MODELS[language],
-            "mms-tts-default", language, generated["sampling_rate"],
-            first_ms, total_ms, None, True,
+            str(output),
+            self.provider,
+            self.LANGUAGE_MODELS[language],
+            "mms-tts-default",
+            language,
+            generated["sampling_rate"],
+            first_ms,
+            total_ms,
+            None,
+            True,
         )
 
 
@@ -511,10 +577,21 @@ class TextFallbackTTS(TTSAdapter):
         output = output.with_suffix(".json")
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(
-            json.dumps({"language": language, "text": text}, ensure_ascii=False, indent=2),
+            json.dumps(
+                {"language": language, "text": text}, ensure_ascii=False, indent=2
+            ),
             encoding="utf-8",
         )
         return TTSResult(
-            str(output), self.provider, self.model_id, "text", language, 0,
-            0.0, 0.0, None, False, "No validated TTS provider for this language",
+            str(output),
+            self.provider,
+            self.model_id,
+            "text",
+            language,
+            0,
+            0.0,
+            0.0,
+            None,
+            False,
+            "No validated TTS provider for this language",
         )

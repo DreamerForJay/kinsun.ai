@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "generated_from": "existing-local-public-corpus-benchmark",
+  "contains_audio": false,
+  "contains_transcripts": false,
+  "contains_personal_data": false,
+  "model_id": "adi-gov-tw/Taiwan-Tongues-ASR-CE-pretrained-v2.0",
+  "warning": "Aggregate historical evidence only. It is not a live SageMaker re-test and is not a release quality gate.",
+  "results": [
+    {
+      "language": "nan",
+      "micro_cer": 0.769,
+      "micro_wer": 0.833,
+      "quality_decision": "fail-closed-confirmation-required"
+    },
+    {
+      "language": "hak",
+      "micro_cer": 0.323,
+      "micro_wer": 0.917,
+      "quality_decision": "fail-closed-confirmation-required"
+    }
+  ]
+}

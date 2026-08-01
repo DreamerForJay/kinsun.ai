@@ -94,7 +94,7 @@
       "languages": ["nan"],
       "role": "taigi-tts-candidate",
       "license_gate": "CC-BY-NC-4.0",
-      "status": "fixed-with-taibun-preprocessing-2026-08-02",
+      "status": "offline-image-candidate-license-gated-2026-08-02",
       "notes": "Only known nan TTS candidate of any kind -- exhaustive search found no dedicated Taiwanese Hokkien TTS project (unlike Hakka, which has several). Tokenizer only covers romanized text: Han-character input (e.g. \"逐家好\") tokenizes to 0 input_ids and crashes VitsModel.forward with 'narrow(): length must be non-negative' (isolated 2026-08-01: not punctuation, not Windows cp950). FIXED 2026-08-02: MmsTTSAdapter now romanizes nan Han text to Tai-lo via taibun (github.com/andreihar/taibun, MIT, offline, pip-installable) in speech_normalization.to_tailo() before synthesis. Verified in .venv310: 4 sentences x {Tailo, POJ} x {tones kept, tones stripped} = 16/16 variants produced audio. Tokenizer vocab has Tai-lo tone diacritics (combining U+0304/U+030D + precomposed vowels) but NOT POJ's superscript nasal U+207F, so Tai-lo-with-tones is the chosen target system. Root cause of the earlier tai5-uan5-gian5-gi2-kang1-ku7 dead end also identified: it is a framework whose 辭典 classes ship EMPTY (no Han->Tai-lo dictionary data at all) -- the empty conversion was by design, not a missing data package; its kesi companion package likewise has no dictionary, and the ithuan online API (hokbu.ithuan.tw) currently returns 500/404. Remaining gap: no native-speaker rating of taibun conversion quality or mms-tts-nan audio quality; taibun is Hokkien-only and must not be applied to hak."
     },
     {
@@ -110,7 +110,7 @@
       "languages": ["hak"],
       "role": "hakka-tts-candidate-preferred",
       "license_gate": "CC-BY-NC-4.0",
-      "status": "integrated-2026-07-31",
+      "status": "offline-image-candidate-license-gated-2026-08-02",
       "notes": "VoxHakka (arXiv:2409.01548): YourTTS-based, 6 dialects (sixian/hailu/dapu/raoping/zhaoan/nansixian). Needs its own .venv-voxhakka (coqui-tts pins transformers<5, conflicts with the main venv310's transformers). Required reconstructing a config-compatibility patch the official Space no longer publishes (CharactersConfig.characters type mismatch -- see voxhakka_synthesize.py). Verified end-to-end for sixian and hailu dialects via a real subprocess call from voice_server.py. See speech_adapters.py VoxHakkaAdapter."
     },
     {

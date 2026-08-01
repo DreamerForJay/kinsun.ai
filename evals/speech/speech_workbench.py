@@ -276,6 +276,12 @@ def build_demo() -> gr.Blocks:
             "僅限 Synthetic／去識別資料。正式串接固定走 "
             "**ASR → 人工確認 → Core Authorization/Consent → Agent/RAG → TTS**。"
         )
+        gr.Markdown(
+            "**ASR 語言範圍：**這個 SageMaker endpoint 專門處理台語 `nan-TW` 與"
+            "客語 `hak-TW`；兩者使用同一個 Taiwan-Tongues 模型。華語／英語依目標"
+            "架構走 AWS Transcribe，不會送到這個 endpoint。下拉選單預設台語不代表"
+            "模型只有台語。"
+        )
         with gr.Tab("1. ASR 與低信心確認"):
             with gr.Row():
                 audio = gr.Audio(

@@ -1,0 +1,43 @@
+# 台語／客語 TTS SageMaker BYOC 候選。模型均為 CC-BY-NC-4.0。
+FROM nvidia/cuda:12.3.2-cudnn9-runtime-ubuntu22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG ACCEPT_CC_BY_NC_4_0=false
+ARG NAN_TTS_MODEL_REVISION=f28526a6caaf9dc55e030da83008c933f6a1978b
+ARG HAK_TTS_MODEL_REVISION=e61e1026d1fe5edb29f35ad025c090526a7e4fe7
+
+# Owner 必須先確認本次競賽屬於授權允許的非商用展示。
+RUN test "$ACCEPT_CC_BY_NC_4_0" = "true" || \
+    (echo "License decision required: CC-BY-NC-4.0" >&2; exit 64)
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       ffmpeg libsndfile1 python3 python3-pip python3-venv build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/program
+COPY requirements-asr.txt requirements-main.txt
+COPY requirements-voxhakka.txt ./
+RUN python3 -m venv .venv-main \
+    && .venv-main/bin/pip install --no-cache-dir --upgrade pip \
+    && .venv-main/bin/pip install --no-cache-dir -r requirements-main.txt \
+    && python3 -m venv .venv-voxhakka \
+    && .venv-voxhakka/bin/pip install --no-cache-dir --upgrade pip \
+    && .venv-voxhakka/bin/pip install --no-cache-dir -r requirements-voxhakka.txt
+
+# 模型在 build 階段固定並包入 image，Endpoint 不需在 runtime 連外。
+RUN .venv-main/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='facebook/mms-tts-nan', revision='${NAN_TTS_MODEL_REVISION}', local_dir='/opt/models/mms-tts-nan')" \
+    && .venv-voxhakka/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='formospeech/yourtts-htia-240704', revision='${HAK_TTS_MODEL_REVISION}', local_dir='/opt/models/voxhakka')"
+
+COPY core/ ./core/
+COPY scripts/ ./scripts/
+COPY inference_tts.py ./
+
+ENV KINSUN_NAN_TTS_MODEL_PATH=/opt/models/mms-tts-nan \
+    KINSUN_HAK_TTS_MODEL_PATH=/opt/models/voxhakka \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    PYTHONUNBUFFERED=1
+
+EXPOSE 8080
+ENTRYPOINT [".venv-main/bin/python", "-m", "flask", "--app", "inference_tts:app", "run", "--host", "0.0.0.0", "--port", "8080"]

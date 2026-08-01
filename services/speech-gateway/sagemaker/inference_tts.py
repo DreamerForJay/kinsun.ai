@@ -15,6 +15,7 @@ Deployment status (2026-08-02): this TTS server remains a local/container
 candidate and has NOT been deployed to SageMaker. Model-license approval and a
 fixed offline model revision are still required before creating an endpoint.
 """
+
 from __future__ import annotations
 
 import json
@@ -27,7 +28,7 @@ CORE_DIR = Path(__file__).parent / "core"
 if str(CORE_DIR) not in sys.path:
     sys.path.insert(0, str(CORE_DIR))
 
-from flask import Flask, Response, request  # noqa: E402
+from flask import Flask, Response, request
 
 LANGUAGE_MAP = {"nan-TW": "nan", "hak-TW": "hak"}
 
@@ -52,9 +53,11 @@ def _get_adapter(language: str) -> Any:
     if language not in _adapters:
         if language == "nan":
             from speech_adapters import MmsTTSAdapter
+
             _adapters[language] = MmsTTSAdapter()
         elif language == "hak":
             from speech_adapters import VoxHakkaAdapter
+
             _adapters[language] = VoxHakkaAdapter(venv_python=VOXHAKKA_VENV_PYTHON)
     return _adapters[language]
 
@@ -75,7 +78,9 @@ def synthesize_bytes(text: str, language: str, speaking_speed: str) -> bytes:
     adapter = _get_adapter(language)
     with tempfile.TemporaryDirectory() as tmp_dir:
         output_path = Path(tmp_dir) / "output.wav"
-        result = adapter.synthesize(text, language, voice="", speed=speed, output=output_path)
+        result = adapter.synthesize(
+            text, language, voice="", speed=speed, output=output_path
+        )
         return Path(result.audio_stream_or_url).read_bytes()
 
 
@@ -90,18 +95,22 @@ def invocations() -> Response:
     if payload is None:
         return Response(
             json.dumps({"error": "request body is not valid JSON"}),
-            status=400, mimetype="application/json",
+            status=400,
+            mimetype="application/json",
         )
     language = LANGUAGE_MAP.get(payload.get("language", ""))
     text = (payload.get("text") or "").strip()
     if language is None:
         return Response(
             json.dumps({"error": f"unsupported language {payload.get('language')!r}"}),
-            status=400, mimetype="application/json",
+            status=400,
+            mimetype="application/json",
         )
     if not text:
         return Response(
-            json.dumps({"error": "text is required"}), status=400, mimetype="application/json",
+            json.dumps({"error": "text is required"}),
+            status=400,
+            mimetype="application/json",
         )
     speaking_speed = payload.get("speakingSpeed", "normal")
     audio_bytes = synthesize_bytes(text, language, speaking_speed)

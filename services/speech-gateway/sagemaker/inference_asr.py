@@ -17,6 +17,7 @@ Deployment status (2026-08-02): Dockerfile.asr was pushed to the private
 competition ECR and invoked through `kinsun-speech-asr-v1` with Synthetic PCM.
 This proves deployment and wire compatibility, not ASR quality.
 """
+
 from __future__ import annotations
 
 import json
@@ -31,7 +32,7 @@ CORE_DIR = Path(__file__).parent / "core"
 if str(CORE_DIR) not in sys.path:
     sys.path.insert(0, str(CORE_DIR))
 
-from flask import Flask, Response, request  # noqa: E402
+from flask import Flask, Response, request
 
 # SageMaker-side locale codes (packages/backend's ConcreteLanguage) -> this
 # project's internal bare language codes (core/speech_contracts.py etc.).
@@ -85,16 +86,19 @@ def _pcm_bytes_to_wav_path(pcm_bytes: bytes, sample_rate: int) -> Path:
     in this project currently decodes opus, so an opus request must fail
     loudly here rather than being silently mishandled.
     """
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    with wave.open(tmp.name, "wb") as wav_file:
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        tmp_name = tmp.name
+    with wave.open(tmp_name, "wb") as wav_file:
         wav_file.setnchannels(1)
         wav_file.setsampwidth(2)  # 16-bit PCM, matches AudioInput's implicit format
         wav_file.setframerate(sample_rate)
         wav_file.writeframes(pcm_bytes)
-    return Path(tmp.name)
+    return Path(tmp_name)
 
 
-def transcribe_bytes(pcm_bytes: bytes, language: str, sample_rate: int) -> dict[str, Any]:
+def transcribe_bytes(
+    pcm_bytes: bytes, language: str, sample_rate: int
+) -> dict[str, Any]:
     """Core logic, factored out of the Flask route so it can be dry-run
     locally (no HTTP, no SageMaker) against real sample audio for
     verification. See ../docs/sagemaker-endpoint-contract.md for the
@@ -123,21 +127,28 @@ def invocations() -> Response:
     except json.JSONDecodeError:
         return Response(
             json.dumps({"error": "CustomAttributes header is not valid JSON"}),
-            status=400, mimetype="application/json",
+            status=400,
+            mimetype="application/json",
         )
     language = LANGUAGE_MAP.get(custom_attributes.get("language", ""))
     if language is None:
         return Response(
-            json.dumps({"error": f"unsupported language {custom_attributes.get('language')!r}"}),
-            status=400, mimetype="application/json",
+            json.dumps(
+                {"error": f"unsupported language {custom_attributes.get('language')!r}"}
+            ),
+            status=400,
+            mimetype="application/json",
         )
     if request.content_type != "application/octet-stream":
         return Response(
-            json.dumps({
-                "error": f"unsupported content type {request.content_type!r}, "
-                         "expected application/octet-stream",
-            }),
-            status=415, mimetype="application/json",
+            json.dumps(
+                {
+                    "error": f"unsupported content type {request.content_type!r}, "
+                    "expected application/octet-stream",
+                }
+            ),
+            status=415,
+            mimetype="application/json",
         )
     sample_rate = int(custom_attributes.get("sampleRate", 16000))
     payload = transcribe_bytes(request.get_data(), language, sample_rate)

@@ -22,20 +22,21 @@ Must run with PYTHONUTF8=1 -- formog2p's own JSON data loader doesn't pass
 encoding="utf-8" to open(), so on Windows it defaults to the cp950 codepage
 and crashes on the (UTF-8) data file otherwise.
 """
+
 import argparse
 import json
 import os
 import re
-
 from dataclasses import dataclass
 
 import numpy as np
 import torch
+import TTS.tts.configs.vits_config as vits_config_module
 from huggingface_hub import snapshot_download
 from scipy.io.wavfile import write as write_wav
 from TTS.tts.configs.shared_configs import CharactersConfig
 from TTS.tts.configs.vits_config import VitsConfig
-import TTS.tts.configs.vits_config as vits_config_module
+
 
 # The current coqui-tts release declares CharactersConfig.characters as a
 # bare `str`, but this checkpoint's config.json stores it as a JSON array of
@@ -58,7 +59,7 @@ class _PatchedVitsConfig(VitsConfig):
 
 vits_config_module.VitsConfig = _PatchedVitsConfig
 
-from TTS.utils.synthesizer import Synthesizer  # noqa: E402  (after the patch)
+from TTS.utils.synthesizer import Synthesizer
 
 MODEL_ID = "formospeech/yourtts-htia-240704"
 
@@ -81,16 +82,20 @@ def parse_ipa(ipa: str, delete_chars=r"\+\-\|\_", as_space: str = "") -> list[st
             text.append(word)
         else:
             if len(as_space) > 0:
-                word = re.sub(r"[{}]".format(as_space), " ", word)
+                word = re.sub(rf"[{as_space}]", " ", word)
             if len(delete_chars) > 0:
-                word = re.sub(r"[{}]".format(delete_chars), "", word)
+                word = re.sub(rf"[{delete_chars}]", "", word)
             word = word.replace("，", " ， ")
             text.extend(word)
     return text
 
 
 def load_model(model_id: str = MODEL_ID) -> Synthesizer:
-    model_dir = snapshot_download(model_id)
+    # SageMaker Network Isolation 下不能在啟動或請求期間下載模型。正式 image
+    # 由 Dockerfile.tts 在 build 階段固定 revision；本機未設定時才使用 Hub cache。
+    model_dir = os.environ.get("KINSUN_HAK_TTS_MODEL_PATH") or snapshot_download(
+        model_id
+    )
     config_file_path = os.path.join(model_dir, "config.json")
     model_ckpt_path = os.path.join(model_dir, "model.pth")
     speaker_file_path = os.path.join(model_dir, "speakers.pth")
@@ -104,7 +109,9 @@ def load_model(model_id: str = MODEL_ID) -> Synthesizer:
     # slashes (which every consumer here -- json, TTS, torch -- accepts
     # fine) or they'd need escaping to \\ instead.
     content = content.replace("speakers.pth", speaker_file_path.replace("\\", "/"))
-    content = content.replace("language_ids.json", language_file_path.replace("\\", "/"))
+    content = content.replace(
+        "language_ids.json", language_file_path.replace("\\", "/")
+    )
     content = content.replace(
         "speaker_embs.pth", speaker_embedding_file_path.replace("\\", "/")
     )
@@ -119,7 +126,11 @@ def load_model(model_id: str = MODEL_ID) -> Synthesizer:
 
 
 def synthesize(
-    text: str, dialect: str, speaker: str, output_path: str, speed: float = 1.0,
+    text: str,
+    dialect: str,
+    speaker: str,
+    output_path: str,
+    speed: float = 1.0,
 ) -> dict:
     from formog2p.hakka import g2p
 
@@ -138,7 +149,10 @@ def synthesize(
 
     model.tts_model.length_scale = speed
     wav = model.tts(
-        parsed_ipa, speaker_name=speaker, language_name=dialect, split_sentences=False,
+        parsed_ipa,
+        speaker_name=speaker,
+        language_name=dialect,
+        split_sentences=False,
     )
     sample_rate = model.tts_model.config.audio.sample_rate
     wav = np.asarray(wav, dtype=np.float32)

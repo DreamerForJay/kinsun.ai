@@ -15,7 +15,7 @@
 | Core → Agent／RAG 串接 | 已依現行 contract 實作 client | 工作台只呼叫 Core companion-turn，不直連 Agent |
 | Gradio 工作台 | 已實作並做瀏覽器 smoke test | `evals/speech/speech_workbench.py` |
 | 外部台／客語 TTS 評估 | Synthetic 實測成功 | `evals/speech/evaluate_external_tts.py` |
-| SageMaker TTS | 容器骨架既有，Endpoint 尚未部署 | 不得描述成已完成 |
+| SageMaker TTS | `Dockerfile.tts` 已固定模型 revision，Endpoint 尚未部署 | 仍需授權決策、image build 與 AWS 實測 |
 | 正式前端語音串流 | 尚未實作 | 目前 Core response 仍是 `TEXT_ONLY` |
 
 ## 2. 正式資料流
@@ -97,6 +97,14 @@ Bearer Token 只存在當次 Gradio component 記憶體，不寫入報告、Git 
 - Instance：`ml.g4dn.xlarge`
 - 模型：`adi-gov-tw/Taiwan-Tongues-ASR-CE-v2.0`
 - Revision：`853363cf70e50d9771497a1c5dc88bf17f687f30`
+
+底層模型支援 `zh`、`nan`、`hak`、`en`、`id`，但這個 endpoint contract 只接受
+`nan-TW` 與 `hak-TW`。華語／英語在目標路由走 AWS Transcribe。Gradio 預設選台語不代表
+模型或 endpoint 只有台語；同一下拉選單可切換客語。
+
+既有本機 benchmark：台語 Micro CER 76.9%、客語 Micro CER 32.3%。兩者都未達可自動
+信任的程度，尤其客語 Micro WER 仍達 91.7%，所以低信心／空結果人工確認 Gate 不得移除。
+SageMaker 目前只以 Synthetic silence 驗證 wire compatibility，不能當品質證據。
 
 ## 6. Core／Agent 交接契約
 
