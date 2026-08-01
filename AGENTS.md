@@ -10,8 +10,9 @@
   - `services/core-api`：第一個垂直切片——Identity、Elder 授權 policy、tenant 隔離的
     repository 層與 transactional outbox。
   - `services/agent-runtime`：M0 Foundation——contract 驗證、單輪 Orchestrator、
-    Companion Agent、deterministic Safety Evaluator，模型走 Mock Provider，
-    **不呼叫任何外部 LLM、不接 Bedrock／OpenSearch／Neptune**（[ADR 0004](docs/adr/0004-agent-runtime-into-monorepo.md)）。
+    Companion Agent、deterministic Safety Evaluator；主要回答仍走 Mock Provider，
+    staging-only RAG adapter 可呼叫 Bedrock embedding／OpenSearch，但不接 Neptune，
+    不得描述成 production runtime（[ADR 0004](docs/adr/0004-agent-runtime-into-monorepo.md)）。
   - `services/rag-ingestion`：RAG 文件 ingestion 與 allowlist 建置。搭配
     agent-runtime 的 **staging-only** RAG 路徑，尚未對真實 AWS／OpenSearch 環境驗證，
     不得描述成可用於 production（見 `services/agent-runtime/AGENTS.md`）。
@@ -19,13 +20,20 @@
     同時是 BFF（Cognito OAuth 與 access token 留在伺服器端，反向代理 core-api）
     （[ADR 0006](docs/adr/0006-frontend-stack-and-app-topology.md)）。
     `apps/` 已依 ADR 0006 清空，不要把 `elder-web`／`care-web`／`family-web` 加回來。
-  - `packages/shared`：前端與 `packages/backend` 共用的 TypeScript 型別。
+  - `packages/shared`：前端與 legacy backend 共用的 TypeScript 型別；不是 Domain authority，
+    跨服務形狀以 `contracts/` 為準。
   其餘服務目錄（`speech-gateway`、`projection-worker`、`notification-worker`、
   `report-worker`）仍是空殼。
-- **`packages/backend` 與 `infrastructure/` 是尚未收斂的第二套後端**：TypeScript +
-  AWS Lambda + DynamoDB + CDK，與 `services/core-api`（Python／Aurora）平行存在。
-  DynamoDB 作為儲存牴觸 §6，CDK 牴觸 §11 的 IaC 待決項。`packages/frontend` 目前
-  **沒有任何路徑打它**。在 ADR 0007 定案前，不要基於它推論架構事實，也不要把新程式寫進去。
+- **`packages/backend` 與現有 `infrastructure/lib/elderly-care-stack.ts` 已由
+  [ADR 0007](docs/adr/0007-canonical-backend-and-aws-deployment-authority.md) 定為 legacy**：
+  不加入新功能，也不得部署現有 Lambda／DynamoDB／另一套 Cognito stack。一般 HTTP 主線
+  只走 Next.js BFF → Python Core → Agent Runtime；`NEXT_PUBLIC_WS_URL` 的舊語音路徑僅是
+  預設關閉、限期至 2026-08-16 的 synthetic staging/demo 例外，不得進 production。
+  AWS CDK v2 已定為 canonical IaC 工具；`kinsun-staging-foundation-v1` 已建立 VPC、ECS
+  cluster、ECR、Aurora、Secrets、Logs 與 IAM foundation。四個 runtime／migration image 與
+  `kinsun-staging-application-v1` template 已可在本機建立／驗證，但 AWS 尚未建立 canonical
+  ECS application task／service，不能描述成 application runtime 已上線。Next.js 14 的目前
+  production audit 仍有 high severity dependency，受支援版本升級完成前不得公開部署 BFF。
 - 尚未建立 CI quality gate。
 - 不得把 Target Architecture、建議目錄或候選服務描述成已實作功能。
 - 開始實作前，先確認工作項目對應的 Persona、User Story、Acceptance Criteria、Domain State、Security Gate 與 Test Gate。
@@ -286,7 +294,7 @@ uv run --with pyyaml --with jsonschema --with referencing python ../../scripts/v
 
 ## 9. 程式與 Repository 工作方式
 
-- 在技術選型尚未核准前，不要自行決定或鎖定 Python Framework、Frontend Framework、Package Manager、IaC、AWS Region 或外部 Provider。
+- 在技術選型尚未核准前，不要自行決定或鎖定 Python Framework、Frontend Framework、Package Manager、AWS Region 或外部 Provider。IaC 已由 ADR 0007 選定 AWS CDK v2；staging region 固定 `us-west-2`，production region 仍待核准。
 - 若任務需要做出上述選擇，提出候選、Trade-off 與 ADR，取得明確決策後再建立骨架。
 - Monorepo 已依文件 12 建立 `/apps`、`/services`、`/contracts`、`/infra`、`/data`、`/evals`、`/tests`、`/ops`、`/scripts`。在 Framework 與 Deployment 設計核准前，只維持中立的服務／責任邊界，不加入框架專屬內部結構。
 - 目前本機基礎設施由 `docker-compose.yml`、`.env.example` 與 `docker/postgres/init/` 定義：
@@ -404,9 +412,10 @@ docker compose run --rm migrate alembic current
 
 ## 11. 仍待 ADR／Owner 決策
 
-- `packages/backend` 與 `services/core-api` 兩套後端的去留（ADR 0007，見 §1）。
-- IaC 工具（`infrastructure/` 已實際使用 CDK，但未經 ADR 核准）。
-- AWS Region、Account／Environment 策略。
+- Production AWS Region、Account／Environment 策略；staging 已固定 `us-west-2`。
+- staging application 已限制每個 service 0／1 task、每個 task 0.5 vCPU／1 GiB；月費上限與
+  24/7 或 demo-hours 運行方式仍待決。Aurora foundation 已固定 min 0／max 1 ACU、15 分鐘
+  auto-pause；只有 CloudWatch／RDS 實測才可宣稱已成功降至 0 ACU。
 - Bedrock Model／Inference Profile 與 Fallback。
 - Neptune、OpenSearch、LINE、Email、Custom ASR／TTS 採真實服務或 Demo Adapter。
 - Production API／Event／Client 支援期限。

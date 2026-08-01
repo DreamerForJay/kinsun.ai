@@ -116,6 +116,18 @@ Cookie 名為 `kinsun_ui_locale`，非 httpOnly（它是 UI 偏好，不是憑�
 未來若需要 Server Component 翻譯、複數規則或日期在地化，再開 ADR 換 next-intl；
 屆時只需替換 provider，字典鍵不變。
 
+### 6. 2026-08-02 public deployment security gate
+
+本 ADR 原先選定的 Next.js 14 現已超出 upstream 目前提供安全修補的 release line。
+Repository 的 production dependency audit 在 `next@14.2.35` 與其內含
+`postcss@8.4.31` 回報兩項 high severity dependency；即使目前沒有自訂 rewrite、middleware
+或 Server Action，也不能把未受當前安全 release 支援的 BFF 暴露為公開 OAuth 入口。
+
+因此 application stack 可以完成本機 image、asset-free synth 與 `desiredCount=0` 稽核，但在
+新 ADR 選定並驗證受支援的 Next.js 版本前，不得推送 release image、更新 Cognito callback
+或把公開 service 調成 `desiredCount=1`。最小候選是 upstream Maintenance LTS 版本；major
+upgrade 的實際相容性、React 版本與 rollback 必須由後續 ADR 記錄，本節不擅自改寫原決策。
+
 ## 後果
 
 - AGENTS.md §11 的「Frontend Framework 與 PWA 技術」待決項解除。
@@ -131,21 +143,10 @@ Cookie 名為 `kinsun_ui_locale`，非 httpOnly（它是 UI 偏好，不是憑�
     目前落回系統字型。
   - 前端無 lint 規則守 raw hex，也沒有 §13 無障礙驗收的自動化檢查。
 
-## 這次刻意不決定的事
+## 後續決策
 
-`packages/backend`（8,093 行 TypeScript，AWS Lambda + DynamoDB + Bedrock SDK）與
-`infrastructure/`（AWS CDK，991 行）構成**第二套後端與一個未經 ADR 的 IaC 選型**，
-與 `services/core-api`（25,646 行 Python／FastAPI／Aurora）平行存在。
-
-兩者牴觸現行規範：
-
-- DynamoDB 作為儲存牴觸 AGENTS.md §6「Aurora PostgreSQL／Domain Core 是正式交易資料
-  與狀態的 Source of Truth」。
-- CDK 牴觸 AGENTS.md §11「IaC 工具」仍待決。
-
-目前 `packages/frontend` 的 BFF 只代理到 Python core-api，沒有任何路徑打
-`packages/backend`。因此本 ADR 不受其影響，也不代為決定其去留。
-
-這需要獨立的 ADR 0007，且需要先確認那 8,093 行是否仍有人維護。
-在該 ADR 出來之前，**不要基於 `packages/backend` 的存在推論任何架構事實**，
-也不要為了「保持一致」把新程式寫進去。
+後端主線、legacy Lambda／DynamoDB 的去留及 AWS CDK v2 IaC 權威，已由
+[ADR 0007](0007-canonical-backend-and-aws-deployment-authority.md) 收斂。
+`packages/backend` 與現有 `ElderlyCareStack` 已凍結；一般 HTTP 主線維持本 ADR 定義的
+Next.js BFF → Python Core → Agent Runtime。選填舊 WebSocket voice path 只屬限時
+synthetic staging/demo 例外，不代表第二套正式後端。
