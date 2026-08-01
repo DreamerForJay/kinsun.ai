@@ -40,7 +40,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             infra/package-lock.json
-            apps/elder-web/package-lock.json
+            package-lock.json
 
       - name: Setup Python (for Backend)
         uses: actions/setup-python@v5
@@ -121,11 +121,15 @@ jobs:
           npx tsc --noEmit
           npx cdk synth --quiet
 
+      # Single multi-role PWA lives in packages/frontend (ADR 0006); the former
+      # apps/elder-web has been removed. Runs from the repository root because
+      # npm workspaces install from the root lockfile, not the package.
       - name: Frontend Build Check
-        working-directory: apps/elder-web
         run: |
           npm ci
-          npx next build
+          npm run typecheck --workspace @elderly-care/frontend
+          npm run test --workspace @elderly-care/frontend
+          npm run build --workspace @elderly-care/frontend
 
       - name: Security Scan (dependencies)
         run: |
@@ -152,7 +156,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             infra/package-lock.json
-            apps/elder-web/package-lock.json
+            package-lock.json
 
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4

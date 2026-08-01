@@ -17,11 +17,12 @@
 
 | # | 項目 | 狀態 | 內容 |
 | --- | --- | --- | --- |
-| 1 | App 拓撲 | **待 Owner 確認** | 本檔假設 **單一 multi-role PWA**（AGENTS.md §6 Target Architecture）。`apps/` 現有 `elder-web`／`care-web`／`family-web` 三個目錄源自文件 12 骨架，與此假設衝突，需收斂。 |
-| 2 | Stack | **已採用** | Vite + React + TypeScript + Tailwind CSS。仍需補 ADR 0006 後才可建立骨架（AGENTS.md §9、§11）。 |
+| 1 | App 拓撲 | **已定案** | **單一 multi-role PWA**，程式在 `packages/frontend`，以 route 區分角色。`apps/` 的三個目錄已移除（[ADR 0006](../docs/adr/0006-frontend-stack-and-app-topology.md)）。 |
+| 2 | Stack | **已定案** | **Next.js 14 App Router + TypeScript + CSS Modules + CSS custom properties**。**不是 Vite，也不用 Tailwind**——前端同時是 BFF，OAuth 交換與 access token 必須留在伺服器端（ADR 0006 §2、§3）。 |
 | 3 | 主要載具 | **已採用** | **平板為主**。手機為次要，桌機僅照護端。 |
 
-未列入本檔、仍待 ADR 的：Router、狀態管理、i18n 函式庫、測試框架。不要在骨架中預先鎖定。
+仍待 ADR、不要預先鎖定的：狀態管理函式庫、i18n 函式庫（現為 `src/lib/i18n/` 的自建
+最小字典，見 §5.2）。Router 與測試框架已隨 ADR 0006 定案為 Next.js App Router 與 Vitest。
 
 ---
 
@@ -169,6 +170,28 @@ Figtree 放前面只吃 Latin 與數字，中文自動落到 Noto Sans TC。
 系統字級放大到 **200%** 時三端都不得破版：不得對含文字的容器設固定高度，
 不得用 `overflow: hidden` 裁切文字，長字串優先換行而非 ellipsis
 （skill §6 `truncation-strategy`）。
+
+### 5.2 介面語言（中／英切換）
+
+| Surface | UI 語言 | 切換入口 |
+| --- | --- | --- |
+| voice | 中文，**不提供切換** | 無 |
+| care | 中／英 | 頁首右上 |
+| family | 中／英 | 頁首右上 |
+
+長者端不放語言切換，是設計決定不是待辦：§1「一次一個主要操作」與 §6.1「長者端不得
+要求精準點擊」都反對在語音畫面加這類 chrome。
+
+**UI 顯示語言 ≠ 長者的語音互動語言。** Module A 要求的中文／臺語屬於語音互動語言，
+是 domain 資料；切換 UI 語言只改瀏覽器端偏好，**不得寫入任何 domain state**，
+尤其不得改動長者的語言偏好或 consent 記錄（ADR 0006 §5）。
+
+實作為 `packages/frontend/src/lib/i18n/`：字典 + React context，**不引入 i18n 函式庫**。
+新增使用者可見字串時，同時補 `zh-Hant` 與 `en` 兩個鍵；
+`messages.test.ts` 會在兩邊鍵不一致時失敗。
+
+英文字串通常較長：**任何加了英文的版面都要在 `en` 下重測 390／768 兩個寬度**，
+按鈕與表頭不得因此換行破版，也不得改用 ellipsis 裁切（§5.1）。
 
 ---
 

@@ -6,14 +6,26 @@
 
 - 本專案是 AWS Hackathon 的 Voice-first 智慧長照 AI 陪伴系統。
 - 目前 repository 具備文件 12 定義的 Monorepo 目錄骨架、本機 PostgreSQL／Docker Compose 基礎設施，
-  以及兩個有程式碼的服務：
+  以及以下有程式碼的單元：
   - `services/core-api`：第一個垂直切片——Identity、Elder 授權 policy、tenant 隔離的
     repository 層與 transactional outbox。
   - `services/agent-runtime`：M0 Foundation——contract 驗證、單輪 Orchestrator、
     Companion Agent、deterministic Safety Evaluator，模型走 Mock Provider，
     **不呼叫任何外部 LLM、不接 Bedrock／OpenSearch／Neptune**（[ADR 0004](docs/adr/0004-agent-runtime-into-monorepo.md)）。
+  - `services/rag-ingestion`：RAG 文件 ingestion 與 allowlist 建置。搭配
+    agent-runtime 的 **staging-only** RAG 路徑，尚未對真實 AWS／OpenSearch 環境驗證，
+    不得描述成可用於 production（見 `services/agent-runtime/AGENTS.md`）。
+  - `packages/frontend`：**唯一的前端**，單一 multi-role PWA，Next.js 14 App Router，
+    同時是 BFF（Cognito OAuth 與 access token 留在伺服器端，反向代理 core-api）
+    （[ADR 0006](docs/adr/0006-frontend-stack-and-app-topology.md)）。
+    `apps/` 已依 ADR 0006 清空，不要把 `elder-web`／`care-web`／`family-web` 加回來。
+  - `packages/shared`：前端與 `packages/backend` 共用的 TypeScript 型別。
   其餘服務目錄（`speech-gateway`、`projection-worker`、`notification-worker`、
-  `report-worker`）與 `apps/` 仍是空殼。
+  `report-worker`）仍是空殼。
+- **`packages/backend` 與 `infrastructure/` 是尚未收斂的第二套後端**：TypeScript +
+  AWS Lambda + DynamoDB + CDK，與 `services/core-api`（Python／Aurora）平行存在。
+  DynamoDB 作為儲存牴觸 §6，CDK 牴觸 §11 的 IaC 待決項。`packages/frontend` 目前
+  **沒有任何路徑打它**。在 ADR 0007 定案前，不要基於它推論架構事實，也不要把新程式寫進去。
 - 尚未建立 CI quality gate。
 - 不得把 Target Architecture、建議目錄或候選服務描述成已實作功能。
 - 開始實作前，先確認工作項目對應的 Persona、User Story、Acceptance Criteria、Domain State、Security Gate 與 Test Gate。
@@ -300,6 +312,19 @@ uv run --with pyyaml --with jsonschema --with referencing python ../../scripts/v
     加了沒有 migration 的值，錯誤會在 INSERT 當下才爆，不是驗證期。
   - models 目前只涵蓋 48 張 baseline table 中的 33 張，`alembic revision --autogenerate`
     仍會把未映射 table 誤判為應刪除；產生的 migration 一律需人工檢查後才可使用。
+- 前端已定案，程式在 `packages/frontend/`（[ADR 0006](docs/adr/0006-frontend-stack-and-app-topology.md)）：
+  - Next.js 14 App Router + TypeScript。**不是 Vite，不用 Tailwind**；
+    樣式一律 CSS Modules ＋ `src/app/tokens.css` 的 CSS 變數。
+  - TypeScript 側用 npm workspaces（根 `package.json` ＋ `package-lock.json`），
+    與 Python 側的 uv 不共用。
+  - 視覺、RWD 與無障礙規範見 [`design-system/MASTER.md`](design-system/MASTER.md)，
+    建立任一頁面前先讀。元件內不得出現 raw hex（MASTER.md §14）。
+  - 前端是 BFF：OAuth code exchange 與 access token 只存在伺服器端，
+    token 不得進入瀏覽器可讀的位置。`src/app/backend/core/[...path]` 以 header
+    allowlist 轉發，**不轉發 cookie**；新增轉發欄位前先確認不會夾帶憑證。
+  - 家屬端的資料紅線（MASTER.md §11）在前端也要擋一次，不得只依賴後端不回傳。
+  - UI 語言切換（`src/lib/i18n/`）只改瀏覽器偏好，**不得寫入任何 domain state**，
+    尤其不得改動長者語言偏好或 consent。新增使用者可見字串時同時補 `zh-Hant` 與 `en`。
 - 優先做最小、可測試、可回復且能貫穿 Vertical Slice 的變更。
 - 不進行與任務無關的大規模重構、格式化、依賴升級或文件重寫。
 - 保留使用者既有變更；不要以 Reset、Checkout 或大量覆寫清除未知修改。
@@ -379,8 +404,8 @@ docker compose run --rm migrate alembic current
 
 ## 11. 仍待 ADR／Owner 決策
 
-- Frontend Framework 與 PWA 技術。
-- IaC 工具。
+- `packages/backend` 與 `services/core-api` 兩套後端的去留（ADR 0007，見 §1）。
+- IaC 工具（`infrastructure/` 已實際使用 CDK，但未經 ADR 核准）。
 - AWS Region、Account／Environment 策略。
 - Bedrock Model／Inference Profile 與 Fallback。
 - Neptune、OpenSearch、LINE、Email、Custom ASR／TTS 採真實服務或 Demo Adapter。
