@@ -13,12 +13,17 @@ SPEC.loader.exec_module(MODULE)
 
 class TranscriptEvaluationTests(unittest.TestCase):
     def test_normalization_does_not_translate_paraphrases(self) -> None:
-        self.assertEqual(MODULE.normalize_hanji("我猶未講煞，你先莫插話好無？"), "我猶未講煞你先莫插話好無")
+        self.assertEqual(
+            MODULE.normalize_hanji("我猶未講煞，你先莫插話好無？"),
+            "我猶未講煞你先莫插話好無",
+        )
         self.assertNotEqual(
             MODULE.normalize_hanji("我猶未講煞"), MODULE.normalize_hanji("我還沒說完")
         )
 
-    def test_semantically_close_mandarin_output_still_fails_verbatim_metrics(self) -> None:
+    def test_semantically_close_mandarin_output_still_fails_verbatim_metrics(
+        self,
+    ) -> None:
         case = {
             "case_id": "nan-interruption-001",
             "language": "nan-TW",
@@ -59,6 +64,33 @@ class TranscriptEvaluationTests(unittest.TestCase):
         self.assertEqual(result["normalized_hanji_cer"], 0.0)
         self.assertEqual(result["keyword_recall"], 1.0)
         self.assertEqual(result["negation_recall"], 1.0)
+
+    def test_table_reports_include_cer_columns(self) -> None:
+        result = {
+            "case_id": "synthetic-case",
+            "language": "nan-TW",
+            "model_id": "synthetic-model",
+            "model_revision": "test",
+            "latency_ms": 10,
+            "raw_hanji_cer": 0.5,
+            "normalized_hanji_cer": 0.4,
+            "tailo_cer": None,
+            "keyword_recall": 1.0,
+            "negation_recall": 0.5,
+            "semantic_intent_correct": True,
+            "reference_hanji": "Synthetic reference",
+            "asr_raw_output": "Synthetic output",
+        }
+        with self.subTest("CSV and HTML"):
+            import tempfile
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                output = Path(temp_dir) / "speech-results.json"
+                csv_path, html_path = MODULE.write_table_reports([result], output)
+                self.assertIn("raw_hanji_cer", csv_path.read_text(encoding="utf-8-sig"))
+                html_text = html_path.read_text(encoding="utf-8")
+                self.assertIn("normalized_hanji_cer", html_text)
+                self.assertIn("CER 越低越好", html_text)
 
 
 if __name__ == "__main__":
