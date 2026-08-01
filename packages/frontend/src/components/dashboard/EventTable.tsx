@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { careEventState, StateBadge } from '@/components/StateCard';
 import type { CareEventDecision, EventView } from '@/lib/api/events';
 import { useLocale } from '@/lib/i18n/locale-context';
 import type { MessageKey } from '@/lib/i18n/messages';
@@ -73,7 +74,15 @@ export function EventTable({ events, onReview }: EventTableProps) {
               )}
             </td>
             <td style={{ padding: 8 }}>{t(`confidence.${event.confidenceBand}` as MessageKey)}</td>
-            <td style={{ padding: 8 }}>{t(`eventStatus.${event.status}` as MessageKey)}</td>
+            {/* A table cell has no room for the full card, so the status column
+                carries the colour+icon+text half of §4.2. The dashed-outline
+                shape lives on the card components. */}
+            <td style={{ padding: 8 }}>
+              <StateBadge
+                state={careEventState(event.status)}
+                label={t(`eventStatus.${event.status}` as MessageKey)}
+              />
+            </td>
             <td style={{ padding: 8, fontSize: 12, color: '#718096' }}>
               {t('eventTable.evidenceVersion', {
                 evidence: event.evidenceRefs.length,

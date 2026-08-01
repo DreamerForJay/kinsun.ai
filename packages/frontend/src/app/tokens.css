@@ -4,23 +4,23 @@
 
 :root {
   /* ---- primitive: colour scale ---- */
-  --cyan-50: #ECFEFF;
-  --cyan-100: #CFFAFE;
-  --cyan-200: #A5F3FC;
-  --cyan-300: #67E8F9;
-  --cyan-600: #0891B2;
-  --cyan-700: #0E7490;
-  --cyan-900: #164E63;
+  --cyan-50: #ecfeff;
+  --cyan-100: #cffafe;
+  --cyan-200: #a5f3fc;
+  --cyan-300: #67e8f9;
+  --cyan-600: #0891b2;
+  --cyan-700: #0e7490;
+  --cyan-900: #164e63;
   --green-600: #059669;
   --green-700: #047857;
-  --green-50: #ECFDF5;
-  --amber-700: #B45309;
-  --amber-50: #FFFBEB;
-  --red-600: #DC2626;
-  --red-50: #FEF2F2;
-  --slate-500: #64748B;
-  --slate-100: #F1F5F9;
-  --white: #FFFFFF;
+  --green-50: #ecfdf5;
+  --amber-700: #b45309;
+  --amber-50: #fffbeb;
+  --red-600: #dc2626;
+  --red-50: #fef2f2;
+  --slate-500: #64748b;
+  --slate-100: #f1f5f9;
+  --white: #ffffff;
 
   /* ---- semantic: colour ---- */
   --color-primary: var(--cyan-600);
@@ -50,6 +50,15 @@
   --state-published-bg: var(--cyan-50);
   --state-withdrawn-fg: var(--red-600);
   --state-withdrawn-bg: var(--red-50);
+  /* Data Insufficient is a first-class display state (§1), and §4.2 gives it a
+     45° hatch rather than a flat fill so "no data" never reads as an empty
+     card someone forgot to fill in. */
+  --state-insufficient-fg: var(--slate-500);
+  --state-insufficient-bg: repeating-linear-gradient(
+    45deg,
+    var(--slate-100) 0 6px,
+    var(--white) 6px 12px
+  );
 
   /* ---- semantic: spacing (4pt base, §6) ---- */
   --space-1: 4px;
@@ -70,7 +79,7 @@
   --radius-full: 9999px;
 
   /* ---- semantic: elevation — exactly three (§8.3) ---- */
-  --shadow-1: 0 1px 3px rgba(22, 78, 99, 0.10);
+  --shadow-1: 0 1px 3px rgba(22, 78, 99, 0.1);
   --shadow-2: 0 4px 12px rgba(22, 78, 99, 0.12);
   --shadow-3: 0 12px 32px rgba(22, 78, 99, 0.18);
 
@@ -116,7 +125,7 @@
 /* ---- surface: care (professional). Deliberately more neutral background —
        a saturated background fatigues over a long shift (§4.1). ---- */
 [data-surface='care'] {
-  --color-background: #F6FAFB;
+  --color-background: #f6fafb;
   --text-xs: 12px;
   --text-sm: 14px;
   --text-base: 16px;
@@ -133,7 +142,7 @@
 
 /* ---- surface: family ---- */
 [data-surface='family'] {
-  --color-background: #F8FDFE;
+  --color-background: #f8fdfe;
   --text-xs: 14px;
   --text-sm: 16px;
   --text-base: 18px;

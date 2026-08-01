@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { StateCard } from '@/components/StateCard';
 import { ApiRequestError } from '@/lib/api/client';
 import { listFamilyReports, type FamilyReportView } from '@/lib/api/family-reports';
 import { useLocale } from '@/lib/i18n/locale-context';
@@ -129,14 +130,16 @@ export default function FamilyHomePage() {
               ))}
             </ul>
           ) : (
-            /* `dataGapNotice` is Core-authored prose, not UI copy — shown as-is
+            /* §1 / §4.2: "no data" gets its own shape rather than a grey line of
+               text, so it never reads as a section that failed to load.
+               `dataGapNotice` is Core-authored prose, not UI copy — shown as-is
                when present rather than replaced by a translated string. */
-            <p style={{ color: '#718096' }}>
+            <StateCard state="dataInsufficient">
               {todayReport.dataGapNotice ?? t('family.todayInsufficient')}
-            </p>
+            </StateCard>
           )
         ) : (
-          <p style={{ color: '#718096' }}>{t('family.todayNone')}</p>
+          <StateCard state="dataInsufficient">{t('family.todayNone')}</StateCard>
         )}
       </section>
 

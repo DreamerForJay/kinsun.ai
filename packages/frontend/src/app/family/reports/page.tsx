@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { familyReportState, StateCard } from '@/components/StateCard';
 import { ApiRequestError } from '@/lib/api/client';
 import { listFamilyReports, type FamilyReportView } from '@/lib/api/family-reports';
 import { useLocale } from '@/lib/i18n/locale-context';
@@ -81,51 +82,49 @@ export default function FamilyReportCenterPage() {
 function ReportCard({ report }: { report: FamilyReportView }) {
   const { t, formatDateTime } = useLocale();
 
+  const period = t('reports.period', { start: report.periodStart, end: report.periodEnd });
+  const title = t(`reportType.${report.reportType}` as MessageKey);
+  const meta = (
+    <>
+      {period}
+      {report.status !== 'WITHDRAWN' &&
+        ` ｜ ${t('reports.publishedAt', {
+          version: report.version,
+          at: formatDateTime(report.publishedAt),
+        })}`}
+    </>
+  );
+
   if (report.status === 'WITHDRAWN') {
+    // §10.3 / §4.2: struck-through title, and none of the old content — a
+    // withdrawn report keeps no items, not even collapsed.
     return (
-      <section
-        style={{
-          padding: 16,
-          border: '1px solid #e2e8f0',
-          borderRadius: 8,
-          background: '#f7fafc',
-        }}
-      >
-        <strong>
-          {report.periodStart}～{report.periodEnd}
-        </strong>
-        {/* Withdrawn keeps no old content — MASTER.md §10.3. */}
-        <p style={{ color: '#718096' }}>{t('reports.withdrawn')}</p>
-      </section>
+      <StateCard state="withdrawn" title={title} meta={meta}>
+        {t('reports.withdrawn')}
+      </StateCard>
+    );
+  }
+
+  // "No data" is a first-class state with its own shape (§1, §4.2), not an
+  // empty card. `dataGapNotice` is Core-authored prose, shown as-is when present.
+  if (report.items.length === 0) {
+    return (
+      <StateCard state="dataInsufficient" title={title} meta={meta}>
+        {report.dataGapNotice ?? t('reports.insufficient')}
+      </StateCard>
     );
   }
 
   return (
-    <section style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 8 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-        <strong>{t(`reportType.${report.reportType}` as MessageKey)}</strong>
-        <span>
-          {report.periodStart}～{report.periodEnd}
-        </span>
-      </div>
-      {report.items.length === 0 ? (
-        <p style={{ color: '#718096' }}>{report.dataGapNotice ?? t('reports.insufficient')}</p>
-      ) : (
-        <ul>
-          {report.items.map((item, index) => (
-            <li key={`${item.category}-${index}`}>
-              [{item.category}] {item.text}
-              {t('common.sources', { count: item.sourceIds.length })}
-            </li>
-          ))}
-        </ul>
-      )}
-      <p style={{ fontSize: 12, color: '#718096' }}>
-        {t('reports.publishedAt', {
-          version: report.version,
-          at: formatDateTime(report.publishedAt),
-        })}
-      </p>
-    </section>
+    <StateCard state={familyReportState(report.status)} title={title} meta={meta}>
+      <ul style={{ margin: 0, paddingInlineStart: 'var(--space-5)' }}>
+        {report.items.map((item, index) => (
+          <li key={`${item.category}-${index}`}>
+            [{item.category}] {item.text}
+            {t('common.sources', { count: item.sourceIds.length })}
+          </li>
+        ))}
+      </ul>
+    </StateCard>
   );
 }

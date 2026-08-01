@@ -38,6 +38,15 @@ const zhHant = {
      bracket glyph itself differs between the two locales. */
   'common.sources': '（來源 {count} 筆）',
 
+  // ---- workflow states (MASTER.md §4.2) — the text half of colour+icon+text.
+  //      Same wording on every surface: a state must read as the same state. ----
+  'state.candidate': '未確認',
+  'state.needsReview': '待覆核',
+  'state.confirmed': '已確認',
+  'state.published': '已發布',
+  'state.withdrawn': '已撤回',
+  'state.dataInsufficient': '資料不足',
+
   // ---- credential states (care/family only; elder pages pass their own text) ----
   'auth.credentialUnavailable': '無法確認登入憑證狀態；系統已停止，不會略過認證',
   'auth.credentialMissing': '尚未設定登入資訊，請先完成登入設定',
@@ -174,6 +183,7 @@ const zhHant = {
   'reports.withdrawn': '此報表已撤回。',
   'reports.insufficient': '資料不足。',
   'reports.publishedAt': '版本 {version}｜發布時間：{at}',
+  'reports.period': '{start}～{end}',
   'reportType.DAILY': '每日報表',
   'reportType.WEEKLY': '每週報表',
   'reportType.MONTHLY': '每月報表',
@@ -217,6 +227,13 @@ const en: Record<MessageKey, string> = {
   'common.empty': '—',
   'common.version': 'Version {version}',
   'common.sources': ' (sources: {count})',
+
+  'state.candidate': 'Candidate',
+  'state.needsReview': 'Needs review',
+  'state.confirmed': 'Confirmed',
+  'state.published': 'Published',
+  'state.withdrawn': 'Withdrawn',
+  'state.dataInsufficient': 'Not enough data',
 
   'auth.credentialUnavailable':
     'Credential status could not be verified. The system stopped rather than skipping authentication.',
@@ -347,6 +364,7 @@ const en: Record<MessageKey, string> = {
   'reports.withdrawn': 'This report has been withdrawn.',
   'reports.insufficient': 'Not enough data.',
   'reports.publishedAt': 'Version {version} | Published: {at}',
+  'reports.period': '{start} – {end}',
   'reportType.DAILY': 'Daily report',
   'reportType.WEEKLY': 'Weekly report',
   'reportType.MONTHLY': 'Monthly report',
