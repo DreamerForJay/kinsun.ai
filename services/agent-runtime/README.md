@@ -16,13 +16,13 @@
 ```powershell
 cd services/agent-runtime
 uv sync --extra test --extra dev
-uv run uvicorn --app-dir src agent_runtime.app:app --reload --port 8000
+uv run uvicorn --app-dir src agent_runtime.app:app --reload --port 8001
 ```
 
 不需要資料庫、AWS 憑證或網路。
 
 ```powershell
-curl http://localhost:8000/health
+curl http://localhost:8001/health
 ```
 
 ## 測試

@@ -1,0 +1,7 @@
+{
+  "_why_invalid": "Companion turn requests reject undeclared fields.",
+  "data": {
+    "input_text": "我今天早餐吃了粥。",
+    "tenant_id": "client-must-not-set-tenant"
+  }
+}

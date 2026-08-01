@@ -1,0 +1,19 @@
+{
+  "additionalProperties": false,
+  "description": "Ephemeral current-turn text; Core never returns or stores this value.",
+  "properties": {
+    "input_text": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Input Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "input_text"
+  ],
+  "title": "CompanionTurnRequestV1",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/domain/CompanionTurnRequestV1.json"
+}

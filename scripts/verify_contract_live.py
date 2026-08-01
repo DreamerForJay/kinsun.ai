@@ -137,6 +137,25 @@ async def main() -> int:
             load("common/ErrorEnvelopeV1.json"),
         )
 
+        response = await client.post(
+            "/api/v1/voice-sessions/2a6f9c31-8e47-4b52-9d10-3c8a7e5b1a40/companion-turns",
+            headers={"Idempotency-Key": "live-contract-companion-turn"},
+            json={"input_text": "這是合成的契約驗證文字。"},
+        )
+        if response.status_code != 401:
+            failures.append(
+                "POST companion turn did not fail closed with 401: "
+                f"returned {response.status_code}"
+            )
+            print(f"FAIL  POST companion turn fails closed: {response.status_code}")
+        else:
+            print("ok    POST companion turn fails closed with 401")
+        check(
+            "POST companion turn 401 body vs ErrorEnvelopeV1",
+            response.json(),
+            load("common/ErrorEnvelopeV1.json"),
+        )
+
         protected_gets = sorted(
             path
             for path, item in OPENAPI["paths"].items()

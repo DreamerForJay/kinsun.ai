@@ -23,6 +23,7 @@ MODEL_FILES = {
     "RevokeConsentRequest": "domain/RevokeConsentRequestV1.json",
     "CreateVoiceSessionRequest": "domain/CreateVoiceSessionRequestV1.json",
     "TransitionVoiceSessionRequest": "domain/TransitionVoiceSessionRequestV1.json",
+    "CompanionTurnRequest": "domain/CompanionTurnRequestV1.json",
     "CreateCareEventCandidateRequest": "domain/CreateCareEventCandidateRequestV1.json",
     "ReviewCareEventRequest": "domain/ReviewCareEventRequestV1.json",
     "CreateMemoryCandidateRequest": "domain/CreateMemoryCandidateRequestV1.json",
@@ -69,6 +70,9 @@ SUCCESS_ENVELOPE_BY_OPERATION = {
     ),
     "complete_voice_session_api_v1_voice_sessions__session_id__complete_post": (
         "VoiceSessionEnvelopeV1"
+    ),
+    "create_companion_turn_api_v1_voice_sessions__session_id__companion_turns_post": (
+        "CompanionTurnEnvelopeV1"
     ),
     "create_care_event_candidate_api_v1_elders__elder_id__care_event_candidates_post": (
         "CareEventEnvelopeV1"
@@ -165,13 +169,15 @@ def replace_model_refs(node: object) -> None:
 
 def main() -> None:
     contract_path = ROOT / "contracts" / "openapi" / "core-api.v1.yaml"
-    prior = json.loads(json.dumps({}))
     try:
         import yaml
-
-        prior = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
-    except (ImportError, ValueError):
-        prior = {}
+    except ImportError as exc:
+        raise RuntimeError(
+            "PyYAML is required so the exporter can preserve hand-authored operations"
+        ) from exc
+    prior = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    if not isinstance(prior, dict):
+        raise ValueError("Existing Core OpenAPI document must be a mapping")
 
     document = create_app().openapi()
     document["openapi"] = "3.1.0"

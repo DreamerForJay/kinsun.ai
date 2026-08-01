@@ -114,6 +114,9 @@ class TestGetAuthenticator:
         mock = AsyncMock()
         mock.app_env = app_env
         mock.fake_auth_enabled = fake_auth_enabled
+        mock.fake_auth_actor_id = None
+        mock.fake_auth_tenant_id = None
+        mock.fake_auth_actor_role = "care_worker"
         return mock
 
     @patch("app.middleware.auth.get_settings")
@@ -137,13 +140,40 @@ class TestGetAuthenticator:
     @patch("app.middleware.auth.get_settings")
     def test_development_with_fake_auth_returns_fake(self, mock_get_settings):
         """Development + FAKE_AUTH_ENABLED=true returns FakeAuthenticator."""
-        mock_get_settings.return_value = self._mock_settings(
-            AppEnv.DEVELOPMENT, fake_auth_enabled=True
-        )
+        settings = self._mock_settings(AppEnv.DEVELOPMENT, fake_auth_enabled=True)
+        settings.fake_auth_actor_id = uuid.uuid4()
+        settings.fake_auth_tenant_id = uuid.uuid4()
+        mock_get_settings.return_value = settings
 
         authenticator = get_authenticator()
 
         assert isinstance(authenticator, FakeAuthenticator)
+
+    @patch("app.middleware.auth.get_settings")
+    def test_development_fake_auth_without_server_scope_fails_closed(self, mock_get_settings):
+        """The dev flag alone must not mint random actor or tenant authority."""
+        mock_get_settings.return_value = self._mock_settings(
+            AppEnv.DEVELOPMENT, fake_auth_enabled=True
+        )
+
+        with pytest.raises(NoAuthenticatorConfiguredError):
+            get_authenticator()
+
+    @patch("app.middleware.auth.get_settings")
+    def test_development_fake_auth_uses_server_configured_scope(self, mock_get_settings):
+        actor_id = uuid.uuid4()
+        tenant_id = uuid.uuid4()
+        settings = self._mock_settings(AppEnv.DEVELOPMENT, fake_auth_enabled=True)
+        settings.fake_auth_actor_id = actor_id
+        settings.fake_auth_tenant_id = tenant_id
+        settings.fake_auth_actor_role = "ELDER"
+        mock_get_settings.return_value = settings
+
+        authenticator = get_authenticator()
+
+        assert authenticator._actor_id == actor_id
+        assert authenticator._tenant_id == tenant_id
+        assert authenticator._actor_role == "ELDER"
 
     @patch("app.middleware.auth.get_settings")
     def test_development_without_fake_auth_raises(self, mock_get_settings):

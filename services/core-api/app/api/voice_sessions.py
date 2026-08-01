@@ -7,8 +7,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.agent_runtime import AgentRuntimeClient, get_agent_runtime_client
 from app.api.responses import get_correlation_id, success
-from app.core.exceptions import NotFoundError
+from app.core.config import get_settings
+from app.core.exceptions import ConflictError, NotFoundError
 from app.db.session import get_db_session
 from app.middleware.actor_guard import (
     require_active_actor,
@@ -17,11 +19,13 @@ from app.middleware.actor_guard import (
 from app.middleware.auth import ActorContext
 from app.repositories.idempotency_repo import IdempotencyRepository
 from app.schemas.conversation import (
+    CompanionTurnRequest,
     CreateVoiceSessionRequest,
     TransitionVoiceSessionRequest,
     VoiceSessionResponse,
 )
 from app.services.authorization_service import authorize_elder
+from app.services.companion_service import CompanionService
 from app.services.conversation_service import ConversationService
 
 router = APIRouter(prefix="/api/v1", tags=["voice-sessions"])
@@ -192,3 +196,60 @@ async def complete_voice_session(
         actor_context=actor_context,
         session=session,
     )
+
+
+@router.post("/voice-sessions/{session_id}/companion-turns")
+async def create_companion_turn(
+    request: CompanionTurnRequest,
+    session_id: UUID = Path(...),
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    actor_context: ActorContext = Depends(require_active_actor),
+    session: AsyncSession = Depends(get_db_session),
+    runtime_client: AgentRuntimeClient = Depends(get_agent_runtime_client),
+) -> dict:
+    """Run one text-only companion turn through Core's authorization gate."""
+    conversation_service = ConversationService(session, actor_context.tenant_id)
+    conversation = await conversation_service.get(session_id)
+    if conversation is None:
+        raise NotFoundError("Resource not found")
+    await authorize_elder(
+        session,
+        actor_context,
+        conversation.elder_id,
+        "voice_session:control",
+    )
+
+    idem = IdempotencyRepository(session, actor_context.tenant_id, actor_context.actor_id)
+    replay = await idem.begin(
+        key=idempotency_key,
+        operation="create_companion_turn",
+        payload={"session_id": session_id, "input_text": request.input_text},
+    )
+    if replay.replayed:
+        raise ConflictError("Companion turn already completed; create a new session")
+
+    settings = get_settings()
+    response = await CompanionService(
+        session,
+        actor_context.tenant_id,
+        runtime_client,
+        settings.agent_runtime_model_id,
+    ).run_turn(
+        conversation=conversation,
+        actor_context=actor_context,
+        input_text=request.input_text,
+        correlation_id=get_correlation_id(),
+        idempotency_key=idempotency_key,
+        latency_budget_ms=min(
+            300_000,
+            max(100, round(settings.agent_runtime_timeout_seconds * 1000)),
+        ),
+    )
+    await idem.complete(
+        key=idempotency_key,
+        resource_type="agent_run",
+        resource_id=response.agent_run_id,
+        response_status=200,
+        response_body=response.model_dump(mode="json"),
+    )
+    return success(response.model_dump(mode="json"))

@@ -30,6 +30,8 @@ from app.schemas.consent import (  # noqa: E402
     RevokeConsentRequest,
 )
 from app.schemas.conversation import (  # noqa: E402
+    CompanionTurnRequest,
+    CompanionTurnResponse,
     CreateVoiceSessionRequest,
     TransitionVoiceSessionRequest,
     VoiceSessionResponse,
@@ -70,6 +72,8 @@ EXPORTS = {
         "CreateVoiceSessionRequestV1": CreateVoiceSessionRequest,
         "TransitionVoiceSessionRequestV1": TransitionVoiceSessionRequest,
         "VoiceSessionV1": VoiceSessionResponse,
+        "CompanionTurnRequestV1": CompanionTurnRequest,
+        "CompanionTurnV1": CompanionTurnResponse,
         "CreateCareEventCandidateRequestV1": CreateCareEventCandidateRequest,
         "ReviewCareEventRequestV1": ReviewCareEventRequest,
         "CareEventV1": CareEventResponse,
@@ -113,6 +117,7 @@ SUCCESS_ENVELOPES = {
     "ConsentEnvelopeV1": "domain/ConsentV1.json",
     "ConsentListEnvelopeV1": "domain/ConsentListV1.json",
     "VoiceSessionEnvelopeV1": "domain/VoiceSessionV1.json",
+    "CompanionTurnEnvelopeV1": "domain/CompanionTurnV1.json",
     "CareEventEnvelopeV1": "domain/CareEventV1.json",
     "CareEventReviewEnvelopeV1": "domain/CareEventReviewV1.json",
     "CareEventListEnvelopeV1": "domain/CareEventListV1.json",
@@ -141,6 +146,12 @@ RESTRICTED_KEYS = [
     "token",
     "asr_confidence",
 ]
+
+# ToolRequestV1 contains a recursive JSON-value definition and Restricted Data
+# property-name guards that Pydantic cannot faithfully round-trip. Keep that
+# audited executable contract instead of silently replacing it with a weaker
+# `additionalProperties: true` schema.
+PRESERVE_EXISTING = {"ToolRequestV1"}
 
 
 def apply_semantic_constraints(title: str, schema: dict) -> None:
@@ -258,6 +269,46 @@ def apply_semantic_constraints(title: str, schema: dict) -> None:
                 },
             ]
         )
+    elif title == "DeletionRequestV1":
+        item = schema["$defs"]["DeletionJobItemResponse"]
+        item["properties"]["attempt_count"]["minimum"] = 0
+        failure_code = item["properties"]["failure_code"]["anyOf"][0]
+        failure_code["minLength"] = 1
+        failure_code["maxLength"] = 120
+        schema["allOf"] = [
+            {
+                "if": {
+                    "properties": {"status": {"const": "COMPLETED"}},
+                    "required": ["status"],
+                },
+                "then": {
+                    "properties": {
+                        "completed_at": {"format": "date-time", "type": "string"},
+                        "items": {
+                            "items": {"properties": {"status": {"enum": ["COMPLETED", "SKIPPED"]}}}
+                        },
+                    }
+                },
+            },
+            {
+                "if": {
+                    "properties": {"status": {"const": "PARTIAL_FAILED"}},
+                    "required": ["status"],
+                },
+                "then": {
+                    "properties": {
+                        "completed_at": {"type": "null"},
+                        "items": {
+                            "contains": {
+                                "properties": {"status": {"const": "FAILED"}},
+                                "required": ["status"],
+                            },
+                            "minContains": 1,
+                        },
+                    }
+                },
+            },
+        ]
 
 
 def main() -> None:
@@ -266,12 +317,15 @@ def main() -> None:
         destination = base / folder
         destination.mkdir(parents=True, exist_ok=True)
         for title, model in exports.items():
+            path = destination / f"{title}.json"
+            if title in PRESERVE_EXISTING and path.is_file():
+                print(f"preserved {path.relative_to(ROOT)}")
+                continue
             schema = model.model_json_schema(mode="validation")
             schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
             schema["$id"] = f"https://kinsun.ai/contracts/schemas/{folder}/{title}.json"
             schema["title"] = title
             apply_semantic_constraints(title, schema)
-            path = destination / f"{title}.json"
             path.write_text(
                 json.dumps(schema, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",

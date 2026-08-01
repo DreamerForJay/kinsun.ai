@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class LanguageRoute(str, Enum):
@@ -40,6 +40,39 @@ class TransitionVoiceSessionRequest(BaseModel):
         "CANCELLED",
         "FAILED",
     ]
+
+
+class CompanionTurnRequest(BaseModel):
+    """Ephemeral current-turn text; Core never returns or stores this value."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    input_text: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("input_text")
+    @classmethod
+    def reject_blank_input(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("input_text must contain non-whitespace content")
+        return value
+
+
+class CompanionTurnResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: UUID
+    agent_run_id: UUID
+    trace_id: str = Field(min_length=1, max_length=128)
+    context_manifest_id: str = Field(min_length=1, max_length=128)
+    reply_text: str = Field(min_length=1, max_length=4000)
+    reply_language: str = Field(min_length=2, max_length=10)
+    result_status: Literal["SUCCESS", "BLOCKED", "SAFE_FALLBACK", "FAILED"]
+    safety_decision: Literal["ALLOW", "BLOCK", "SAFE_FALLBACK", "HUMAN_REVIEW"]
+    risk_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    reason_codes: list[str]
+    session_state: Literal["COMPLETED"] = "COMPLETED"
+    transport_status: Literal["TEXT_ONLY"] = "TEXT_ONLY"
+    model_route: str = Field(min_length=1, max_length=200)
 
 
 class VoiceSessionResponse(BaseModel):

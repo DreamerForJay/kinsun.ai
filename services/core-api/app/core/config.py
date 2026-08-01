@@ -10,6 +10,7 @@ import os
 from enum import Enum
 from functools import lru_cache
 from typing import Any
+from uuid import UUID
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -65,6 +66,14 @@ class Settings(BaseSettings):
 
     # ─── Authentication ──────────────────────────────────────────────────────────
     fake_auth_enabled: bool = False
+    fake_auth_actor_id: UUID | None = None
+    fake_auth_tenant_id: UUID | None = None
+    fake_auth_actor_role: str = Field(default="ELDER", min_length=1, max_length=64)
+
+    # ─── Internal service adapters ───────────────────────────────────────────────
+    agent_runtime_url: str = "http://127.0.0.1:8001"
+    agent_runtime_timeout_seconds: float = Field(default=10.0, gt=0, le=30)
+    agent_runtime_model_id: str = Field(default="mock", min_length=1, max_length=200)
 
     # ─── Validators ──────────────────────────────────────────────────────────────
 

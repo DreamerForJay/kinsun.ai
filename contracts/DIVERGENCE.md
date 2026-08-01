@@ -65,12 +65,20 @@ OpenAPI 的 `bearerAuth` 描述目標 JWT 形狀，但正式 Cognito verifier �
 
 - Development 只有在 `FAKE_AUTH_ENABLED=true` 時使用明確 fake actor。
 - 其他情況所有 protected endpoint 都回 401，fail closed。
+- Browser 目前透過 Next.js BFF 的 HttpOnly Cookie 傳遞 Access Token；BFF 在 server-side
+  轉成此契約的 Bearer Header。production Cognito callback、Refresh Token 與 rotation
+  尚未實作，本機任意 Token setter 在 production 關閉。
 
 在 Cognito User Pool、Region 與環境策略核准前，不得把 security block 解讀成 JWT 已完成驗證。
 
 ### Voice transport
 
 Core 已實作 Voice Session metadata 與受控狀態轉移，但 WebSocket binary/audio transport、ASR Final、低信心確認與 TTS 仍屬 Speech workstream。回應明確標示 `transport_status = NOT_CONFIGURED`。
+
+Core 另提供已實作的單輪文字 fallback：`POST /api/v1/voice-sessions/{session_id}/companion-turns`。
+它會在 Core 重新檢查 tenant／elder scope、`BASIC_VOICE` Consent snapshot 與 Session state，
+再以 server-to-server 方式呼叫 M0 Agent Runtime，保存不含輸入文字與回覆內容的 Agent／Safety
+稽核 metadata，最後回傳 `transport_status = TEXT_ONLY`。這不代表 WebSocket、ASR 或 TTS 已完成。
 
 ### Deletion workflow
 

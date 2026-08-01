@@ -1,0 +1,19 @@
+{
+  "data": {
+    "session_id": "51000000-0000-4000-8000-000000000001",
+    "agent_run_id": "52000000-0000-4000-8000-000000000001",
+    "trace_id": "trace-demo-001",
+    "context_manifest_id": "context-demo-001",
+    "reply_text": "知道了，您今天早餐吃了粥。還有其他想和我分享的事情嗎？",
+    "reply_language": "zh-TW",
+    "result_status": "SUCCESS",
+    "safety_decision": "ALLOW",
+    "risk_level": "LOW",
+    "reason_codes": [
+      "ALLOW"
+    ],
+    "session_state": "COMPLETED",
+    "transport_status": "TEXT_ONLY",
+    "model_route": "mock"
+  }
+}

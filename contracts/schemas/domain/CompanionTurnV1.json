@@ -1,0 +1,111 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "session_id": {
+      "format": "uuid",
+      "title": "Session Id",
+      "type": "string"
+    },
+    "agent_run_id": {
+      "format": "uuid",
+      "title": "Agent Run Id",
+      "type": "string"
+    },
+    "trace_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Trace Id",
+      "type": "string"
+    },
+    "context_manifest_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Context Manifest Id",
+      "type": "string"
+    },
+    "reply_text": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Reply Text",
+      "type": "string"
+    },
+    "reply_language": {
+      "maxLength": 10,
+      "minLength": 2,
+      "title": "Reply Language",
+      "type": "string"
+    },
+    "result_status": {
+      "enum": [
+        "SUCCESS",
+        "BLOCKED",
+        "SAFE_FALLBACK",
+        "FAILED"
+      ],
+      "title": "Result Status",
+      "type": "string"
+    },
+    "safety_decision": {
+      "enum": [
+        "ALLOW",
+        "BLOCK",
+        "SAFE_FALLBACK",
+        "HUMAN_REVIEW"
+      ],
+      "title": "Safety Decision",
+      "type": "string"
+    },
+    "risk_level": {
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL"
+      ],
+      "title": "Risk Level",
+      "type": "string"
+    },
+    "reason_codes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reason Codes",
+      "type": "array"
+    },
+    "session_state": {
+      "const": "COMPLETED",
+      "default": "COMPLETED",
+      "title": "Session State",
+      "type": "string"
+    },
+    "transport_status": {
+      "const": "TEXT_ONLY",
+      "default": "TEXT_ONLY",
+      "title": "Transport Status",
+      "type": "string"
+    },
+    "model_route": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Model Route",
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id",
+    "agent_run_id",
+    "trace_id",
+    "context_manifest_id",
+    "reply_text",
+    "reply_language",
+    "result_status",
+    "safety_decision",
+    "risk_level",
+    "reason_codes",
+    "model_route"
+  ],
+  "title": "CompanionTurnV1",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/domain/CompanionTurnV1.json"
+}

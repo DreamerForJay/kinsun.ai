@@ -122,7 +122,15 @@ def get_authenticator() -> Authenticator:
 
     # Development mode
     if settings.fake_auth_enabled:
-        return FakeAuthenticator()
+        if settings.fake_auth_actor_id is None or settings.fake_auth_tenant_id is None:
+            raise NoAuthenticatorConfiguredError(
+                "Fake authentication requires server-side actor and tenant IDs"
+            )
+        return FakeAuthenticator(
+            actor_id=settings.fake_auth_actor_id,
+            actor_role=settings.fake_auth_actor_role,
+            tenant_id=settings.fake_auth_tenant_id,
+        )
 
     # Development without fake auth — still require real config or fail
     real_authenticator = _resolve_production_authenticator(settings)

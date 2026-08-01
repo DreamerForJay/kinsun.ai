@@ -56,6 +56,12 @@ class TestSettingsConstruction:
             TEST_DATABASE_URL="postgresql+asyncpg://x:y@host/test",
             DATABASE_PASSWORD="supersecret",
             FAKE_AUTH_ENABLED="true",
+            FAKE_AUTH_ACTOR_ID="20000000-0000-4000-8000-000000000001",
+            FAKE_AUTH_TENANT_ID="10000000-0000-4000-8000-000000000001",
+            FAKE_AUTH_ACTOR_ROLE="ELDER",
+            AGENT_RUNTIME_URL="http://127.0.0.1:8001",
+            AGENT_RUNTIME_TIMEOUT_SECONDS="8",
+            AGENT_RUNTIME_MODEL_ID="mock-v1",
         )
         assert s.app_title == "Custom Title"
         assert s.app_version == "2.0.0"
@@ -67,6 +73,12 @@ class TestSettingsConstruction:
         assert s.test_database_url == "postgresql+asyncpg://x:y@host/test"
         assert s.database_password == "supersecret"
         assert s.fake_auth_enabled is True
+        assert str(s.fake_auth_actor_id) == "20000000-0000-4000-8000-000000000001"
+        assert str(s.fake_auth_tenant_id) == "10000000-0000-4000-8000-000000000001"
+        assert s.fake_auth_actor_role == "ELDER"
+        assert s.agent_runtime_url == "http://127.0.0.1:8001"
+        assert s.agent_runtime_timeout_seconds == 8
+        assert s.agent_runtime_model_id == "mock-v1"
 
 
 # ─── Validation errors ───────────────────────────────────────────────────────

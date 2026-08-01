@@ -44,9 +44,15 @@ DATA_SCHEMA_FOR = {
     "tool-response-missing-retryable.json": "tools/ToolResponseV1.json",
     "consent-create.json": "domain/CreateConsentRequestV1.json",
     "consent-create-without-confirmation.json": "domain/CreateConsentRequestV1.json",
+    "companion-turn-request.json": "domain/CompanionTurnRequestV1.json",
+    "companion-turn-response.json": "domain/CompanionTurnV1.json",
+    "companion-turn-request-extra-field.json": "domain/CompanionTurnRequestV1.json",
+    "companion-turn-response-with-input.json": "domain/CompanionTurnV1.json",
     "care-event-candidate.json": "domain/CreateCareEventCandidateRequestV1.json",
     "care-event-candidate-with-transcript.json": "domain/CreateCareEventCandidateRequestV1.json",
-    "care-event-candidate-evidence-must-be-opaque.json": "domain/CreateCareEventCandidateRequestV1.json",
+    "care-event-candidate-evidence-must-be-opaque.json": (
+        "domain/CreateCareEventCandidateRequestV1.json"
+    ),
     "memory-candidate.json": "domain/CreateMemoryCandidateRequestV1.json",
     "memory-candidate-without-source.json": "domain/CreateMemoryCandidateRequestV1.json",
     "memory-confirm-caregiver.json": "domain/ConfirmMemoryRequestV1.json",

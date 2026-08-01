@@ -33,9 +33,10 @@ from app.models.report import FamilyRelationship, FamilyReport, ReportVersion  #
 from app.models.summary import DailySummary, SummaryVersion  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 
-EXPECTED_REVISION = "a7c34d91e6f2"
+EXPECTED_REVISION = "e4a1c8f29b73"
 MANIFEST_PATH = REPO_ROOT / "data" / "seed" / "demo_ids.json"
 ALLOWED_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+E2E_DATABASE_PREFIX = "kinsun_frontend_e2e_"
 
 
 def _load_repo_env() -> None:
@@ -60,8 +61,16 @@ def _database_url() -> str:
     parsed = urlparse(value)
     if parsed.scheme != "postgresql+asyncpg":
         raise RuntimeError("DATABASE_URL must use postgresql+asyncpg")
-    if parsed.hostname not in ALLOWED_LOCAL_HOSTS or parsed.path != "/kinsun":
-        raise RuntimeError("Demo seed is restricted to the local database named kinsun")
+    database_name = parsed.path.removeprefix("/")
+    allow_e2e = os.getenv("KINSUN_ALLOW_SYNTHETIC_E2E_SEED", "false").lower() == "true"
+    allowed_database = database_name == "kinsun" or (
+        allow_e2e and database_name.startswith(E2E_DATABASE_PREFIX)
+    )
+    if parsed.hostname not in ALLOWED_LOCAL_HOSTS or not allowed_database:
+        raise RuntimeError(
+            "Demo seed is restricted to local kinsun; synthetic E2E databases require "
+            "KINSUN_ALLOW_SYNTHETIC_E2E_SEED=true and the kinsun_frontend_e2e_ prefix"
+        )
     return value
 
 
