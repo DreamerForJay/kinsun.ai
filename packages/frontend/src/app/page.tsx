@@ -3,11 +3,15 @@
 import { useEffect, useState } from 'react';
 import { CompanionTextPanel } from '@/components/companion/CompanionTextPanel';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { readDevPreviewState } from '@/components/voice/dev-preview';
+import { VoiceInteractionPanel } from '@/components/voice/VoiceInteractionPanel';
 import { activeBasicVoiceConsent, listConsents } from '@/lib/api/consent';
-import { getRuntimeConfig, type RuntimeConfig } from '@/lib/runtime-config';
+import { getRuntimeConfig, getVoiceSessionConfig, type RuntimeConfig, type VoiceSessionConfig } from '@/lib/runtime-config';
 
 export default function HomePage() {
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
+  const [voiceSession, setVoiceSession] = useState<VoiceSessionConfig | null>(null);
+  const [isDevPreview, setIsDevPreview] = useState(false);
   const [consentGranted, setConsentGranted] = useState<boolean | null>(null);
   const [consentError, setConsentError] = useState(false);
 
@@ -16,6 +20,11 @@ export default function HomePage() {
     void getRuntimeConfig().then((nextConfig) => {
       if (!cancelled) setConfig(nextConfig);
     });
+    setVoiceSession(getVoiceSessionConfig());
+    // The preview needs no credentials — it renders CompanionCharacter's
+    // states only, opens no socket (see VoiceInteractionPanel's isPreview
+    // gate), so it must not be blocked behind a real voice session existing.
+    setIsDevPreview(readDevPreviewState() !== null);
     return () => {
       cancelled = true;
     };
@@ -35,6 +44,33 @@ export default function HomePage() {
       cancelled = true;
     };
   }, [config]);
+
+  // The preview needs no credentials and no consent — it renders
+  // CompanionCharacter's states only and opens no socket (see
+  // VoiceInteractionPanel's isPreview gate), so none of the real-session
+  // gates below should block it.
+  if (isDevPreview) {
+    return (
+      <main
+        data-surface="voice"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          minHeight: '100dvh',
+          gap: 'var(--block-gap)',
+          padding: 'var(--space-6)',
+          paddingBottom: 'calc(var(--space-6) + env(safe-area-inset-bottom))',
+          background: 'var(--color-background)',
+        }}
+      >
+        <h1 style={{ fontSize: 'var(--text-xl)', color: 'var(--color-foreground)', margin: 0 }}>
+          智慧長照 AI 陪伴系統
+        </h1>
+        <VoiceInteractionPanel wsUrl="" token="" consentGranted />
+      </main>
+    );
+  }
 
   if (!config) return null;
   if (config.credentialStatus === 'unavailable') {
@@ -73,7 +109,10 @@ export default function HomePage() {
           尚未取得 BASIC_VOICE 同意。<a href="/consent">前往同意設定</a>
         </p>
       )}
-      {!consentError && consentGranted === true && (
+      {!consentError && consentGranted === true && voiceSession?.wsUrl && voiceSession.token && (
+        <VoiceInteractionPanel wsUrl={voiceSession.wsUrl} token={voiceSession.token} consentGranted={consentGranted} />
+      )}
+      {!consentError && consentGranted === true && !(voiceSession?.wsUrl && voiceSession.token) && (
         <CompanionTextPanel apiConfig={config} elderId={config.elderId} />
       )}
 

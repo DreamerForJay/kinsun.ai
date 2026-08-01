@@ -4,15 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { blobToBase64, BrowserVoiceRecorder } from '@/lib/voice/recorder';
 import { VoiceWebSocketClient, type ServerResponsePayload } from '@/lib/voice/websocket-client';
 import { CompanionCharacter, type ConversationState } from './CompanionCharacter';
+import { readDevPreviewState } from './dev-preview';
 import { LowConfidenceCard } from './LowConfidenceCard';
 import { MicPermissionGuide } from './MicPermissionGuide';
 import { RecordButton } from './RecordButton';
-import {
-  fromRecordingState,
-  isVoicePageState,
-  STATE_COPY,
-  type VoicePageState,
-} from './voice-page-state';
+import { fromRecordingState, STATE_COPY, type VoicePageState } from './voice-page-state';
 
 const DEFAULT_GREETING = '你好啊！今天想聊什麼呢？';
 
@@ -53,27 +49,15 @@ function toConversationState(state: VoicePageState): ConversationState {
   }
 }
 
-/**
- * Development-only state preview. Several of the 9 states in §10.1 cannot be
- * triggered from the backend yet (Low Confidence has no server field, Generating
- * is not reported separately), so `?previewState=<state>` forces one for visual
- * design review. `process.env.NODE_ENV` is inlined at build time, so this whole
- * branch is dead code — and unreachable — in a production build.
- */
-function readPreviewState(): VoicePageState | null {
-  if (process.env.NODE_ENV === 'production') return null;
-  if (typeof window === 'undefined') return null;
-  const raw = new URLSearchParams(window.location.search).get('previewState');
-  return raw !== null && isVoicePageState(raw) ? raw : null;
-}
-
 export interface VoiceInteractionPanelProps {
   wsUrl: string;
   /** Elder hasn't granted recording consent yet — disables the mic entirely (A06.2). */
   consentGranted: boolean;
+  /** packages/backend's own Cognito JWT — a different credential from the BFF's HttpOnly cookie, see websocket-client.ts. */
+  token: string;
 }
 
-export function VoiceInteractionPanel({ wsUrl, consentGranted }: VoiceInteractionPanelProps) {
+export function VoiceInteractionPanel({ wsUrl, token, consentGranted }: VoiceInteractionPanelProps) {
   const [state, setState] = useState<VoicePageState>('idle');
   const [previewState, setPreviewState] = useState<VoicePageState | null>(null);
   const [displayText, setDisplayText] = useState('');
@@ -84,7 +68,7 @@ export function VoiceInteractionPanel({ wsUrl, consentGranted }: VoiceInteractio
   const wsRef = useRef<VoiceWebSocketClient | null>(null);
 
   useEffect(() => {
-    setPreviewState(readPreviewState());
+    setPreviewState(readDevPreviewState());
   }, []);
 
   const isPreview = previewState !== null;
@@ -151,14 +135,14 @@ export function VoiceInteractionPanel({ wsUrl, consentGranted }: VoiceInteractio
       void play();
     });
 
-    ws.connect(wsUrl).catch(() => {
+    ws.connect(wsUrl, token).catch(() => {
       setState('offline');
     });
 
     return () => {
       ws.disconnect();
     };
-  }, [wsUrl, consentGranted, isPreview]);
+  }, [wsUrl, token, consentGranted, isPreview]);
 
   const beginRecording = useCallback(async () => {
     const recorder = recorderRef.current;
@@ -220,7 +204,14 @@ export function VoiceInteractionPanel({ wsUrl, consentGranted }: VoiceInteractio
     setState('idle');
   }, []);
 
-  if (!consentGranted) {
+  // The consent gate exists to stop recording without consent. The dev preview
+  // records nothing: the effect above returns before constructing any
+  // BrowserVoiceRecorder or VoiceWebSocketClient when isPreview, so no
+  // microphone is opened and no audio leaves the page. Exempting it therefore
+  // gives up no protection, and the gate still applies in full to every
+  // non-preview render (and to all of production, where isPreview is always
+  // false — see dev-preview.tsx).
+  if (!consentGranted && !isPreview) {
     return (
       <p
         style={{
