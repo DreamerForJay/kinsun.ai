@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""BYOC entrypoint: launch inference_asr.py or inference_tts.py depending on
+SAGEMAKER_INFERENCE_MODE. One image, two SageMaker Models/Endpoints (ASR and
+TTS need separate endpoint names -- ASR_SAGEMAKER_ENDPOINT vs
+TTS_SAGEMAKER_ENDPOINT -- see ../docs/sagemaker-endpoint-contract.md), each
+created with a different value of this environment variable rather than
+building two images.
+"""
+from __future__ import annotations
+
+import os
+import runpy
+
+MODULE_BY_MODE = {"asr": "inference_asr", "tts": "inference_tts"}
+
+
+def main() -> None:
+    mode = os.environ.get("SAGEMAKER_INFERENCE_MODE", "asr")
+    module = MODULE_BY_MODE.get(mode)
+    if module is None:
+        raise SystemExit(
+            f"Unknown SAGEMAKER_INFERENCE_MODE={mode!r}, expected one of {sorted(MODULE_BY_MODE)}"
+        )
+    runpy.run_module(module, run_name="__main__")
+
+
+if __name__ == "__main__":
+    main()

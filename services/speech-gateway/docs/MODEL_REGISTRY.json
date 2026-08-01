@@ -1,0 +1,125 @@
+{
+  "schema_version": "1.0",
+  "models": [
+    {
+      "id": "amazon-transcribe",
+      "languages": ["zh", "en"],
+      "role": "managed-primary",
+      "license_gate": "service-terms",
+      "status": "credentials-required"
+    },
+    {
+      "id": "adi-gov-tw/Taiwan-Tongues-ASR-CE-pretrained-v2.0",
+      "languages": ["zh", "nan", "hak", "en", "id", "mixed-zh-nan"],
+      "role": "low-resource-primary-candidate",
+      "license_gate": "TRAIL-review-required",
+      "status": "live-routed-2026-07-31",
+      "live_routed_languages": ["en", "hak", "nan", "mixed-zh-nan"],
+      "notes": "No dedicated nan/hak decoder token in ANY release format (confirmed via generation_config.json: stock 99-language Whisper set). Decodes Hokkien/Hakka through the shared <|zh|> token by design. zh micro CER 10.6%/WER 37.5% (not live-routed for zh -- see shooding-ct2 below); en micro CER 5.4%/WER 14.9%; hak micro CER 32.3%/WER 91.7%; nan micro CER 76.9%/WER 83.3% (current best of 3 nan candidates, still poor in absolute terms). Live in voice_server.py as a single shared TransformersASRAdapter instance (dict-valued language_code: en->\"english\", hak/nan/mixed-zh-nan->\"chinese\")."
+    },
+    {
+      "id": "MediaTek-Research/Breeze-ASR-26",
+      "languages": ["nan"],
+      "role": "taigi-quality-candidate",
+      "license_gate": "Apache-2.0",
+      "status": "benchmarked-2026-08-01-still-not-adopted",
+      "notes": "Retested 2026-08-01 two more ways after the 2026-07-31 failure, neither beats taiwan-tongues-transformers (76.9% CER): (1) transformers.pipeline with chunk_length_s=0 (short-form generate() instead of chunked long-form) -- WORSE, CER 466%, mean latency 59s/max 220s, disproving the chunk_length_s theory. (2) Community CTranslate2 conversion paulpengtw/faster-whisper-Breeze-ASR-26 via faster-whisper (the approach github.com/thc1006/breeze-asr-taigi actually uses) -- CER 72.5%, marginally better than taiwan-tongues but mean latency 13s (vs. taiwan-tongues' 4.5s) with one 297s outlier, still showing occasional runaway behavior. The model card's claimed 30.13% CER on its own 30-sample Taigi benchmark was not reproducible on this project's Common Voice nan-tw benchmark set, likely a benchmark/eval-methodology difference rather than a setup bug on our side. Not adopted; voice_server.py's nan route stays on taiwan-tongues-transformers."
+    },
+    {
+      "id": "openai/whisper-large-v3",
+      "languages": ["multilingual"],
+      "role": "baseline-only",
+      "license_gate": "MIT",
+      "status": "benchmarked-2026-07-31",
+      "notes": "zh micro CER 26.6%/WER 75% (worse than Taiwan-Tongues and shooding-ct2) -- CONFIRMED 2026-07-31 by line-by-line diff against zh_whisper-large-v3.jsonl: this model outputs Simplified Chinese by default (e.g. 块/种/他们/花园/机会 vs the Traditional reference/other models' 塊/種/他們/花園/機會), inflating char-level CER independent of true recognition accuracy. Not used live for zh (see shooding-ct2). en micro CER 5.5%/WER 15.9% (ties taiwan-tongues-transformers, current en winner alongside it, though only taiwan-tongues-transformers is actually live-routed in voice_server.py)."
+    },
+    {
+      "id": "shooding/faster-whisper-large-v3-zh-TW",
+      "languages": ["zh"],
+      "role": "zh-tw-quality-candidate",
+      "license_gate": "Apache-2.0",
+      "status": "live-routed-2026-07-31",
+      "live_routed_languages": ["zh"],
+      "notes": "LoRA fine-tune of whisper-large-v3 on adi-gov-tw/Taiwan-Tongues-ASR-CE-dataset-zhtw, CTranslate2 format (faster-whisper). zh micro CER 9.0%/WER 33.3% -- best of 3 zh candidates. Higher latency (p50 8.9s) than the transformers-provider options. Live in voice_server.py's zh route as of 2026-07-31; output additionally passed through a defensive opencc s2twp (Simplified->Traditional, Taiwan phrasing) pass in speech_normalization.to_traditional_zh(), applied to both ASR output and TTS input for zh."
+    },
+    {
+      "id": "NUTN-KWS/Whisper-Taiwanese-model-v0.5",
+      "languages": ["nan"],
+      "role": "taigi-candidate",
+      "license_gate": "CC-BY-NC-4.0",
+      "status": "benchmarked-2026-07-31",
+      "notes": "whisper-large-v3-turbo fine-tune, National University of Tainan. nan micro CER 90.4%/WER 91.7% -- worse than taiwan-tongues-transformers on this benchmark."
+    },
+    {
+      "id": "formospeech/whisper-large-v3-taiwanese-hakka",
+      "languages": ["hak"],
+      "role": "hakka-asr-candidate",
+      "license_gate": "CC-BY-NC-4.0",
+      "status": "gated-not-tested",
+      "notes": "Requires requesting access on Hugging Face (logged-in user action, not automatable). Covers multiple Hakka dialects via dialect-id prompts. Not yet benchmarked."
+    },
+    {
+      "id": "amazon-polly",
+      "languages": ["zh", "en"],
+      "role": "managed-primary",
+      "license_gate": "service-terms",
+      "status": "credentials-required"
+    },
+    {
+      "id": "MediaTek-Research/BreezyVoice",
+      "languages": ["zh"],
+      "role": "zh-tts-candidate",
+      "license_gate": "Apache-2.0",
+      "status": "not-integrated",
+      "notes": "CORRECTION: this is a Taiwanese MANDARIN TTS (bopomofo-controlled, CosyVoice-derived), not a Hokkien/Taigi one despite the name similarity to Breeze-ASR-26 -- confirmed by reading its own model card. Requires cloning the GitHub repo and its single_inference.py, not transformers.pipeline. Not attempted; no dedicated Hokkien TTS exists anywhere as of this survey."
+    },
+    {
+      "id": "myshell-ai/MeloTTS-Chinese",
+      "languages": ["zh"],
+      "role": "zh-tts-offline-fallback",
+      "license_gate": "MIT",
+      "status": "integrated-2026-07-31",
+      "notes": "Mainland-accented Mandarin, not Taiwan-accented -- fills the 'Polly has no credentials' gap for zh, not a quality claim. Official docs recommend Docker on Windows; native install worked in practice after `git clone` + `pip install -e .` + `python -m unidic download`. Verified end-to-end synthesis. See speech_adapters.py MeloTTSAdapter."
+    },
+    {
+      "id": "openbmb/VoxCPM2",
+      "languages": ["multilingual, 30 languages incl. several Chinese dialects"],
+      "role": "zh-tts-candidate-unverified",
+      "license_gate": "Apache-2.0",
+      "status": "not-integrated",
+      "notes": "Commercial-OK, 2B params/~8GB VRAM, needs the `voxcpm` package (not transformers.pipeline). No confirmation it specifically covers Taiwan-accented Mandarin vs. generic/other Chinese dialects. Not attempted."
+    },
+    {
+      "id": "facebook/mms-tts-nan",
+      "languages": ["nan"],
+      "role": "taigi-tts-candidate",
+      "license_gate": "CC-BY-NC-4.0",
+      "status": "broken-for-han-input-2026-08-01",
+      "notes": "Only known nan TTS candidate of any kind -- exhaustive search found no dedicated Taiwanese Hokkien TTS project (unlike Hakka, which has several). CONFIRMED BROKEN for the live pipeline's actual input: its tokenizer only covers romanized (POJ-style) text -- any Han-character input (e.g. \"逐家好\") tokenizes to 0 input_ids and crashes VitsModel.forward with 'narrow(): length must be non-negative' in the relative-position encoding. Isolated 2026-08-01: not a punctuation issue, not a Windows cp950 encoding issue (retested with PYTHONUTF8=1, same crash). voice_server.py's try/except catches this and silently falls back to text-only, so it's not a server crash, but it means the mms provider for nan effectively never produces audio given this project's Han-character text convention. Tried tai5-uan5-gian5-gi2-kang1-ku7 (PyPI, pip-installable) as a Han->Tai-lo romanization preprocessor; its own documented example returned an empty conversion in a quick test, unresolved -- needs more investigation (possibly a missing dictionary data package) before it can bridge this gap."
+    },
+    {
+      "id": "facebook/mms-tts-hak",
+      "languages": ["hak"],
+      "role": "hakka-tts-candidate",
+      "license_gate": "CC-BY-NC-4.0",
+      "status": "broken-for-han-input-2026-08-01",
+      "notes": "Single generic checkpoint, no dialect selection. Same Han-character tokenizer crash as mms-tts-nan above (confirmed 2026-08-01), but lower-impact here because VoxHakka (below) is the recommended hak provider and already does its own Han->IPA G2P via formog2p, so it doesn't hit this limitation. mms-tts-hak remains only as a lighter-weight fallback that, in practice, also needs romanized input to actually produce audio."
+    },
+    {
+      "id": "formospeech/yourtts-htia-240704",
+      "languages": ["hak"],
+      "role": "hakka-tts-candidate-preferred",
+      "license_gate": "CC-BY-NC-4.0",
+      "status": "integrated-2026-07-31",
+      "notes": "VoxHakka (arXiv:2409.01548): YourTTS-based, 6 dialects (sixian/hailu/dapu/raoping/zhaoan/nansixian). Needs its own .venv-voxhakka (coqui-tts pins transformers<5, conflicts with the main venv310's transformers). Required reconstructing a config-compatibility patch the official Space no longer publishes (CharactersConfig.characters type mismatch -- see voxhakka_synthesize.py). Verified end-to-end for sixian and hailu dialects via a real subprocess call from voice_server.py. See speech_adapters.py VoxHakkaAdapter."
+    },
+    {
+      "id": "formospeech/f5-tts-hita-finetune-v1",
+      "languages": ["hak"],
+      "role": "hakka-tts-candidate-newer",
+      "license_gate": "CC-BY-NC-4.0",
+      "status": "gated-not-tested",
+      "notes": "F5-TTS architecture, newer (2025-12) than VoxHakka (2024-07), plausibly higher quality but unverified. Requires requesting access on Hugging Face (logged-in user action, not automatable)."
+    }
+  ]
+}

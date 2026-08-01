@@ -1,0 +1,20 @@
+# Isolated venv for hak TTS (VoxHakka / scripts/voxhakka_synthesize.py),
+# invoked via subprocess from inference_tts.py -- never imported directly by
+# the main venv. coqui-tts requires an older transformers API than
+# Taiwan-Tongues/MMS-TTS need in the main venv, hence the split (see
+# ../docs/sagemaker-endpoint-contract.md and speech_adapters.py's
+# VoxHakkaAdapter docstring for the full story).
+#
+# Versions not pinned precisely here -- this was never installed/verified on
+# this machine's Linux base image, only inferred from
+# scripts/voxhakka_synthesize.py's imports and local_poc's known-working
+# Windows install (which pins transformers<5 for coqui-tts compatibility).
+# Confirm exact working versions when this is actually built against a real
+# target instance.
+coqui-tts
+transformers<5
+formog2p
+torch
+scipy
+numpy
+huggingface_hub

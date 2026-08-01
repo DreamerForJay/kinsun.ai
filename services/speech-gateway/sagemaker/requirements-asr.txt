@@ -1,0 +1,19 @@
+# Main inference venv: nan/hak ASR (Taiwan-Tongues, TransformersASRAdapter)
+# + nan TTS (MMS-TTS, MmsTTSAdapter). Mirrors local_poc/requirements.txt's
+# main .venv310, trimmed to what these two inference entrypoints actually
+# import (no jiwer/gradio/datasets/peft/opencc/faster-whisper/boto3 -- those
+# are PoC evaluation/UI/zh-only tooling, unused here).
+#
+# torch has no version pinned here: the correct wheel (CPU vs a specific CUDA
+# build) depends on the SageMaker instance type actually deployed to, which
+# hasn't been chosen yet (see ../docs/sagemaker-endpoint-contract.md). Pin
+# this before a real build, matching whatever `ml.g5.*`/`ml.m5.*` decision
+# gets made.
+torch
+transformers>=4.44
+accelerate
+soundfile
+librosa
+huggingface_hub
+flask
+numpy
