@@ -10,9 +10,15 @@
 M0 Foundation。可執行的最小閉環：HTTP → contract 驗證 → Orchestrator → Companion Agent
 → Safety Evaluator → 回應。模型走 `MockModelProvider`，**不呼叫任何外部 LLM**。
 
-尚未實作（不要描述成已完成）：Event Extractor、Memory Candidate、Knowledge Retrieval
-Planner、Model Router、Prompt Registry、Agent Trace 持久化、OpenSearch、Neptune、
-Tool 執行引擎、Evaluation。
+目前只接通一條受控 Tool 路徑：request `allowed_tools` 明確包含
+`create_event_candidate`、Safety 為 `ALLOW` 且 deterministic Event Extractor 產生 Candidate
+時，Runtime 先向 Core 註冊正式 UUID AgentRun，再以同一 UUID 呼叫 Core Tool。這不是通用
+Tool loop；Runtime 不建立 service credential，只轉交呼叫端既有 Authorization，由 Core
+重新驗證所有正式 scope。
+
+尚未實作（不要描述成已完成）：Memory Candidate、Knowledge Retrieval Planner、Model Router、
+Prompt Registry、Agent Trace 終態持久化、OpenSearch、Neptune、通用 Tool 執行迴圈、
+Evaluation。
 
 ## 硬性規則
 
@@ -37,8 +43,9 @@ Tool 執行引擎、Evaluation。
   `ModelProvider` 介面與 `models/mock_provider.py`。接 Bedrock、OpenSearch、Neptune 時
   新增實作，不要把 SDK 呼叫散進 orchestration 或 agent 層。
 - Step／Tool 上限來自 `settings.py`：`MAX_AGENT_DECISIONS`、`MAX_TOOL_ROUNDS`、
-  `MAX_TOTAL_TOOLS`、`MAX_REWRITE`。後三個目前**已宣告但尚未有程式使用**（還沒有 Tool
-  執行），不要誤以為已經在管控。
+  `MAX_TOTAL_TOOLS`、`MAX_REWRITE`。目前 companion 仍只有單一模型決策；受控 Candidate
+  路徑會以 `MAX_TOOL_ROUNDS`／`MAX_TOTAL_TOOLS` 作 fail-closed gate 且最多呼叫一次 Tool。
+  `MAX_REWRITE` 尚未有程式使用，不要誤以為已實作 rewrite loop。
 
 ## 對外 API 慣例
 

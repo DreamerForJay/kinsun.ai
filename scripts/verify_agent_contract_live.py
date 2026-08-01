@@ -24,6 +24,7 @@ import httpx
 import yaml
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 
 # agent-runtime uses a src/ layout and is installed as `package = false`, so the
 # package is not importable from the service directory the way core-api's `app`
@@ -48,7 +49,10 @@ def registry() -> Registry:
     reg = Registry()
     for path in sorted((CONTRACTS / "schemas").rglob("*.json")):
         schema = json.loads(path.read_text(encoding="utf-8"))
-        reg = reg.with_resource(schema["$id"], Resource.from_contents(schema))
+        reg = reg.with_resource(
+            schema["$id"],
+            Resource.from_contents(schema, default_specification=DRAFT202012),
+        )
     return reg
 
 

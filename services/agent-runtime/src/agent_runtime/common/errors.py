@@ -10,4 +10,8 @@ class InvalidRequestError(DomainError):
 
 
 class StepLimitError(DomainError):
-    """Agent flow exceeded allowed step limit."""
+    """Agent flow exceeded an allowed decision or Tool limit."""
+
+
+class CoreDependencyError(DomainError):
+    """A required Core registration or Tool gate failed closed."""

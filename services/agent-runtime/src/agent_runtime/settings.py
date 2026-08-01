@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import AnyHttpUrl, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,9 @@ class Settings(BaseSettings):
     MAX_REWRITE: int = 1
     DEFAULT_LANGUAGE: str = "zh-TW"
     API_VERSION: str = "1.0.0"
+    AGENT_VERSION: str = "0.0.1"
+    CORE_API_BASE_URL: AnyHttpUrl | None = None
+    CORE_API_TIMEOUT_SECONDS: float = Field(default=5.0, gt=0, le=30)
 
     model_config = SettingsConfigDict(
         env_file=".env",

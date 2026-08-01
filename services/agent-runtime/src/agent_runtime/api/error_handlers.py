@@ -22,7 +22,12 @@ from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from agent_runtime.common.errors import DomainError, InvalidRequestError, StepLimitError
+from agent_runtime.common.errors import (
+    CoreDependencyError,
+    DomainError,
+    InvalidRequestError,
+    StepLimitError,
+)
 from agent_runtime.core.envelopes import ErrorBody, ErrorEnvelope, ValidationDetail
 from agent_runtime.middleware.correlation import get_correlation_id
 
@@ -31,11 +36,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Domain error -> HTTP status. Both current entries are 422: the request was
-# well-formed JSON but asked for something the runtime's limits forbid.
 EXCEPTION_MAP: dict[type[DomainError], int] = {
     InvalidRequestError: 422,
     StepLimitError: 422,
+    CoreDependencyError: 503,
 }
 
 _STATUS_CODE_SLUGS: dict[int, str] = {
@@ -48,6 +52,7 @@ _STATUS_CODE_SLUGS: dict[int, str] = {
 _REASON_CODE_BY_EXCEPTION: dict[type[DomainError], str] = {
     InvalidRequestError: "INVALID_AGENT_REQUEST",
     StepLimitError: "AGENT_STEP_LIMIT_EXCEEDED",
+    CoreDependencyError: "CORE_EXECUTION_UNAVAILABLE",
 }
 
 

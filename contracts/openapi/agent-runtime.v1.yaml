@@ -80,7 +80,22 @@ paths:
 
         `max_steps` is the caller's own ceiling. It must not exceed the server's
         `MAX_AGENT_DECISIONS`; asking for more is a 422, not a silent clamp.
-        M0 always spends exactly one step, so `data.step_count` is always 1.
+        The companion decision always spends exactly one model step.
+
+        When `allowed_tools` explicitly includes `create_event_candidate`, a
+        safety-allowed turn may run one deterministic extraction. Only if a
+        Candidate exists does the Runtime register a Core-owned AgentRun and
+        use that returned UUID in the allowlisted Core Tool request. The
+        caller's existing Authorization value is forwarded unchanged to Core;
+        the Runtime does not create credentials or trust actor/tenant fields in
+        the body. Missing Core configuration, rejected registration, or Tool
+        transport/protocol failure returns 503 and never falls back to a local
+        UUID for the write.
+
+        Tool execution additionally requires UUID-form `session_id` and
+        `elder_id`, plus a positive-integer string `consent_version`; Core
+        revalidates SYSTEM_SERVICE identity, tenant/elder/session/policy scope,
+        active consent, authorization, idempotency, and Tool allowlisting.
 
         The request body carries elder transcript. It is never echoed back in
         error responses and never written to general logs.
@@ -135,6 +150,23 @@ paths:
           $ref: "#/components/responses/ValidationFailed"
         "500":
           $ref: "#/components/responses/InternalError"
+        "503":
+          description: |
+            A requested Candidate write could not safely register its Core
+            AgentRun or complete the Core Tool gate. No write is attempted with
+            a locally generated run ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelopeV1"
+              example:
+                error:
+                  code: service_unavailable
+                  message: Core Tool execution is unavailable
+                  correlation_id: 4d9f2a71-6c38-4e5b-9a02-1f7d3e8c5b64
+                  reason_code: CORE_EXECUTION_UNAVAILABLE
+                  retryable: true
+                  details: null
 
 components:
   parameters:

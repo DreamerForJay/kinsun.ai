@@ -18,14 +18,19 @@ def build_provider():
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Eldercare Agent Runtime", version=get_settings().API_VERSION)
+    settings = get_settings()
+    app = FastAPI(title="Eldercare Agent Runtime", version=settings.API_VERSION)
     app.add_middleware(CorrelationIdMiddleware)
     register_exception_handlers(app)
     app.include_router(health_router)
     app.include_router(agent_runs_router)
     app.state.provider = build_provider()
     app.state.orchestrator = AgentOrchestrator(
-        provider=app.state.provider, max_steps=get_settings().MAX_AGENT_DECISIONS
+        provider=app.state.provider,
+        max_steps=settings.MAX_AGENT_DECISIONS,
+        agent_version=settings.AGENT_VERSION,
+        max_tool_rounds=settings.MAX_TOOL_ROUNDS,
+        max_total_tools=settings.MAX_TOTAL_TOOLS,
     )
     return app
 
