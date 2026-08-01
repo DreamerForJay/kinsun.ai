@@ -22,31 +22,33 @@ import {
   type MemoryView,
 } from '@/lib/api/memories';
 import { listSummaries, type SummaryView } from '@/lib/api/summaries';
+import { useLocale } from '@/lib/i18n/locale-context';
+import type { MessageKey } from '@/lib/i18n/messages';
 import { getRuntimeConfig, type RuntimeConfig } from '@/lib/runtime-config';
 
 type Tab = 'events' | 'memories' | 'summaries';
 
-const SUMMARY_STATUS_LABEL: Record<SummaryView['status'], string> = {
-  DRAFT: '草稿',
-  READY: '可供覆核',
-  NEEDS_REVIEW: '待覆核',
-  PUBLISHED: '已發布',
-  STALE: '需重建',
-  WITHDRAWN: '已撤回',
+const TAB_LABEL: Record<Tab, MessageKey> = {
+  events: 'elderDetail.tabEvents',
+  memories: 'elderDetail.tabMemories',
+  summaries: 'elderDetail.tabSummaries',
 };
 
-function describeError(error: unknown, fallback: string): string {
+/** Returns a key rather than a string so a stored error re-renders in the
+ *  language selected *now*, not the one active when it was raised. */
+function describeError(error: unknown, fallback: MessageKey): MessageKey {
   if (error instanceof ApiRequestError && (error.status === 403 || error.status === 404)) {
-    return '目前身分沒有查看或操作這位長者資料的權限。';
+    return 'error.noElderDataPermission';
   }
   if (error instanceof ApiRequestError && error.status === 409) {
-    return '資料版本已更新，請重新載入後再操作。';
+    return 'error.versionConflict';
   }
   return fallback;
 }
 
 export default function ElderDetailPage({ params }: { params: { elderId: string } }) {
   const { elderId } = params;
+  const { t, locale } = useLocale();
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig | null>(null);
   const apiConfig = useMemo(
     () => ({ apiBaseUrl: runtimeConfig?.apiBaseUrl ?? '/backend/core' }),
@@ -57,7 +59,7 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
   const [eventFilters, setEventFilters] = useState<ListEventsFilters>({});
   const [memories, setMemories] = useState<MemoryListView>({ candidates: [], confirmed: [] });
   const [summaries, setSummaries] = useState<SummaryView[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,24 +72,24 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
   }, []);
 
   const loadEvents = useCallback(() => {
-    setError(null);
+    setErrorKey(null);
     listEvents(apiConfig, elderId, eventFilters)
       .then((response) => setEvents(response.items))
-      .catch((caught) => setError(describeError(caught, '讀取事件失敗')));
+      .catch((caught) => setErrorKey(describeError(caught, 'error.loadEventsFailed')));
   }, [apiConfig, elderId, eventFilters]);
 
   const loadMemories = useCallback(() => {
-    setError(null);
+    setErrorKey(null);
     listMemories(apiConfig, elderId)
       .then(setMemories)
-      .catch((caught) => setError(describeError(caught, '讀取記憶失敗')));
+      .catch((caught) => setErrorKey(describeError(caught, 'error.loadMemoriesFailed')));
   }, [apiConfig, elderId]);
 
   const loadSummaries = useCallback(() => {
-    setError(null);
+    setErrorKey(null);
     listSummaries(apiConfig, elderId)
       .then((response) => setSummaries(response.items))
-      .catch((caught) => setError(describeError(caught, '讀取摘要失敗')));
+      .catch((caught) => setErrorKey(describeError(caught, 'error.loadSummariesFailed')));
   }, [apiConfig, elderId]);
 
   useEffect(() => {
@@ -99,10 +101,10 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
 
   if (!runtimeConfig) return null;
   if (runtimeConfig.credentialStatus === 'unavailable') {
-    return <NotLoggedIn reason="無法確認登入憑證狀態；系統已停止，不會略過認證" />;
+    return <NotLoggedIn reason={t('auth.credentialUnavailable')} linkLabel={t('common.signIn')} />;
   }
   if (runtimeConfig.credentialStatus !== 'present') {
-    return <NotLoggedIn reason="尚未設定登入資訊，請先完成登入設定" />;
+    return <NotLoggedIn reason={t('auth.credentialMissing')} linkLabel={t('common.signIn')} />;
   }
 
   async function handleReviewEvent(
@@ -114,7 +116,7 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
       await reviewEvent(apiConfig, elderId, event, decision, correctedContent);
       loadEvents();
     } catch (caught) {
-      setError(describeError(caught, '覆核事件失敗'));
+      setErrorKey(describeError(caught, 'error.reviewEventFailed'));
       throw caught;
     }
   }
@@ -134,9 +136,11 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
     loadMemories();
   }
 
+  const listSeparator = locale === 'en' ? ', ' : '、';
+
   return (
     <main style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
-      <h1 style={{ fontSize: 22, marginBottom: 4 }}>長者詳情</h1>
+      <h1 style={{ fontSize: 22, marginBottom: 4 }}>{t('elderDetail.title')}</h1>
       <p style={{ color: '#718096', marginBottom: 20 }}>Elder ID: {elderId}</p>
 
       <div
@@ -152,6 +156,7 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
             key={item}
             type="button"
             onClick={() => setTab(item)}
+            aria-pressed={tab === item}
             style={{
               padding: '8px 16px',
               border: 'none',
@@ -161,12 +166,12 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
               cursor: 'pointer',
             }}
           >
-            {item === 'events' ? '照護事件' : item === 'memories' ? '記憶管理' : '每日摘要'}
+            {t(TAB_LABEL[item])}
           </button>
         ))}
       </div>
 
-      {error && <p style={{ color: '#e53e3e' }}>{error}</p>}
+      {errorKey && <p style={{ color: '#e53e3e' }}>{t(errorKey)}</p>}
 
       {tab === 'events' && (
         <>
@@ -187,10 +192,10 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
 
       {tab === 'summaries' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p style={{ color: '#718096' }}>
-            Core API 目前僅提供摘要讀取；摘要發布與家屬報表是不同的正式流程。
-          </p>
-          {summaries.length === 0 && <p style={{ color: '#718096' }}>目前沒有正式摘要。</p>}
+          <p style={{ color: '#718096' }}>{t('elderDetail.summaryNotice')}</p>
+          {summaries.length === 0 && (
+            <p style={{ color: '#718096' }}>{t('elderDetail.summaryEmpty')}</p>
+          )}
           {summaries.map((summary) => (
             <section
               key={summary.summaryId}
@@ -198,22 +203,29 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <strong>{summary.date}</strong>
-                <span>{SUMMARY_STATUS_LABEL[summary.status]}</span>
-                <span style={{ fontSize: 12, color: '#718096' }}>版本 {summary.version}</span>
+                <span>{t(`summaryStatus.${summary.status}` as MessageKey)}</span>
+                <span style={{ fontSize: 12, color: '#718096' }}>
+                  {t('common.version', { version: summary.version })}
+                </span>
               </div>
               {summary.items.length === 0 ? (
-                <p style={{ color: '#718096' }}>沒有可顯示的來源支持項目。</p>
+                <p style={{ color: '#718096' }}>{t('elderDetail.summaryNoItems')}</p>
               ) : (
                 <ul>
                   {summary.items.map((item, index) => (
                     <li key={`${item.category}-${index}`}>
-                      [{item.category}] {item.text}（來源 {item.sourceEventIds.length} 筆）
+                      [{item.category}] {item.text}
+                      {t('common.sources', { count: item.sourceEventIds.length })}
                     </li>
                   ))}
                 </ul>
               )}
               {summary.missingFields.length > 0 && (
-                <p style={{ color: '#718096' }}>資料缺口：{summary.missingFields.join('、')}</p>
+                <p style={{ color: '#718096' }}>
+                  {t('elderDetail.dataGaps', {
+                    fields: summary.missingFields.join(listSeparator),
+                  })}
+                </p>
               )}
             </section>
           ))}

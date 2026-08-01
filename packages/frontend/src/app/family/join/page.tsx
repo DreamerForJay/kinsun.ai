@@ -1,13 +1,17 @@
+'use client';
+
+import { useLocale } from '@/lib/i18n/locale-context';
+
 export default function FamilyJoinPage() {
+  const { t } = useLocale();
+
   return (
     <main style={{ margin: '0 auto', maxWidth: 560, padding: 24 }}>
-      <h1 style={{ fontSize: 28 }}>家屬服務</h1>
-      <p style={{ color: '#4a5568', lineHeight: 1.7 }}>
-        請輸入服務單位提供的邀請碼。系統會先用 Google 確認您的身分，再確認您可查看的報表範圍。
-      </p>
-      <p style={{ color: '#4a5568', lineHeight: 1.7 }}>
-        邀請碼不會直接提供資料存取權；邀請核銷會在受保護的伺服器流程中完成。
-      </p>
+      <h1 style={{ fontSize: 28 }}>{t('join.title')}</h1>
+      <p style={{ color: '#4a5568', lineHeight: 1.7 }}>{t('join.intro')}</p>
+      <p style={{ color: '#4a5568', lineHeight: 1.7 }}>{t('join.note')}</p>
+      {/* Native form post to the BFF: redemption stays server-side, so this page
+          needs no JavaScript to work beyond the language switch. */}
       <form action="/backend/auth/login" method="post" style={{ marginTop: 20 }}>
         <input name="intent" type="hidden" value="FAMILY" />
         <input name="returnTo" type="hidden" value="/onboarding/resolve" />
@@ -15,7 +19,7 @@ export default function FamilyJoinPage() {
           htmlFor="invitationCode"
           style={{ display: 'block', fontWeight: 700, marginBottom: 8 }}
         >
-          家屬邀請碼
+          {t('join.codeLabel')}
         </label>
         <input
           autoComplete="one-time-code"
@@ -36,13 +40,13 @@ export default function FamilyJoinPage() {
           }}
           type="submit"
         >
-          使用 Google 繼續
+          {t('common.continueWithGoogle')}
         </button>
       </form>
       <p style={{ marginTop: 24 }}>
-        已完成綁定？ <a href="/family/sign-in">前往家屬登入</a>
+        {t('join.alreadyBound')} <a href="/family/sign-in">{t('join.toFamilySignIn')}</a>
       </p>
-      <a href="/sign-in">返回選擇服務</a>
+      <a href="/sign-in">{t('join.backToChooser')}</a>
     </main>
   );
 }
