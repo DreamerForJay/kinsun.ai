@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from agent_runtime.contracts.models import AgentRunRequest, ContextItem, ContextManifest
 
 
@@ -19,9 +21,13 @@ def build_context_items(request: AgentRunRequest) -> list[ContextItem]:
 
 
 def build_context_manifest(
-    request: AgentRunRequest, agent_id: str, *, item_limit: int = 1
+    request: AgentRunRequest,
+    agent_id: str,
+    *,
+    item_limit: int = 1,
+    additional_items: Sequence[ContextItem] = (),
 ) -> ContextManifest:
-    items = build_context_items(request)[:item_limit]
+    items = [*build_context_items(request)[:item_limit], *additional_items]
     total = sum(item.token_estimate for item in items)
     return ContextManifest(
         agent_id=agent_id,

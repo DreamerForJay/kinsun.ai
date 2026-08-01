@@ -1,0 +1,23 @@
+{
+  "data": {
+    "schema_version": "1.0.0",
+    "chunk_id": "moj_ltc_article_001",
+    "source_id": "moj_long_term_care_services_act",
+    "text": "為健全長期照顧服務體系，特制定本法。",
+    "embedding_text": "長期照顧服務法｜第1條｜為健全長期照顧服務體系，特制定本法。",
+    "text_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "embedding_text_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "metadata": {
+      "document_name": "長期照顧服務法",
+      "section": "第一章 總則",
+      "page_start": 1,
+      "page_end": 1,
+      "source_url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0070040",
+      "current_status": "current",
+      "stop_normal_rag": false,
+      "risk_level": "low",
+      "requires_human_review": false
+    }
+  }
+}
+

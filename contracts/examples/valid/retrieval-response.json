@@ -1,0 +1,41 @@
+{
+  "data": {
+    "schema_version": "1.0.0",
+    "request_id": "rag-request-001",
+    "status": "SUCCESS",
+    "fallback_message": null,
+    "results": [
+      {
+        "chunk_id": "moj_ltc_article_003",
+        "text": "家庭照顧者指於家庭中對失能者提供規律性照顧之主要親屬或家人。",
+        "score": 0.97,
+        "document_name": "長期照顧服務法",
+        "section": "第一章 總則第3條",
+        "page_start": 1,
+        "page_end": 1,
+        "source_url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0070040"
+      },
+      {
+        "chunk_id": "moj_ltc_article_001",
+        "text": "本法旨在健全長期照顧服務體系。",
+        "score": 0.82,
+        "document_name": "長期照顧服務法",
+        "section": "第一章 總則第1條",
+        "page_start": 1,
+        "page_end": 1,
+        "source_url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0070040"
+      },
+      {
+        "chunk_id": "moj_ltc_article_002",
+        "text": "中央主管機關為衛生福利部。",
+        "score": 0.71,
+        "document_name": "長期照顧服務法",
+        "section": "第一章 總則第2條",
+        "page_start": 1,
+        "page_end": 1,
+        "source_url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=L0070040"
+      }
+    ]
+  }
+}
+

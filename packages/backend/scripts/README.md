@@ -30,9 +30,6 @@ DYNAMODB_TABLE_NAME=elderly-care-main-<env> npm run seed:demo --workspace=@elder
 ```
 
 Requires AWS credentials with write access to the target table (the same
-credentials `cdk deploy` would use). This only seeds DynamoDB — to also
-populate the health-knowledge search index for the RAG demo beat, run the
-knowledge-etl pipeline (`packages/backend/src/knowledge-etl`) separately
-once OpenSearch Serverless is deployed, since ingestion requires a live
-OpenSearch endpoint and Bedrock embedding access this script doesn't
-assume.
+credentials `cdk deploy` would use). This only seeds DynamoDB. The historical
+TypeScript knowledge-ETL path is deprecated; staging RAG ingestion is owned by
+`services/rag-ingestion/` and the commands under `scripts/rag/`.

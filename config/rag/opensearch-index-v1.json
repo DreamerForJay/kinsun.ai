@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "mode": "staging",
+  "index": {
+    "name": "ltc-public-knowledge-staging-v1",
+    "name_env": "OPENSEARCH_INDEX",
+    "alias": "ltc-public-knowledge-staging",
+    "alias_env": "OPENSEARCH_ALIAS"
+  },
+  "settings": {
+    "index": {
+      "knn": true
+    }
+  },
+  "mappings": {
+    "dynamic": false,
+    "properties": {
+      "chunk_id": { "type": "keyword" },
+      "source_id": { "type": "keyword" },
+      "document_name": {
+        "type": "text",
+        "fields": { "keyword": { "type": "keyword", "ignore_above": 512 } }
+      },
+      "section": {
+        "type": "text",
+        "fields": { "keyword": { "type": "keyword", "ignore_above": 512 } }
+      },
+      "page_start": { "type": "integer" },
+      "page_end": { "type": "integer" },
+      "source_url": { "type": "keyword", "ignore_above": 2048 },
+      "source_locator": { "type": "text" },
+      "text": { "type": "text" },
+      "embedding_text": { "type": "text", "index": false },
+      "embedding": {
+        "type": "knn_vector",
+        "dimension": 1024,
+        "space_type": "cosinesimil",
+        "method": {
+          "name": "hnsw"
+        }
+      },
+      "current_status": { "type": "keyword" },
+      "stop_normal_rag": { "type": "boolean" },
+      "risk_level": { "type": "keyword" },
+      "requires_human_review": { "type": "boolean" },
+      "allowed_audiences": { "type": "keyword" },
+      "allowed_purposes": { "type": "keyword" },
+      "source_version": { "type": "keyword" },
+      "last_verified_at": { "type": "date", "ignore_malformed": true }
+    }
+  }
+}

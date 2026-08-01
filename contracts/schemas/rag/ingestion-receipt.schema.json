@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/rag/ingestion-receipt.schema.json",
+  "title": "IngestionReceiptV1",
+  "description": "Audit receipt for a staging ingestion. It contains counts and hashes, never embedding vectors or source text.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "mode",
+    "status",
+    "started_at",
+    "completed_at",
+    "allowlist_path",
+    "allowlist_sha256",
+    "chunks_dir",
+    "source_count",
+    "allowlist_chunk_count",
+    "validated_chunk_count",
+    "embedding_model_id",
+    "embedding_dimension",
+    "embedding_success_count",
+    "embedding_failure_count",
+    "index_name",
+    "index_alias",
+    "indexed_document_count",
+    "duplicate_id_count",
+    "governance",
+    "errors"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0.0" },
+    "run_id": { "type": "string", "format": "uuid" },
+    "mode": { "type": "string", "const": "staging" },
+    "status": {
+      "type": "string",
+      "enum": [
+        "VALIDATED",
+        "VERIFIED_PENDING_ALIAS",
+        "COMPLETED",
+        "BLOCKED",
+        "FAILED"
+      ]
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": ["string", "null"], "format": "date-time" },
+    "allowlist_path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "allowlist_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "chunks_dir": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "source_count": { "type": "integer", "minimum": 0 },
+    "allowlist_chunk_count": { "type": "integer", "minimum": 0 },
+    "validated_chunk_count": { "type": "integer", "minimum": 0 },
+    "embedding_model_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "embedding_dimension": { "type": "integer", "const": 1024 },
+    "embedding_success_count": { "type": "integer", "minimum": 0 },
+    "embedding_failure_count": { "type": "integer", "minimum": 0 },
+    "index_name": { "type": "string", "pattern": "staging", "maxLength": 255 },
+    "index_alias": { "type": "string", "pattern": "staging", "maxLength": 255 },
+    "indexed_document_count": { "type": "integer", "minimum": 0 },
+    "duplicate_id_count": { "type": "integer", "minimum": 0 },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "governance_status",
+        "production_approved",
+        "allowlist_status",
+        "project_owner_risk_acceptance",
+        "human_source_review",
+        "production_status"
+      ],
+      "properties": {
+        "governance_status": {
+          "type": "string",
+          "enum": [
+            "UNSIGNED_DEVELOPMENT_OVERRIDE",
+            "SIGNED_ALLOWLIST",
+            "BLOCKED"
+          ]
+        },
+        "production_approved": { "type": "boolean", "const": false },
+        "allowlist_status": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "project_owner_risk_acceptance": { "type": "string", "maxLength": 80 },
+        "human_source_review": { "type": "string", "maxLength": 80 },
+        "production_status": { "type": "string", "maxLength": 80 }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+    }
+  }
+}

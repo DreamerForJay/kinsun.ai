@@ -15,6 +15,7 @@ import { VoiceWorkflow } from './constructs/voice-workflow';
 
 export interface ElderlyCareStackProps extends cdk.StackProps {
   envName: string;
+  agentRuntimeBaseUrl?: string;
 }
 
 export class ElderlyCareStack extends cdk.Stack {
@@ -87,6 +88,9 @@ export class ElderlyCareStack extends cdk.Stack {
     const publishSummaryFn = makeApiFn('PublishSummaryFn', apiSrc('summary-publish.ts'), 'handler');
     const withdrawSummaryFn = makeApiFn('WithdrawSummaryFn', apiSrc('summary-withdraw.ts'), 'handler');
     const searchHealthFn = makeApiFn('SearchHealthFn', apiSrc('search.ts'), 'handler');
+    if (props.agentRuntimeBaseUrl) {
+      searchHealthFn.addEnvironment('AGENT_RUNTIME_BASE_URL', props.agentRuntimeBaseUrl);
+    }
     const dashboardFn = makeApiFn('CaregiverDashboardFn', apiSrc('dashboard.ts'), 'handler');
     const getPersonaFn = makeApiFn('GetPersonaFn', apiSrc('persona.ts'), 'getPersonaHandler');
     const updatePersonaFn = makeApiFn('UpdatePersonaFn', apiSrc('persona.ts'), 'handler');
@@ -94,12 +98,8 @@ export class ElderlyCareStack extends cdk.Stack {
     const revokeConsentFn = makeApiFn('RevokeConsentFn', apiSrc('consent.ts'), 'revokeHandler');
     const reportsFn = makeApiFn('ReportsFn', apiSrc('reports.ts'), 'handler');
 
-    // Bedrock (LLM + embeddings + guardrails) is only invoked from the
-    // search path today; grant broadly since model/guardrail ARNs vary by
-    // account and aren't known at synth time for a demo deployment.
-    searchHealthFn.addToRolePolicy(
-      new iam.PolicyStatement({ actions: ['bedrock:InvokeModel', 'bedrock:Converse'], resources: ['*'] }),
-    );
+    // SearchHealthFn is now only an authenticated edge client for
+    // agent-runtime. It deliberately has no direct Bedrock/OpenSearch grant.
 
     // --- Voice-interaction Step Functions workflow (task 25) ----------------
     const voiceWorkflow = new VoiceWorkflow(this, 'VoiceWorkflow', {

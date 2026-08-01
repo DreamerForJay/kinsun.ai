@@ -1,0 +1,53 @@
+{
+  "$id": "https://kinsun.ai/contracts/schemas/domain/RegisterAgentRunRequestV1.json",
+  "title": "RegisterAgentRunRequestV1",
+  "description": "Trusted runtime metadata for creating a Core-owned AgentRun. Actor and tenant identity are derived from authentication and are not accepted in this body.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_id",
+    "elder_id",
+    "agent_id",
+    "agent_version",
+    "policy_version",
+    "trace_id"
+  ],
+  "properties": {
+    "session_id": {
+      "description": "Core conversation session UUID, or null for an explicitly sessionless background run.",
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "elder_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "agent_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "agent_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "policy_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "trace_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    }
+  }
+}

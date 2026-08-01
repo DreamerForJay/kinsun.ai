@@ -15,6 +15,7 @@ from agent_runtime.contracts.models import (
     HandoffEnvelope,
     SafetyEvaluation,
 )
+from agent_runtime.rag.models import RetrievalRequestV1, RetrievalResponseV1
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SCHEMA_DIR = REPO_ROOT / "contracts" / "schemas"
@@ -96,6 +97,29 @@ def test_valid_examples_pass_pydantic_models(example_name, model):
 
 
 @pytest.mark.parametrize(
+    ("example_name", "model"),
+    [
+        ("retrieval-request.json", RetrievalRequestV1),
+        ("retrieval-response.json", RetrievalResponseV1),
+    ],
+)
+def test_valid_rag_examples_pass_pydantic_models(example_name, model):
+    model.model_validate(load_example(EXAMPLE_DIR / "valid" / example_name))
+
+
+@pytest.mark.parametrize(
+    ("example_name", "model"),
+    [
+        ("retrieval-request-top-k-ten.json", RetrievalRequestV1),
+        ("retrieval-response-missing-source-url.json", RetrievalResponseV1),
+    ],
+)
+def test_invalid_rag_examples_are_rejected_by_pydantic(example_name, model):
+    with pytest.raises(PydanticValidationError):
+        model.model_validate(load_example(EXAMPLE_DIR / "invalid" / example_name))
+
+
+@pytest.mark.parametrize(
     "example_name",
     ["agent-run-request-extra-field.json", "agent-run-request-missing-required.json"],
 )
@@ -167,6 +191,8 @@ def test_handoff_envelope_model_output_matches_schema():
         (ContextManifest, "agent/ContextManifestV1.json"),
         (SafetyEvaluation, "agent/SafetyEvaluationV1.json"),
         (HandoffEnvelope, "agent/HandoffEnvelopeV1.json"),
+        (RetrievalRequestV1, "rag/retrieval-request.schema.json"),
+        (RetrievalResponseV1, "rag/retrieval-response.schema.json"),
     ],
 )
 def test_model_fields_match_schema_properties(model, schema_name):

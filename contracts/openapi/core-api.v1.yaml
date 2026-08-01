@@ -3250,6 +3250,74 @@
         ]
       }
     },
+    "/api/v1/internal/agent-runs": {
+      "post": {
+        "tags": [
+          "agent-runs"
+        ],
+        "summary": "Register Agent Run",
+        "description": "Create a Core-owned UUID AgentRun row before Tool execution. Requires an active SYSTEM_SERVICE identity with agent_run:create scope. Tenant and actor identity come only from authentication; a supplied session must belong to the same tenant and elder and carry the requested policy snapshot.",
+        "operationId": "register_agent_run_api_v1_internal_agent_runs_post",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "../schemas/domain/RegisterAgentRunRequestV1.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "AgentRun registered, or the original registration replayed for the same idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "../schemas/common/AgentRunRegistrationEnvelopeV1.json"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundOrForbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/internal/tools/execute": {
       "post": {
         "tags": [

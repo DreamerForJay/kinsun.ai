@@ -11,24 +11,31 @@
 
 | 元件 | 狀態 |
 | --- | --- |
-| Conversation Orchestrator | 骨架（單輪） |
+| Conversation Orchestrator | 第一版（單輪＋顯式 purpose RAG gate） |
 | Companion Agent | 骨架（Mock Provider） |
 | Safety Evaluator | 骨架（deterministic 規則） |
-| Context Builder | 骨架 |
+| Context Builder | 第一版（3～5 個限長且帶引用的 RAG context） |
 | Context Manifest | 骨架 |
 | Agent Trace | 只有 ID 產生器 |
 | Event Extractor Agent | 未開始 |
 | Memory Candidate Agent | 未開始 |
-| Knowledge Retrieval Planner | 未開始 |
+| Knowledge Retrieval Planner | 第一版（受控 request → staging hybrid plan） |
 | Model Router | 未開始 |
 | Prompt Registry | 未開始 |
-| OpenSearch Retrieval | 未開始 |
+| OpenSearch Retrieval | 第一版 staging adapter／contract；AWS staging 實跑尚未完成 |
 | Neptune Graph Projection | 未開始 |
 | Agent／RAG／Graph Evaluation | 未開始（`evals/` 尚無內容） |
 
 程式在 [`services/agent-runtime/`](../../services/agent-runtime/)，
 契約在 [`contracts/schemas/agent/`](../../contracts/schemas/agent/) 與
 [`contracts/schemas/tools/`](../../contracts/schemas/tools/)。
+
+Staging 的治理例外僅限明確設定 `RAG_REQUIRE_OWNER_SIGNATURE=false` 的 unsigned development
+override。它不會關閉外部 `RAG_ALLOWLIST_EXPECTED_SHA256` 比對，也不會略過來源、Chunk、
+數量或完整 Allowlist 驗證；receipt／log 必須標示
+`governance_status=UNSIGNED_DEVELOPMENT_OVERRIDE`、`production_approved=false`。Production
+仍須正式簽署 Allowlist，並明確設定 `RAG_PRODUCTION_ENABLED=true`。目前 Human Review 與
+AWS deployment／staging 實跑都尚未完成。
 
 ## 允許的操作
 
@@ -69,7 +76,7 @@
 | --- | --- | --- | --- |
 | SP-02 | AgentCore Runtime＋Gateway：最小 Agent Run、Tool Call、Trace、部署方式 | 4h | 部分——有最小 Agent Run 與 trace id；**無 Tool Call、無部署方式** |
 | SP-05 | Neptune Projection／Fallback：關係圖、刪除／停用、Aurora 降級 | 4h | 未開始 |
-| SP-06 | OpenSearch Hybrid Retrieval：Keyword、Vector、Metadata Filter 三組查詢 | 4h | 未開始 |
+| SP-06 | OpenSearch Hybrid Retrieval：Keyword、Vector、Metadata Filter 三組查詢 | 4h | Adapt——程式與測試完成；尚待符合上述 staging 治理 gate、AWS Region／Host／權限做實測 |
 
 Spike 結束必須決定 Adopt、Adapt、Mock with replacement date 或 Drop。
 

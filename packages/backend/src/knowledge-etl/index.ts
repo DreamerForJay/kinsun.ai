@@ -1,5 +1,2 @@
-export * from './manifest.js';
-export * from './chunking.js';
-export * from './metadata.js';
-export * from './index-writer.js';
-export * from './pipeline.js';
+/** @deprecated Staging ingestion is owned by services/rag-ingestion. */
+export {};

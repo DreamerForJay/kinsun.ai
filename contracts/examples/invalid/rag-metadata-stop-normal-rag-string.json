@@ -1,0 +1,14 @@
+{
+  "_why_invalid": "stop_normal_rag must be a boolean so high-risk content cannot bypass filtering.",
+  "data": {
+    "document_name": "Unsafe fixture",
+    "section": "Synthetic section",
+    "page_start": 1,
+    "page_end": 1,
+    "source_url": "https://example.invalid/source",
+    "current_status": "current",
+    "stop_normal_rag": "false",
+    "risk_level": "high",
+    "requires_human_review": true
+  }
+}

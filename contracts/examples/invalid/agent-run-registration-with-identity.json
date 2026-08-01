@@ -1,0 +1,13 @@
+{
+  "_why_invalid": "Actor and tenant identity must come from authenticated ActorContext. The strict registration request rejects caller-supplied identity fields.",
+  "data": {
+    "session_id": "90000000-0000-4000-8000-000000000001",
+    "elder_id": "30000000-0000-4000-8000-000000000001",
+    "agent_id": "event-extractor",
+    "agent_version": "1.0.0",
+    "policy_version": "demo-consent-v1",
+    "trace_id": "trace-5f07cf3d-6d86-46a6-80cf-2e8ab71ee903",
+    "actor_id": "20000000-0000-4000-8000-000000000001",
+    "tenant_id": "10000000-0000-4000-8000-000000000001"
+  }
+}

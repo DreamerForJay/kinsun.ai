@@ -1,0 +1,23 @@
+{
+  "_why_invalid": "An allowlisted chunk without embedding_text must fail before any partial ingestion.",
+  "data": {
+    "schema_version": "1.0.0",
+    "chunk_id": "missing_embedding_001",
+    "source_id": "source_001",
+    "text": "Text exists but embedding_text is missing.",
+    "text_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "embedding_text_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "metadata": {
+      "document_name": "Fixture",
+      "section": null,
+      "page_start": null,
+      "page_end": null,
+      "source_url": "https://example.invalid/source",
+      "current_status": "current",
+      "stop_normal_rag": false,
+      "risk_level": "low",
+      "requires_human_review": false
+    }
+  }
+}
+

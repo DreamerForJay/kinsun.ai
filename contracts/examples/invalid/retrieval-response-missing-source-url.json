@@ -1,0 +1,40 @@
+{
+  "_why_invalid": "Every answer chunk must carry a source URL for citation.",
+  "data": {
+    "schema_version": "1.0.0",
+    "request_id": "rag-request-003",
+    "status": "SUCCESS",
+    "fallback_message": null,
+    "results": [
+      {
+        "chunk_id": "chunk-001",
+        "text": "Uncited result",
+        "score": 0.9,
+        "document_name": "Fixture",
+        "section": "Synthetic section",
+        "page_start": 1,
+        "page_end": 1
+      },
+      {
+        "chunk_id": "chunk-002",
+        "text": "Cited control result",
+        "score": 0.8,
+        "document_name": "Fixture",
+        "section": "Synthetic section",
+        "page_start": 2,
+        "page_end": 2,
+        "source_url": "https://example.invalid/source/2"
+      },
+      {
+        "chunk_id": "chunk-003",
+        "text": "Cited control result",
+        "score": 0.7,
+        "document_name": "Fixture",
+        "section": "Synthetic section",
+        "page_start": 3,
+        "page_end": 3,
+        "source_url": "https://example.invalid/source/3"
+      }
+    ]
+  }
+}

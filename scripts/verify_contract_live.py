@@ -18,6 +18,7 @@ import httpx
 import yaml
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "services" / "core-api"))
@@ -39,7 +40,10 @@ def registry() -> Registry:
     reg = Registry()
     for path in sorted((CONTRACTS / "schemas").rglob("*.json")):
         schema = json.loads(path.read_text(encoding="utf-8"))
-        reg = reg.with_resource(schema["$id"], Resource.from_contents(schema))
+        reg = reg.with_resource(
+            schema["$id"],
+            Resource.from_contents(schema, default_specification=DRAFT202012),
+        )
     return reg
 
 
@@ -152,6 +156,35 @@ async def main() -> int:
             print("ok    POST companion turn fails closed with 401")
         check(
             "POST companion turn 401 body vs ErrorEnvelopeV1",
+            response.json(),
+            load("common/ErrorEnvelopeV1.json"),
+        )
+
+        response = await client.post(
+            "/api/v1/internal/agent-runs",
+            headers={"Idempotency-Key": "live-contract-agent-run"},
+            json={
+                "session_id": None,
+                "elder_id": "2a6f9c31-8e47-4b52-9d10-3c8a7e5b1a40",
+                "agent_id": "event-extractor",
+                "agent_version": "1.0.0",
+                "policy_version": "live-contract-v1",
+                "trace_id": "trace-live-contract-agent-run",
+            },
+        )
+        if response.status_code != 401:
+            failures.append(
+                "POST /api/v1/internal/agent-runs returned "
+                f"{response.status_code}, expected 401"
+            )
+            print(
+                "FAIL  POST /api/v1/internal/agent-runs fails closed: "
+                f"{response.status_code}"
+            )
+        else:
+            print("ok    POST /api/v1/internal/agent-runs fails closed with 401")
+        check(
+            "POST /api/v1/internal/agent-runs 401 body vs ErrorEnvelopeV1",
             response.json(),
             load("common/ErrorEnvelopeV1.json"),
         )

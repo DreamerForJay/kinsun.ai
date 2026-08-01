@@ -24,6 +24,7 @@ import httpx
 import yaml
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 
 # agent-runtime uses a src/ layout and is installed as `package = false`, so the
 # package is not importable from the service directory the way core-api's `app`
@@ -40,6 +41,7 @@ OPENAPI = yaml.safe_load(
 )
 
 RUNS_PATH = "/api/v1/agent/runs"
+RAG_PATH = "/api/v1/rag/retrievals"
 
 failures: list[str] = []
 
@@ -48,7 +50,10 @@ def registry() -> Registry:
     reg = Registry()
     for path in sorted((CONTRACTS / "schemas").rglob("*.json")):
         schema = json.loads(path.read_text(encoding="utf-8"))
-        reg = reg.with_resource(schema["$id"], Resource.from_contents(schema))
+        reg = reg.with_resource(
+            schema["$id"],
+            Resource.from_contents(schema, default_specification=DRAFT202012),
+        )
     return reg
 
 
@@ -133,8 +138,26 @@ def make_payload(**overrides) -> dict:
     return payload
 
 
+def make_rag_payload(**overrides) -> dict:
+    """Synthetic staging retrieval request with no elder or tenant data."""
+    payload = {
+        "schema_version": "1.0.0",
+        "request_id": "req-rag-live-001",
+        "query": "居家服務的申請條件是什麼？",
+        "query_profile": "natural_language",
+        "top_k": 5,
+        "language": "zh-TW",
+    }
+    payload.update(overrides)
+    return payload
+
+
 async def main() -> int:
     app = create_app()
+    # Make this contract check deterministic and network-free even when the
+    # caller's shell happens to contain AWS/OpenSearch environment variables.
+    # The executable boundary must be safe when no retrieval adapter exists.
+    app.state.rag_retriever = None
     transport = httpx.ASGITransport(app=app)
 
     async with (
@@ -147,6 +170,71 @@ async def main() -> int:
             response.json(),
             inline_schema("/health", "get", "200"),
         )
+
+        # Staging RAG remains callable without AWS/OpenSearch. It must return a
+        # schema-valid, explicit fail-closed outcome with no partial chunks and
+        # must never copy the query into the fallback response.
+        private_query = "合成查詢-不得回填-9f6c2b1a"
+        response = await client.post(
+            RAG_PATH,
+            json=make_rag_payload(query=private_query),
+        )
+        if expect_status(f"POST {RAG_PATH} unconfigured returns 200", response.status_code, 200):
+            body = response.json()
+            check(
+                f"POST {RAG_PATH} unconfigured body vs contract",
+                body,
+                inline_schema(RAG_PATH, "post", "200"),
+            )
+            rag_data = body.get("data", {})
+            if rag_data.get("status") != "FAILED":
+                failures.append(
+                    f"unconfigured RAG reported status={rag_data.get('status')}, expected FAILED"
+                )
+                print(f"FAIL  unconfigured RAG status: {rag_data.get('status')}")
+            else:
+                print("ok    unconfigured RAG reports FAILED")
+            if rag_data.get("results") != []:
+                failures.append("unconfigured RAG returned partial results")
+                print("FAIL  unconfigured RAG returned partial results")
+            else:
+                print("ok    unconfigured RAG returns no partial results")
+            fallback = rag_data.get("fallback_message")
+            if not isinstance(fallback, str) or not fallback.strip():
+                failures.append("unconfigured RAG omitted its explicit fallback message")
+                print("FAIL  unconfigured RAG omitted its explicit fallback message")
+            else:
+                print("ok    unconfigured RAG provides an explicit fallback")
+            serialized = json.dumps(body, ensure_ascii=False)
+            if private_query in serialized:
+                failures.append("unconfigured RAG response echoed the rejected query")
+                print("FAIL  unconfigured RAG response echoed the query")
+            else:
+                print("ok    unconfigured RAG response does not echo the query")
+
+        # Request-schema failure must use ErrorEnvelope and keep the rejected
+        # query out of field-level validation details.
+        rejected_query = "合成錯誤查詢-不得回填-5a8d7e3c"
+        response = await client.post(
+            RAG_PATH,
+            json=make_rag_payload(
+                query=rejected_query,
+                top_k=10,
+                caller_dsl={"match_all": {}},
+            ),
+        )
+        if expect_status(f"POST {RAG_PATH} invalid body returns 422", response.status_code, 422):
+            body = response.json()
+            check(
+                f"POST {RAG_PATH} 422 body vs ErrorEnvelopeV1",
+                body,
+                load("common/ErrorEnvelopeV1.json"),
+            )
+            if rejected_query in json.dumps(body, ensure_ascii=False):
+                failures.append("RAG validation response echoed the rejected query")
+                print("FAIL  RAG validation response echoed the rejected query")
+            else:
+                print("ok    RAG validation response does not echo the rejected query")
 
         # Normal turn.
         response = await client.post(RUNS_PATH, json=make_payload())
@@ -178,13 +266,19 @@ async def main() -> int:
         # Schema rejection.
         response = await client.post(RUNS_PATH, json=make_payload(unexpected="nope"))
         if expect_status(f"POST {RUNS_PATH} extra field returns 422", response.status_code, 422):
-            check("422 body vs ErrorEnvelopeV1", response.json(), load("common/ErrorEnvelopeV1.json"))
+            check(
+                "422 body vs ErrorEnvelopeV1",
+                response.json(),
+                load("common/ErrorEnvelopeV1.json"),
+            )
 
         # Over the system step ceiling: must reach the domain error handler,
         # not the catch-all. A 500 here means the handler is unregistered.
         response = await client.post(RUNS_PATH, json=make_payload(max_steps=99))
         if expect_status(
-            f"POST {RUNS_PATH} above step ceiling returns 422", response.status_code, 422
+            f"POST {RUNS_PATH} above step ceiling returns 422",
+            response.status_code,
+            422,
         ):
             check(
                 "step-limit 422 body vs ErrorEnvelopeV1",
@@ -194,9 +288,7 @@ async def main() -> int:
 
         # The rejected body is elder transcript and must not come back.
         secret = "我昨天去了某某醫院看門診"
-        response = await client.post(
-            RUNS_PATH, json=make_payload(input_text=secret, max_steps=99)
-        )
+        response = await client.post(RUNS_PATH, json=make_payload(input_text=secret, max_steps=99))
         if secret in response.text:
             failures.append("error response echoed the rejected input_text")
             print("FAIL  error response echoed the rejected input_text")
@@ -208,5 +300,7 @@ async def main() -> int:
 
 if __name__ == "__main__":
     code = asyncio.run(main())
-    print("\nall live contract checks passed" if code == 0 else f"\n{code} live contract failure(s)")
+    print(
+        "\nall live contract checks passed" if code == 0 else f"\n{code} live contract failure(s)"
+    )
     raise SystemExit(code)

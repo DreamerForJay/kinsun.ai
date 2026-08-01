@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/rag/rag-metadata.schema.json",
+  "title": "RagMetadataV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "document_name",
+    "section",
+    "page_start",
+    "page_end",
+    "source_url",
+    "current_status",
+    "stop_normal_rag",
+    "risk_level",
+    "requires_human_review"
+  ],
+  "properties": {
+    "document_name": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "section": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "page_start": { "type": "integer", "minimum": 1 },
+    "page_end": { "type": "integer", "minimum": 1 },
+    "source_url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "source_locator": { "type": ["string", "null"], "maxLength": 2048 },
+    "current_status": {
+      "type": "string",
+      "enum": ["current", "superseded", "withdrawn", "unknown"]
+    },
+    "stop_normal_rag": { "type": "boolean" },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical", "high_red_line", "unknown"]
+    },
+    "requires_human_review": { "type": "boolean" },
+    "human_source_review": { "type": ["string", "null"], "maxLength": 80 },
+    "allowed_audiences": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 80 },
+      "uniqueItems": true
+    },
+    "allowed_purposes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 120 },
+      "uniqueItems": true
+    },
+    "source_version": { "type": ["string", "null"], "maxLength": 160 },
+    "last_verified_at": { "type": ["string", "null"], "format": "date" }
+  }
+}

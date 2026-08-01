@@ -102,7 +102,7 @@ ORM 的 Python 屬性統一是 `id`，實際對應各表自己的 PK 欄位（`a
 ## Agent Runtime
 
 程式在 [`services/agent-runtime/`](services/agent-runtime/)：成員 C 的 Agent／RAG／Graph
-範圍，目前是 M0 Foundation。
+範圍，目前是 M0 Agent Foundation，加上第一版 staging-only RAG Retrieval。
 
 ```powershell
 cd services/agent-runtime
@@ -112,9 +112,19 @@ uv run ruff check .
 uvicorn --app-dir src agent_runtime.app:app --reload --port 8001
 ```
 
-可執行的閉環：`POST /api/v1/agent/runs` → contract 驗證 → Orchestrator → Companion
-Agent → Safety Evaluator → 回應。模型走 `MockModelProvider`，**不呼叫任何外部 LLM**，
-也還沒接 Bedrock、OpenSearch 或 Neptune。
+Agent 閉環：`POST /api/v1/agent/runs` → contract 驗證 → Orchestrator → Companion
+Agent → Safety Evaluator → 回應；模型仍走 `MockModelProvider`。另有
+`POST /api/v1/rag/retrievals` 的 Bedrock query embedding／OpenSearch Hybrid Search adapter；
+`general_information`／`legal_reference` Agent Run 會把 3～5 個完整引用 chunk 放入
+Context Manifest，查無資料時不呼叫模型猜測。沒有 provider 設定時會回明確 fallback。
+supplied Allowlist 尚未簽署，Human Review 也尚未完成。僅在 staging 明確設定
+`RAG_REQUIRE_OWNER_SIGNATURE=false` 時，才可使用 unsigned development override；即使啟用
+override，外部提供且完全相符的 `RAG_ALLOWLIST_EXPECTED_SHA256`，以及來源、Chunk、數量與
+完整 Allowlist 驗證仍是不可略過的 hard gate。Receipt 與 log 必須記錄
+`governance_status=UNSIGNED_DEVELOPMENT_OVERRIDE`、`production_approved=false`。
+此 override 不適用 production；production 必須有正式簽署，且
+`RAG_PRODUCTION_ENABLED=true` 必須被明確啟用。目前沒有 AWS staging 連線資訊，因此尚未
+建立或驗證外部 index、embedding、alias，也未接 Neptune。
 
 回應與 core-api 用同一組 envelope（`{"data", "meta"}` / `{"error"}`），
 見 [ADR 0005](docs/adr/0005-agent-runtime-api-conventions.md)。
