@@ -49,8 +49,11 @@ class RetrievalResultV1(RagBaseModel):
     score: float = Field(allow_inf_nan=False)
     document_name: str = Field(min_length=1, max_length=512)
     section: str = Field(min_length=1, max_length=512)
-    page_start: int = Field(ge=1)
-    page_end: int = Field(ge=1)
+    # Null for sources that have no pagination, such as an official web page,
+    # where source_locator carries the position instead. Both or neither: a
+    # half-populated range is a data defect, not a citable location.
+    page_start: int | None = Field(default=None, ge=1)
+    page_end: int | None = Field(default=None, ge=1)
     source_url: str = Field(min_length=1, max_length=2048)
 
     @field_validator("source_url")
@@ -62,8 +65,11 @@ class RetrievalResultV1(RagBaseModel):
 
     @model_validator(mode="after")
     def page_range_must_be_ordered(self) -> RetrievalResultV1:
-        if self.page_end < self.page_start:
-            raise ValueError("page_end must be greater than or equal to page_start")
+        if (self.page_start is None) != (self.page_end is None):
+            raise ValueError("page_start and page_end must both be set or both be null")
+        if self.page_start is not None and self.page_end is not None:
+            if self.page_end < self.page_start:
+                raise ValueError("page_end must be greater than or equal to page_start")
         return self
 
 

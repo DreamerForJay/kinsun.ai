@@ -320,15 +320,20 @@ def _validate_cited_result(value: Any) -> str:
         raise SmokeTestError("retrieval result score is invalid")
     page_start = value.get("page_start")
     page_end = value.get("page_end")
-    if (
-        isinstance(page_start, bool)
-        or not isinstance(page_start, int)
-        or page_start < 1
-        or isinstance(page_end, bool)
-        or not isinstance(page_end, int)
-        or page_end < page_start
-    ):
-        raise SmokeTestError("retrieval result page citation is invalid")
+    if (page_start is None) != (page_end is None):
+        raise SmokeTestError("retrieval result page citation is half-populated")
+    if page_start is not None:
+        # Null is legitimate for an unpaginated source such as a web page;
+        # a present-but-wrong range is not.
+        if (
+            isinstance(page_start, bool)
+            or not isinstance(page_start, int)
+            or page_start < 1
+            or isinstance(page_end, bool)
+            or not isinstance(page_end, int)
+            or page_end < page_start
+        ):
+            raise SmokeTestError("retrieval result page citation is invalid")
     source_url = value.get("source_url")
     parsed_url = urlsplit(source_url) if isinstance(source_url, str) else None
     if (

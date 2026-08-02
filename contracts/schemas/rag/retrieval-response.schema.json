@@ -79,8 +79,8 @@
         "score": { "type": "number" },
         "document_name": { "type": "string", "minLength": 1, "maxLength": 512 },
         "section": { "type": "string", "minLength": 1, "maxLength": 512 },
-        "page_start": { "type": "integer", "minimum": 1 },
-        "page_end": { "type": "integer", "minimum": 1 },
+        "page_start": { "type": ["integer", "null"], "minimum": 1 },
+        "page_end": { "type": ["integer", "null"], "minimum": 1 },
         "source_url": {
           "type": "string",
           "format": "uri",
@@ -88,7 +88,23 @@
           "minLength": 1,
           "maxLength": 2048
         }
-      }
+      },
+      "anyOf": [
+        {
+          "title": "Paginated document",
+          "properties": {
+            "page_start": { "type": "integer" },
+            "page_end": { "type": "integer" }
+          }
+        },
+        {
+          "title": "Web page with no pagination",
+          "properties": {
+            "page_start": { "type": "null" },
+            "page_end": { "type": "null" }
+          }
+        }
+      ]
     }
   }
 }
