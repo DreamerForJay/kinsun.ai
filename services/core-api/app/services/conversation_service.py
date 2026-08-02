@@ -7,15 +7,16 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import AuthenticationError, ConflictError, NotFoundError
 from app.domain.state_machine import require_session_transition
 from app.events.outbox_writer import write_outbox_entry
 from app.models.conversation import ConversationSession
 from app.models.policy import PolicyRegistry
 from app.repositories.conversation_repo import ConversationRepository
 from app.schemas.consent import ConsentPurpose
-from app.schemas.conversation import CreateVoiceSessionRequest
+from app.schemas.conversation import CreateVoiceSessionRequest, CreateVoiceTicketRequest
 from app.services.consent_service import ConsentService
+from app.services.voice_ticket_codec import IssuedVoiceTicket, VoiceTicketCodec
 
 
 class ConversationService:
@@ -33,7 +34,7 @@ class ConversationService:
         elder_id: UUID,
         actor_id: UUID,
         actor_role: str,
-        request: CreateVoiceSessionRequest,
+        request: CreateVoiceSessionRequest | CreateVoiceTicketRequest,
         trace_id: str,
         idempotency_key: str,
     ) -> ConversationSession:
@@ -82,6 +83,82 @@ class ConversationService:
             idempotency_key=idempotency_key,
         )
         return conversation
+
+    async def issue_ticket(
+        self,
+        *,
+        elder_id: UUID,
+        actor_id: UUID,
+        actor_role: str,
+        request: CreateVoiceSessionRequest | CreateVoiceTicketRequest,
+        trace_id: str,
+        idempotency_key: str,
+        codec: VoiceTicketCodec,
+    ) -> tuple[ConversationSession, IssuedVoiceTicket]:
+        conversation = await self.create(
+            elder_id=elder_id,
+            actor_id=actor_id,
+            actor_role=actor_role,
+            request=request,
+            trace_id=trace_id,
+            idempotency_key=idempotency_key,
+        )
+        return conversation, codec.issue(conversation)
+
+    async def replay_ticket(
+        self,
+        session_id: UUID,
+        codec: VoiceTicketCodec,
+    ) -> tuple[ConversationSession, IssuedVoiceTicket]:
+        conversation = await self._repository.get_by_id(session_id)
+        if conversation is None or conversation.state != "CREATED":
+            raise AuthenticationError("Voice ticket is invalid or unavailable")
+        await self._require_ticket_consent(conversation)
+        return conversation, codec.issue(conversation)
+
+    async def consume_ticket(
+        self,
+        *,
+        session_id: UUID,
+        value: str,
+        actor_id: UUID,
+        trace_id: str,
+        codec: VoiceTicketCodec,
+    ) -> ConversationSession:
+        conversation = await self._repository.get_by_id_for_update(session_id)
+        if conversation is None:
+            raise AuthenticationError("Voice ticket is invalid or unavailable")
+        codec.verify(value, conversation)
+        if conversation.state != "CREATED":
+            raise AuthenticationError("Voice ticket is invalid or unavailable")
+        await self._require_ticket_consent(conversation)
+        return await self.transition(
+            conversation=conversation,
+            target_state="RECORDING",
+            actor_id=actor_id,
+            trace_id=trace_id,
+            idempotency_key=f"voice-ticket-consume:{conversation.id}",
+        )
+
+    async def _require_ticket_consent(
+        self,
+        conversation: ConversationSession,
+    ) -> None:
+        try:
+            active_consent = await ConsentService(
+                self._session,
+                self._tenant_id,
+            ).require_active(
+                elder_id=conversation.elder_id,
+                purpose=ConsentPurpose.BASIC_VOICE,
+            )
+        except NotFoundError:
+            raise AuthenticationError("Voice ticket is invalid or unavailable") from None
+        if (
+            active_consent.id != conversation.consent_id
+            or active_consent.version != conversation.consent_version
+        ):
+            raise AuthenticationError("Voice ticket is invalid or unavailable")
 
     async def transition(
         self,

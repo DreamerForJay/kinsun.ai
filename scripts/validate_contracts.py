@@ -45,7 +45,9 @@ DATA_SCHEMA_FOR = {
     "agent-run-registration-with-identity.json": "domain/RegisterAgentRunRequestV1.json",
     "agent-run-completion-request.json": "domain/CompleteAgentRunRequestV1.json",
     "agent-run-completion-response.json": "domain/AgentRunCompletionV1.json",
-    "agent-run-completion-running-status.json": ("domain/CompleteAgentRunRequestV1.json"),
+    "agent-run-completion-running-status.json": (
+        "domain/CompleteAgentRunRequestV1.json"
+    ),
     "tool-response.json": "tools/ToolResponseV1.json",
     "tool-request-missing-consent-version.json": "tools/ToolRequestV1.json",
     "tool-response-missing-retryable.json": "tools/ToolResponseV1.json",

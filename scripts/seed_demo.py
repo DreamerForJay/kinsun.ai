@@ -78,14 +78,20 @@ def _id(value: str) -> UUID:
     return UUID(value)
 
 
-async def _assert_empty_and_current(session: AsyncSession, daycare_tenant_id: UUID) -> None:
-    revision = await session.scalar(text("SELECT version_num FROM public.alembic_version"))
+async def _assert_empty_and_current(
+    session: AsyncSession, daycare_tenant_id: UUID
+) -> None:
+    revision = await session.scalar(
+        text("SELECT version_num FROM public.alembic_version")
+    )
     if revision != EXPECTED_REVISION:
         raise RuntimeError(
             f"Database revision is {revision!r}; expected {EXPECTED_REVISION}. "
             "Run scripts/reset_demo.ps1."
         )
-    exists = await session.scalar(select(Tenant.id).where(Tenant.id == daycare_tenant_id))
+    exists = await session.scalar(
+        select(Tenant.id).where(Tenant.id == daycare_tenant_id)
+    )
     if exists is not None:
         raise RuntimeError(
             "Deterministic Demo rows already exist. "
@@ -213,9 +219,19 @@ async def _seed(session: AsyncSession, manifest: dict) -> None:
 
     membership_rows = [
         ("50000000-0000-4000-8000-000000000001", "lin_elder", daycare_tenant_id, None),
-        ("50000000-0000-4000-8000-000000000002", "zhang_elder", daycare_tenant_id, None),
+        (
+            "50000000-0000-4000-8000-000000000002",
+            "zhang_elder",
+            daycare_tenant_id,
+            None,
+        ),
         ("50000000-0000-4000-8000-000000000003", "chen_elder", home_tenant_id, None),
-        ("50000000-0000-4000-8000-000000000010", "daycare_worker", daycare_tenant_id, None),
+        (
+            "50000000-0000-4000-8000-000000000010",
+            "daycare_worker",
+            daycare_tenant_id,
+            None,
+        ),
         (
             "50000000-0000-4000-8000-000000000011",
             "daycare_worker",
@@ -363,7 +379,9 @@ async def _seed(session: AsyncSession, manifest: dict) -> None:
                 purpose_code=purpose,
                 status="GRANTED",
                 version=1,
-                scope={"share_scopes": ["REPORT"] if purpose == "FAMILY_SHARING" else []},
+                scope={
+                    "share_scopes": ["REPORT"] if purpose == "FAMILY_SHARING" else []
+                },
                 granted_by_actor_id=actor_ids[actor_key],
                 policy_id=policy_id,
                 granted_at=now - timedelta(days=7),
@@ -634,7 +652,9 @@ async def _seed(session: AsyncSession, manifest: dict) -> None:
                 published_at=now - timedelta(hours=2)
                 if status in {"PUBLISHED", "WITHDRAWN"}
                 else None,
-                withdrawn_at=now - timedelta(hours=1) if status == "WITHDRAWN" else None,
+                withdrawn_at=now - timedelta(hours=1)
+                if status == "WITHDRAWN"
+                else None,
             )
         )
         session.add(
@@ -655,7 +675,9 @@ async def _seed(session: AsyncSession, manifest: dict) -> None:
                 },
                 source_summary_ids=[summary_ids["陳伯伯_READY"]],
                 source_event_ids=[event_ids["陳伯伯居服事件"]],
-                share_scope_snapshot={"relationship_ids": [str(family_relationship_id)]},
+                share_scope_snapshot={
+                    "relationship_ids": [str(family_relationship_id)]
+                },
                 created_by_actor_id=actor_ids["home_worker"],
             )
         )
@@ -709,7 +731,9 @@ async def _seed(session: AsyncSession, manifest: dict) -> None:
             "elder_id": elder_ids["陳伯伯"],
         },
     )
-    notification_ids = {key: _id(value) for key, value in manifest["notifications"].items()}
+    notification_ids = {
+        key: _id(value) for key, value in manifest["notifications"].items()
+    }
     for notification_key, status, attempt_count, last_error in [
         ("sent", "SENT", 1, None),
         ("failed_retryable", "FAILED", 2, "DEMO_ADAPTER_UNAVAILABLE"),
