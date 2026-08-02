@@ -5,6 +5,8 @@
 - 相關文件：04｜資訊架構、UX 與 User Flow v0.1、12｜實作計畫與交付路線 v0.1 §目錄骨架
 - 相關：[ADR 0003](0003-core-api-framework-and-schema-authority.md)、`design-system/MASTER.md` §0
 - 解除 AGENTS.md §11 的「Frontend Framework 與 PWA 技術」待決項
+- Framework major/version 與 2026-08-02 dependency gate 已由
+  [ADR 0008](0008-next-16-supported-release-upgrade.md) 取代；本 ADR 的單一 PWA、BFF 與樣式決策仍有效。
 
 ## 背景
 
@@ -66,7 +68,7 @@ JavaScript 可讀的地方。這不是偏好問題，是把一個目前擋得住
 沒有接任何 API，且自帶一套不吃 token 的 CSS。`packages/frontend` 的
 `src/components/voice/` 已經涵蓋且實際接了 API。直接刪除，不保留分支。
 
-### 2. Framework：Next.js 14 App Router + TypeScript
+### 2. Framework：Next.js 14 App Router + TypeScript（歷史決策；版本已由 ADR 0008 取代）
 
 **MASTER.md §0 #2 的「Vite + React」作廢**，理由見背景。本 ADR 生效後同步修正該表。
 
@@ -117,6 +119,10 @@ Cookie 名為 `kinsun_ui_locale`，非 httpOnly（它是 UI 偏好，不是憑�
 屆時只需替換 provider，字典鍵不變。
 
 ### 6. 2026-08-02 public deployment security gate
+
+> 更新：本節要求的 supported-release upgrade 與本機驗證已由 ADR 0008 完成。
+> Framework dependency blocker 已解除，但 AWS rollout 的 ECR digest、Cognito、migration、
+> smoke 與 scale gates 仍須分別完成。
 
 本 ADR 原先選定的 Next.js 14 現已超出 upstream 目前提供安全修補的 release line。
 Repository 的 production dependency audit 在 `next@14.2.35` 與其內含

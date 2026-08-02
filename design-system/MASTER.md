@@ -18,7 +18,7 @@
 | # | 項目 | 狀態 | 內容 |
 | --- | --- | --- | --- |
 | 1 | App 拓撲 | **已定案** | **單一 multi-role PWA**，程式在 `packages/frontend`，以 route 區分角色。`apps/` 的三個目錄已移除（[ADR 0006](../docs/adr/0006-frontend-stack-and-app-topology.md)）。 |
-| 2 | Stack | **已定案** | **Next.js 14 App Router + TypeScript + CSS Modules + CSS custom properties**。**不是 Vite，也不用 Tailwind**——前端同時是 BFF，OAuth 交換與 access token 必須留在伺服器端（ADR 0006 §2、§3）。 |
+| 2 | Stack | **已定案** | **Next.js 16 App Router + React 19 + TypeScript + CSS Modules + CSS custom properties**。**不是 Vite，也不用 Tailwind**——前端同時是 BFF，OAuth 交換與 access token 必須留在伺服器端（ADR 0006 §2、§3；版本見 ADR 0008）。 |
 | 3 | 主要載具 | **已採用** | **平板為主**。手機為次要，桌機僅照護端。 |
 
 仍待 ADR、不要預先鎖定的：狀態管理函式庫、i18n 函式庫（現為 `src/lib/i18n/` 的自建
