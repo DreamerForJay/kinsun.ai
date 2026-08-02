@@ -1,4 +1,5 @@
 import { apiFetch, type ApiConfig } from './client';
+import { assertNoRestrictedFields, keepFamilyVisible } from './family-guard';
 
 export type FamilyReportType = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'IMPORTANT_EVENT';
 export type FamilyReportStatus = 'DRAFT' | 'NEEDS_REVIEW' | 'PUBLISHED' | 'WITHDRAWN' | 'STALE';
@@ -72,7 +73,14 @@ function toFamilyReportView(report: CoreFamilyReport): FamilyReportView {
   };
 }
 
-/** Family reads only Core-filtered reports within the authenticated relationship scope. */
+/**
+ * Family reads only Core-filtered reports within the authenticated relationship
+ * scope — and then checks that claim rather than taking it (MASTER.md §11).
+ *
+ * The two guards run on the raw payload, before `toFamilyReportView` maps it:
+ * mapping keeps only known keys, so a leaked transcript would be discarded
+ * silently and the contract violation would never be observed.
+ */
 export async function listFamilyReports(
   config: ApiConfig,
   elderId: string,
@@ -83,5 +91,6 @@ export async function listFamilyReports(
     config,
     `/api/v1/family/elders/${elderId}/reports${query}`,
   );
-  return result.items.map(toFamilyReportView);
+  assertNoRestrictedFields(result);
+  return keepFamilyVisible(result.items).map(toFamilyReportView);
 }

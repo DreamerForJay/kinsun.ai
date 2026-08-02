@@ -40,6 +40,27 @@ export function createTextSession(config: ApiConfig, elderId: string): Promise<V
   });
 }
 
+/**
+ * Session for a spoken turn. `input_mode: 'voice'` is recorded on the session so
+ * a reviewer can tell whether a turn originated from speech or typing — the
+ * transcript is a recognition result, not something the elder wrote.
+ *
+ * Core still runs its own consent check per turn; creating a session here is not
+ * what authorizes recording.
+ */
+export function createVoiceSession(config: ApiConfig, elderId: string): Promise<VoiceSession> {
+  return apiFetch(config, `/api/v1/elders/${elderId}/voice-sessions`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': createIdempotencyKey('voice-session') },
+    body: JSON.stringify({
+      language_preference: 'ZH_TW',
+      input_mode: 'voice',
+      client_timezone: 'Asia/Taipei',
+      purpose: 'BASIC_VOICE',
+    }),
+  });
+}
+
 export function runCompanionTurn(
   config: ApiConfig,
   sessionId: string,

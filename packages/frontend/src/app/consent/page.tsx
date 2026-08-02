@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { touchLinkStyle } from '@/components/touch-link';
 import { FamilySharingConsentPanel } from '@/components/FamilySharingConsentPanel';
 import { ConsentPanel } from '@/components/voice/ConsentPanel';
 import {
@@ -57,7 +58,11 @@ export default function ConsentPage() {
     return <NotLoggedIn reason="無法向 Core API 讀取同意狀態；系統已停止，不會推測結果" />;
   }
   if (consent === undefined || familyConsent === undefined)
-    return <main style={{ padding: 24 }}>正在向 Core API 查詢同意狀態…</main>;
+    return (
+      <main style={{ padding: 'var(--space-6)', fontSize: 'var(--text-base)' }} aria-live="polite">
+        正在向 Core API 查詢同意狀態…
+      </main>
+    );
 
   return (
     <main style={{ margin: '0 auto', maxWidth: 640, minHeight: '100dvh' }}>
@@ -75,9 +80,23 @@ export default function ConsentPage() {
         initialConsent={familyConsent}
         onChange={setFamilyConsent}
       />
-      <nav style={{ display: 'flex', gap: 16, justifyContent: 'center', padding: 24 }}>
-        <a href="/">返回首頁</a>
-        <a href="/elder/family-access">管理家屬邀請</a>
+      {/* §6.1 — elder-surface links are 64px boxes with ≥16px between them,
+          not bare inline text that has to be tapped precisely. */}
+      <nav
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 'var(--space-4)',
+          justifyContent: 'center',
+          padding: 'var(--space-6)',
+        }}
+      >
+        <a href="/" style={touchLinkStyle}>
+          返回首頁
+        </a>
+        <a href="/elder/family-access" style={touchLinkStyle}>
+          管理家屬邀請
+        </a>
       </nav>
     </main>
   );

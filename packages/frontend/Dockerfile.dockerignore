@@ -1,0 +1,24 @@
+# This file applies when building from the monorepo root with:
+# docker build -f packages/frontend/Dockerfile .
+**
+
+!package.json
+!package-lock.json
+!tsconfig.base.json
+
+!packages/
+!packages/frontend/
+!packages/frontend/**
+!packages/shared/
+!packages/shared/**
+
+# Local credentials and generated artifacts never enter the build context.
+**/.env
+**/.env.*
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/*.log
+**/*.tsbuildinfo
+**/.git

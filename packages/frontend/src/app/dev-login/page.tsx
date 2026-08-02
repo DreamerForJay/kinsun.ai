@@ -102,7 +102,14 @@ export default function DevLoginPage() {
   return (
     <main style={{ maxWidth: 560, margin: '0 auto', padding: 24 }}>
       <h1 style={{ fontSize: 22, marginBottom: 8 }}>登入設定（Demo 用）</h1>
-      <p style={{ color: '#718096', marginBottom: 20, fontSize: 14, lineHeight: 1.6 }}>
+      <p
+        style={{
+          color: 'var(--color-muted-foreground)',
+          marginBottom: 20,
+          fontSize: 14,
+          lineHeight: 1.6,
+        }}
+      >
         正式 Cognito 尚未串接。本頁只在開發環境建立 HttpOnly Cookie；Token 不會存入
         localStorage，也不會回傳給前端程式。本機 Demo 的 actor 與 tenant 只由 Core API 的
         FAKE_AUTH_* 環境變數決定。請勿使用真實長者資料。
@@ -162,22 +169,36 @@ export default function DevLoginPage() {
             登出並清除
           </button>
           {credentialPresent === true && (
-            <span style={{ color: '#2f855a', fontSize: 14 }}>安全 Cookie 已設定</span>
+            <span style={{ color: 'var(--color-accent-text)', fontSize: 14 }}>
+              安全 Cookie 已設定
+            </span>
           )}
           {credentialPresent === false && <span style={{ fontSize: 14 }}>尚未登入</span>}
         </div>
-        {error && <p style={{ color: '#c53030', margin: 0 }}>{error}</p>}
+        {error && <p style={{ color: 'var(--color-destructive)', margin: 0 }}>{error}</p>}
       </form>
 
-      <hr style={{ margin: '32px 0', border: 'none', borderTop: '1px solid #e2e8f0' }} />
+      <hr
+        style={{ margin: '32px 0', border: 'none', borderTop: '1px solid var(--color-border)' }}
+      />
 
       <h2 style={{ fontSize: 18, marginBottom: 8 }}>語音（選填，另一套後端）</h2>
-      <p style={{ color: '#718096', marginBottom: 16, fontSize: 14, lineHeight: 1.6 }}>
+      <p
+        style={{
+          color: 'var(--color-muted-foreground)',
+          marginBottom: 16,
+          fontSize: 14,
+          lineHeight: 1.6,
+        }}
+      >
         語音互動走 packages/backend 的 WebSocket API，跟上面的 Core API 是不同的後端、不同的憑證，
         也不會存進 Cookie。需要另外部署 infrastructure/ 並在 .env.local 設定 NEXT_PUBLIC_WS_URL，
         這裡只設定該後端要驗證的 Cognito ID Token。有填才會在首頁改用語音面板，否則維持文字陪伴。
       </p>
-      <form onSubmit={handleSaveVoiceToken} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <form
+        onSubmit={handleSaveVoiceToken}
+        style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+      >
         <label>
           語音 Cognito ID Token
           <textarea
@@ -204,7 +225,9 @@ export default function DevLoginPage() {
           <button type="button" onClick={handleClearVoiceToken}>
             清除語音憑證
           </button>
-          {voiceSaved && <span style={{ color: '#2f855a', fontSize: 14 }}>已儲存</span>}
+          {voiceSaved && (
+            <span style={{ color: 'var(--color-accent-text)', fontSize: 14 }}>已儲存</span>
+          )}
         </div>
       </form>
 

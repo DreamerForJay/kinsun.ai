@@ -99,7 +99,7 @@ export default function ElderFamilyAccessPage() {
   return (
     <main style={{ margin: '0 auto', maxWidth: 680, padding: 24 }}>
       <h1>家屬分享</h1>
-      <p style={{ color: '#4a5568', lineHeight: 1.7 }}>
+      <p style={{ color: 'var(--color-foreground)', lineHeight: 1.7 }}>
         邀請碼只能使用一次，24 小時後失效。若填寫家屬 Email，只有該 Google 帳號能使用。
       </p>
 
@@ -125,7 +125,7 @@ export default function ElderFamilyAccessPage() {
         <button
           disabled={busy}
           style={{
-            background: '#0f766e',
+            background: 'var(--color-primary)',
             border: 0,
             borderRadius: 10,
             color: 'white',
@@ -142,7 +142,11 @@ export default function ElderFamilyAccessPage() {
       {created && (
         <section
           aria-live="polite"
-          style={{ background: '#ecfdf5', borderRadius: 12, padding: 18 }}
+          style={{
+            background: 'var(--state-confirmed-bg)',
+            borderRadius: 'var(--radius-md)',
+            padding: 18,
+          }}
         >
           <h2 style={{ marginTop: 0 }}>請現在把這組邀請碼交給家屬</h2>
           <p style={{ fontFamily: 'monospace', fontSize: 28, fontWeight: 800, letterSpacing: 2 }}>
@@ -159,7 +163,7 @@ export default function ElderFamilyAccessPage() {
       )}
 
       {error && (
-        <p aria-live="polite" style={{ color: '#b91c1c' }}>
+        <p aria-live="polite" style={{ color: 'var(--color-destructive)' }}>
           {error} <Link href="/consent">前往同意設定</Link>
         </p>
       )}
@@ -167,13 +171,13 @@ export default function ElderFamilyAccessPage() {
       <section style={{ marginTop: 30 }}>
         <h2>邀請紀錄</h2>
         {invitations.length === 0 ? (
-          <p style={{ color: '#4a5568' }}>目前沒有邀請紀錄。</p>
+          <p style={{ color: 'var(--color-foreground)' }}>目前沒有邀請紀錄。</p>
         ) : (
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {invitations.map((item) => (
               <li
                 key={item.invitation_id}
-                style={{ borderTop: '1px solid #d1d5db', padding: '14px 0' }}
+                style={{ borderTop: '1px solid var(--color-border)', padding: '14px 0' }}
               >
                 <strong>{STATUS_LABELS[item.status]}</strong>
                 <span style={{ marginLeft: 12 }}>

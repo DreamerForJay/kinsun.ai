@@ -7,6 +7,7 @@ ServiceUnavailableError (503) when the database engine is not ready.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncGenerator
 
 from fastapi import Depends
@@ -14,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ServiceUnavailableError
 from app.db.engine import DatabaseEngine
+
+logger = logging.getLogger(__name__)
 
 # Module-level reference set during application startup.
 _db_engine: DatabaseEngine | None = None
@@ -44,8 +47,8 @@ async def get_db_session(
 ) -> AsyncGenerator[AsyncSession, None]:
     """Yield a request-scoped async session.
 
-    - Checks ``db_engine.is_ready`` before yielding — raises
-      ``ServiceUnavailableError`` (HTTP 503) if the database is unavailable.
+    - If the engine is not ready, performs one bounded single-flight recovery
+      check before raising ``ServiceUnavailableError`` (HTTP 503).
     - Auto-commits on success.
     - Auto-rolls back on exception, then re-raises.
 
@@ -56,7 +59,15 @@ async def get_db_session(
             ...
     """
     if not db_engine.is_ready:
-        raise ServiceUnavailableError("Database is unavailable")
+        try:
+            recovered = await db_engine.recover_connectivity()
+        except Exception:
+            # Keep unexpected dependency failures out of request logs; exception
+            # values from database libraries can contain connection metadata.
+            logger.warning("Database readiness recovery failed")
+            recovered = False
+        if not recovered:
+            raise ServiceUnavailableError("Database is unavailable")
 
     async with db_engine.session_factory() as session:
         try:

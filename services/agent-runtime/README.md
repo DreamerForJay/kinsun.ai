@@ -56,6 +56,35 @@ Agent Run 只在 request `purpose` 明確為 `general_information` 或 `legal_re
 curl http://localhost:8001/health
 ```
 
+## Container image
+
+The image is environment-neutral so an approved release can be promoted without rebuilding;
+production deployment itself is not yet approved. Deployment settings are injected at runtime.
+The image is multi-stage, contains only the locked runtime dependencies, `src/`, and the four
+versioned non-secret RAG configuration files, and runs Uvicorn as UID/GID `10001` rather than root.
+Its Dockerfile-specific build context is an explicit allowlist, so `.env`, AWS credentials, RAG
+chunks, generated vectors, receipts, tests, and repository metadata are not sent to the Docker
+daemon or copied into the image.
+
+```powershell
+docker build --file services/agent-runtime/Dockerfile `
+  --tag kinsun/agent-runtime:local .
+docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m `
+  --publish 8001:8001 kinsun/agent-runtime:local
+curl http://localhost:8001/health
+```
+
+The container intentionally defaults to `MODEL_PROVIDER=mock` and `RAG_MODE=disabled`. Setting
+`APP_ENV=staging` alone does not enable Bedrock or retrieval. A staging deployment must explicitly
+inject its approved non-secret model/OpenSearch settings and use an ECS task role for AWS access.
+The image includes only `embedding.yaml`, the index mapping, and the natural/legal hybrid profiles;
+it does not include an Allowlist, source documents, chunks, receipts, or vectors. Never bake `.env`
+or static AWS credentials into the image. Production RAG is not approved; `RAG_MODE=production` is
+not a supported runtime mode and still fails closed.
+
+The Docker/ECS health check invokes `python -m agent_runtime.healthcheck`. It only verifies the local
+`/health` contract and never probes Core API, Bedrock, or OpenSearch.
+
 ## 測試
 
 ```powershell

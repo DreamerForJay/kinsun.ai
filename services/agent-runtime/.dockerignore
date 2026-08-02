@@ -1,0 +1,10 @@
+# Fail closed: only the files explicitly required to build the image enter the
+# Docker build context. In particular, local env files, credentials, tests,
+# RAG chunks, generated vectors, caches, and repository metadata stay outside.
+*
+!Dockerfile
+!.dockerignore
+!pyproject.toml
+!uv.lock
+!src/
+!src/**

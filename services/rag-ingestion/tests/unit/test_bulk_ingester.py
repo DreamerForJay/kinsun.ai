@@ -197,6 +197,45 @@ def test_high_risk_filter_fields_are_normalized_at_top_level(tmp_path: Path) -> 
     assert document["source_url"] == "https://example.invalid/synthetic-guide"
 
 
+def test_official_page_url_is_accepted_when_no_direct_file_link_exists(tmp_path: Path) -> None:
+    """Some agencies publish only a listing page, with no stable file link."""
+
+    chunk = _validated_chunk(tmp_path)
+    changed = dict(chunk.loaded.data)
+    metadata = dict(changed["metadata"])
+    metadata.pop("official_source_url")
+    metadata["official_source_page_url"] = "https://example.invalid/agency/list?nodeid=170"
+    changed["metadata"] = metadata
+    modified = ValidatedChunk(
+        loaded=type(chunk.loaded)(changed, chunk.loaded.file_path, chunk.loaded.line_number),
+        allowlist_entry=chunk.allowlist_entry,
+        text_sha256=chunk.text_sha256,
+        embedding_text_sha256=chunk.embedding_text_sha256,
+    )
+
+    document = build_index_document(modified, _vector())
+
+    assert document["source_url"] == "https://example.invalid/agency/list?nodeid=170"
+
+
+def test_direct_file_link_still_wins_over_the_page_url(tmp_path: Path) -> None:
+    chunk = _validated_chunk(tmp_path)
+    changed = dict(chunk.loaded.data)
+    metadata = dict(changed["metadata"])
+    metadata["official_source_page_url"] = "https://example.invalid/agency/list?nodeid=170"
+    changed["metadata"] = metadata
+    modified = ValidatedChunk(
+        loaded=type(chunk.loaded)(changed, chunk.loaded.file_path, chunk.loaded.line_number),
+        allowlist_entry=chunk.allowlist_entry,
+        text_sha256=chunk.text_sha256,
+        embedding_text_sha256=chunk.embedding_text_sha256,
+    )
+
+    document = build_index_document(modified, _vector())
+
+    assert document["source_url"] == "https://example.invalid/synthetic-guide"
+
+
 def test_missing_stop_normal_rag_defaults_to_blocked(tmp_path: Path) -> None:
     chunk = _validated_chunk(tmp_path)
     changed = dict(chunk.loaded.data)

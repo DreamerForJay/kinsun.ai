@@ -1,5 +1,7 @@
 # 需求文件：智慧長照 AI 陪伴系統
 
+> **LEGACY SPEC。** 本文件描述的舊 TypeScript／Lambda／Step Functions／DynamoDB 方案已由 [ADR 0007](../../../docs/adr/0007-canonical-backend-and-aws-deployment-authority.md) 取代，不是目前實作或進度權威來源，也不得用來宣告 Gate 1 完成。現況以 repository 根目錄 [`AGENTS.md`](../../../AGENTS.md)、canonical `docs/` 規格與可執行 `contracts/` 為準；歷史完成清單見 [`tasks.legacy.md`](tasks.legacy.md)。
+
 ## 簡介
 
 智慧長照 AI 陪伴系統是一套以語音優先為核心設計原則的長者照護輔助平台。系統透過自動語音辨識（ASR）、大型語言模型（Bedrock）與語音合成（TTS）技術，為偏鄉、獨居或日照場域中的長者提供自然語言互動陪伴。系統自動擷取生活資訊、產生每日摘要、支援確認式長期記憶、提供衛教知識檢索，並讓照護者與家屬透過後台掌握長者近況。

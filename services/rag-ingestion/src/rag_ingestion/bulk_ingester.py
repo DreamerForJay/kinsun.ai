@@ -200,7 +200,17 @@ def build_index_document(chunk: ValidatedChunk, vector: Sequence[float]) -> dict
     page_end = _first_positive_int(
         data, metadata, "page_end", "printed_page_end", "physical_page_end"
     )
-    source_url = _first_string(data, metadata, "official_source_url", "source_url")
+    # official_source_page_url is the official page hosting the document, used
+    # when a source publishes no direct file link. Ordered last so a direct link
+    # still wins, but accepted rather than dropping the citation entirely: a
+    # source with a real page URL is citable, and refusing it fails the run.
+    source_url = _first_string(
+        data,
+        metadata,
+        "official_source_url",
+        "source_url",
+        "official_source_page_url",
+    )
     source_version = (
         _first_string(
             data,

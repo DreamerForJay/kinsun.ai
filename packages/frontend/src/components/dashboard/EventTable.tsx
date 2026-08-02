@@ -1,35 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { careEventState, StateBadge } from '@/components/StateCard';
 import type { CareEventDecision, EventView } from '@/lib/api/events';
+import { useLocale } from '@/lib/i18n/locale-context';
+import type { MessageKey } from '@/lib/i18n/messages';
 
-const EVENT_TYPE_LABEL: Record<EventView['eventType'], string> = {
-  MEAL: '飲食',
-  ACTIVITY: '活動',
-  SLEEP: '睡眠',
-  MEDICATION_STATEMENT: '用藥陳述',
-  EMOTION_EXPRESSION: '情緒表達',
-  SOCIAL_CONTACT: '社交聯繫',
-  EXPECTED_CONTACT_MISSED: '未如期聯繫',
-  ACTIVITY_PARTICIPATION: '活動參與',
-  ACTIVITY_CANCELLED: '活動取消',
-  COMPANIONSHIP_NEED: '陪伴需求',
-};
-
-const STATUS_LABEL: Record<EventView['status'], string> = {
-  CANDIDATE: '候選',
-  NEEDS_REVIEW: '待覆核',
-  VERIFIED: '已驗證',
-  CORRECTED: '已修正',
-  REJECTED: '已拒絕',
-  EXCLUDED: '已排除',
-};
-
-const CONFIDENCE_LABEL: Record<EventView['confidenceBand'], string> = {
-  LOW: '低',
-  MEDIUM: '中',
-  HIGH: '高',
-};
+const DECISIONS: CareEventDecision[] = ['VERIFY', 'CORRECT', 'REJECT', 'EXCLUDE'];
 
 export interface EventTableProps {
   events: EventView[];
@@ -41,6 +18,7 @@ export interface EventTableProps {
 }
 
 export function EventTable({ events, onReview }: EventTableProps) {
+  const { t } = useLocale();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftContent, setDraftContent] = useState('');
   const [decision, setDecision] = useState<CareEventDecision>('VERIFY');
@@ -63,27 +41,27 @@ export function EventTable({ events, onReview }: EventTableProps) {
   }
 
   if (events.length === 0) {
-    return <p style={{ color: '#718096' }}>沒有符合條件的事件紀錄。</p>;
+    return <p style={{ color: 'var(--color-muted-foreground)' }}>{t('eventTable.empty')}</p>;
   }
 
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15 }}>
       <thead>
-        <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
-          <th style={{ padding: 8 }}>日期</th>
-          <th style={{ padding: 8 }}>類型</th>
-          <th style={{ padding: 8 }}>內容</th>
-          <th style={{ padding: 8 }}>信心區間</th>
-          <th style={{ padding: 8 }}>狀態</th>
-          <th style={{ padding: 8 }}>證據／版本</th>
-          <th style={{ padding: 8 }}>操作</th>
+        <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--color-border-strong)' }}>
+          <th style={{ padding: 8 }}>{t('eventTable.colDate')}</th>
+          <th style={{ padding: 8 }}>{t('eventTable.colType')}</th>
+          <th style={{ padding: 8 }}>{t('eventTable.colContent')}</th>
+          <th style={{ padding: 8 }}>{t('eventTable.colConfidence')}</th>
+          <th style={{ padding: 8 }}>{t('eventTable.colStatus')}</th>
+          <th style={{ padding: 8 }}>{t('eventTable.colEvidence')}</th>
+          <th style={{ padding: 8 }}>{t('eventTable.colActions')}</th>
         </tr>
       </thead>
       <tbody>
         {events.map((event) => (
-          <tr key={event.eventId} style={{ borderBottom: '1px solid #edf2f7' }}>
+          <tr key={event.eventId} style={{ borderBottom: '1px solid var(--color-border)' }}>
             <td style={{ padding: 8 }}>{event.eventDate}</td>
-            <td style={{ padding: 8 }}>{EVENT_TYPE_LABEL[event.eventType]}</td>
+            <td style={{ padding: 8 }}>{t(`eventType.${event.eventType}` as MessageKey)}</td>
             <td style={{ padding: 8, maxWidth: 280 }}>
               {editingId === event.eventId && decision === 'CORRECT' ? (
                 <textarea
@@ -95,10 +73,21 @@ export function EventTable({ events, onReview }: EventTableProps) {
                 event.content
               )}
             </td>
-            <td style={{ padding: 8 }}>{CONFIDENCE_LABEL[event.confidenceBand]}</td>
-            <td style={{ padding: 8 }}>{STATUS_LABEL[event.status]}</td>
-            <td style={{ padding: 8, fontSize: 12, color: '#718096' }}>
-              證據 {event.evidenceRefs.length} 筆｜版本 {event.version}
+            <td style={{ padding: 8 }}>{t(`confidence.${event.confidenceBand}` as MessageKey)}</td>
+            {/* A table cell has no room for the full card, so the status column
+                carries the colour+icon+text half of §4.2. The dashed-outline
+                shape lives on the card components. */}
+            <td style={{ padding: 8 }}>
+              <StateBadge
+                state={careEventState(event.status)}
+                label={t(`eventStatus.${event.status}` as MessageKey)}
+              />
+            </td>
+            <td style={{ padding: 8, fontSize: 12, color: 'var(--color-muted-foreground)' }}>
+              {t('eventTable.evidenceVersion', {
+                evidence: event.evidenceRefs.length,
+                version: event.version,
+              })}
             </td>
             <td style={{ padding: 8 }}>
               {editingId === event.eventId ? (
@@ -109,21 +98,23 @@ export function EventTable({ events, onReview }: EventTableProps) {
                       setDecision(changeEvent.target.value as CareEventDecision)
                     }
                   >
-                    <option value="VERIFY">驗證</option>
-                    <option value="CORRECT">修正</option>
-                    <option value="REJECT">拒絕</option>
-                    <option value="EXCLUDE">排除</option>
+                    {/* option value stays the Core enum; only the label is translated */}
+                    {DECISIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {t(`decision.${item}` as MessageKey)}
+                      </option>
+                    ))}
                   </select>
                   <button type="button" disabled={saving} onClick={() => save(event)}>
-                    送出覆核
+                    {t('eventTable.submit')}
                   </button>
                   <button type="button" disabled={saving} onClick={() => setEditingId(null)}>
-                    取消
+                    {t('eventTable.cancel')}
                   </button>
                 </div>
               ) : (
                 <button type="button" onClick={() => startReview(event)}>
-                  覆核
+                  {t('eventTable.review')}
                 </button>
               )}
             </td>

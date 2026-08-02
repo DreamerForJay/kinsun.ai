@@ -6,14 +6,34 @@
 
 - 本專案是 AWS Hackathon 的 Voice-first 智慧長照 AI 陪伴系統。
 - 目前 repository 具備文件 12 定義的 Monorepo 目錄骨架、本機 PostgreSQL／Docker Compose 基礎設施，
-  以及兩個有程式碼的服務：
+  以及以下有程式碼的單元：
   - `services/core-api`：第一個垂直切片——Identity、Elder 授權 policy、tenant 隔離的
     repository 層與 transactional outbox。
   - `services/agent-runtime`：M0 Foundation——contract 驗證、單輪 Orchestrator、
-    Companion Agent、deterministic Safety Evaluator，模型走 Mock Provider，
-    **不呼叫任何外部 LLM、不接 Bedrock／OpenSearch／Neptune**（[ADR 0004](docs/adr/0004-agent-runtime-into-monorepo.md)）。
+    Companion Agent、deterministic Safety Evaluator；主要回答仍走 Mock Provider，
+    staging-only RAG adapter 可呼叫 Bedrock embedding／OpenSearch，但不接 Neptune，
+    不得描述成 production runtime（[ADR 0004](docs/adr/0004-agent-runtime-into-monorepo.md)）。
+  - `services/rag-ingestion`：RAG 文件 ingestion 與 allowlist 建置。搭配
+    agent-runtime 的 **staging-only** RAG 路徑，尚未對真實 AWS／OpenSearch 環境驗證，
+    不得描述成可用於 production（見 `services/agent-runtime/AGENTS.md`）。
+  - `packages/frontend`：**唯一的前端**，單一 multi-role PWA，Next.js 14 App Router，
+    同時是 BFF（Cognito OAuth 與 access token 留在伺服器端，反向代理 core-api）
+    （[ADR 0006](docs/adr/0006-frontend-stack-and-app-topology.md)）。
+    `apps/` 已依 ADR 0006 清空，不要把 `elder-web`／`care-web`／`family-web` 加回來。
+  - `packages/shared`：前端與 legacy backend 共用的 TypeScript 型別；不是 Domain authority，
+    跨服務形狀以 `contracts/` 為準。
   其餘服務目錄（`speech-gateway`、`projection-worker`、`notification-worker`、
-  `report-worker`）與 `apps/` 仍是空殼。
+  `report-worker`）仍是空殼。
+- **`packages/backend` 與現有 `infrastructure/lib/elderly-care-stack.ts` 已由
+  [ADR 0007](docs/adr/0007-canonical-backend-and-aws-deployment-authority.md) 定為 legacy**：
+  不加入新功能，也不得部署現有 Lambda／DynamoDB／另一套 Cognito stack。一般 HTTP 主線
+  只走 Next.js BFF → Python Core → Agent Runtime；`NEXT_PUBLIC_WS_URL` 的舊語音路徑僅是
+  預設關閉、限期至 2026-08-16 的 synthetic staging/demo 例外，不得進 production。
+  AWS CDK v2 已定為 canonical IaC 工具；`kinsun-staging-foundation-v1` 已建立 VPC、ECS
+  cluster、ECR、Aurora、Secrets、Logs 與 IAM foundation。四個 runtime／migration image 與
+  `kinsun-staging-application-v1` template 已可在本機建立／驗證，但 AWS 尚未建立 canonical
+  ECS application task／service，不能描述成 application runtime 已上線。Next.js 14 的目前
+  production audit 仍有 high severity dependency，受支援版本升級完成前不得公開部署 BFF。
 - 尚未建立 CI quality gate。
 - 不得把 Target Architecture、建議目錄或候選服務描述成已實作功能。
 - 開始實作前，先確認工作項目對應的 Persona、User Story、Acceptance Criteria、Domain State、Security Gate 與 Test Gate。
@@ -274,7 +294,7 @@ uv run --with pyyaml --with jsonschema --with referencing python ../../scripts/v
 
 ## 9. 程式與 Repository 工作方式
 
-- 在技術選型尚未核准前，不要自行決定或鎖定 Python Framework、Frontend Framework、Package Manager、IaC、AWS Region 或外部 Provider。
+- 在技術選型尚未核准前，不要自行決定或鎖定 Python Framework、Frontend Framework、Package Manager、AWS Region 或外部 Provider。IaC 已由 ADR 0007 選定 AWS CDK v2；staging region 固定 `us-west-2`，production region 仍待核准。
 - 若任務需要做出上述選擇，提出候選、Trade-off 與 ADR，取得明確決策後再建立骨架。
 - Monorepo 已依文件 12 建立 `/apps`、`/services`、`/contracts`、`/infra`、`/data`、`/evals`、`/tests`、`/ops`、`/scripts`。在 Framework 與 Deployment 設計核准前，只維持中立的服務／責任邊界，不加入框架專屬內部結構。
 - 目前本機基礎設施由 `docker-compose.yml`、`.env.example` 與 `docker/postgres/init/` 定義：
@@ -300,6 +320,19 @@ uv run --with pyyaml --with jsonschema --with referencing python ../../scripts/v
     加了沒有 migration 的值，錯誤會在 INSERT 當下才爆，不是驗證期。
   - models 目前只涵蓋 48 張 baseline table 中的 33 張，`alembic revision --autogenerate`
     仍會把未映射 table 誤判為應刪除；產生的 migration 一律需人工檢查後才可使用。
+- 前端已定案，程式在 `packages/frontend/`（[ADR 0006](docs/adr/0006-frontend-stack-and-app-topology.md)）：
+  - Next.js 14 App Router + TypeScript。**不是 Vite，不用 Tailwind**；
+    樣式一律 CSS Modules ＋ `src/app/tokens.css` 的 CSS 變數。
+  - TypeScript 側用 npm workspaces（根 `package.json` ＋ `package-lock.json`），
+    與 Python 側的 uv 不共用。
+  - 視覺、RWD 與無障礙規範見 [`design-system/MASTER.md`](design-system/MASTER.md)，
+    建立任一頁面前先讀。元件內不得出現 raw hex（MASTER.md §14）。
+  - 前端是 BFF：OAuth code exchange 與 access token 只存在伺服器端，
+    token 不得進入瀏覽器可讀的位置。`src/app/backend/core/[...path]` 以 header
+    allowlist 轉發，**不轉發 cookie**；新增轉發欄位前先確認不會夾帶憑證。
+  - 家屬端的資料紅線（MASTER.md §11）在前端也要擋一次，不得只依賴後端不回傳。
+  - UI 語言切換（`src/lib/i18n/`）只改瀏覽器偏好，**不得寫入任何 domain state**，
+    尤其不得改動長者語言偏好或 consent。新增使用者可見字串時同時補 `zh-Hant` 與 `en`。
 - 優先做最小、可測試、可回復且能貫穿 Vertical Slice 的變更。
 - 不進行與任務無關的大規模重構、格式化、依賴升級或文件重寫。
 - 保留使用者既有變更；不要以 Reset、Checkout 或大量覆寫清除未知修改。
@@ -379,9 +412,10 @@ docker compose run --rm migrate alembic current
 
 ## 11. 仍待 ADR／Owner 決策
 
-- Frontend Framework 與 PWA 技術。
-- IaC 工具。
-- AWS Region、Account／Environment 策略。
+- Production AWS Region、Account／Environment 策略；staging 已固定 `us-west-2`。
+- staging application 已限制每個 service 0／1 task、每個 task 0.5 vCPU／1 GiB；月費上限與
+  24/7 或 demo-hours 運行方式仍待決。Aurora foundation 已固定 min 0／max 1 ACU、15 分鐘
+  auto-pause；只有 CloudWatch／RDS 實測才可宣稱已成功降至 0 ACU。
 - Bedrock Model／Inference Profile 與 Fallback。
 - Neptune、OpenSearch、LINE、Email、Custom ASR／TTS 採真實服務或 Demo Adapter。
 - Production API／Event／Client 支援期限。

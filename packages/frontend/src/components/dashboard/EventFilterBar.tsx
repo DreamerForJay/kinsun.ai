@@ -1,6 +1,8 @@
 'use client';
 
 import type { CoreCareEventStatus, CoreCareEventType, ListEventsFilters } from '@/lib/api/events';
+import { useLocale } from '@/lib/i18n/locale-context';
+import type { MessageKey } from '@/lib/i18n/messages';
 
 export interface EventFilterBarProps {
   filters: ListEventsFilters;
@@ -29,12 +31,14 @@ const EVENT_STATUSES: CoreCareEventStatus[] = [
 ];
 
 export function EventFilterBar({ filters, onChange }: EventFilterBarProps) {
+  const { t } = useLocale();
+
   return (
     <div
       style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}
     >
       <label>
-        起始日期{' '}
+        {t('eventFilter.dateFrom')}{' '}
         <input
           type="date"
           value={filters.dateFrom ?? ''}
@@ -42,7 +46,7 @@ export function EventFilterBar({ filters, onChange }: EventFilterBarProps) {
         />
       </label>
       <label>
-        結束日期{' '}
+        {t('eventFilter.dateTo')}{' '}
         <input
           type="date"
           value={filters.dateTo ?? ''}
@@ -50,7 +54,7 @@ export function EventFilterBar({ filters, onChange }: EventFilterBarProps) {
         />
       </label>
       <label>
-        類型{' '}
+        {t('eventFilter.type')}{' '}
         <select
           value={filters.eventType ?? ''}
           onChange={(event) =>
@@ -60,16 +64,17 @@ export function EventFilterBar({ filters, onChange }: EventFilterBarProps) {
             })
           }
         >
-          <option value="">全部</option>
+          <option value="">{t('eventFilter.allTypes')}</option>
+          {/* The submitted value stays the Core enum; only the label is translated. */}
           {EVENT_TYPES.map((type) => (
             <option key={type} value={type}>
-              {type}
+              {t(`eventType.${type}` as MessageKey)}
             </option>
           ))}
         </select>
       </label>
       <label>
-        狀態{' '}
+        {t('eventFilter.status')}{' '}
         <select
           value={filters.status ?? ''}
           onChange={(event) =>
@@ -79,10 +84,10 @@ export function EventFilterBar({ filters, onChange }: EventFilterBarProps) {
             })
           }
         >
-          <option value="">正式事件</option>
+          <option value="">{t('eventFilter.officialEvents')}</option>
           {EVENT_STATUSES.map((status) => (
             <option key={status} value={status}>
-              {status}
+              {t(`eventStatus.${status}` as MessageKey)}
             </option>
           ))}
         </select>

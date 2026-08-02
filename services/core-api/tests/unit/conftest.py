@@ -92,6 +92,7 @@ def mock_db_engine() -> MagicMock:
 
     # Mock async methods
     engine.check_connectivity = AsyncMock(return_value=True)
+    engine.recover_connectivity = AsyncMock(return_value=True)
     engine.dispose = AsyncMock()
 
     return engine

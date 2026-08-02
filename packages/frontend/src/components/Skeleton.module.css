@@ -1,0 +1,49 @@
+/* Loading placeholder — MASTER.md §10.2 requires a skeleton, and requires that
+   stale data is never left on screen pretending the load finished. */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.bar {
+  height: calc(var(--text-base) * var(--leading-body));
+  border-radius: var(--radius-sm);
+  background: var(--state-candidate-bg);
+  /* §9: subtle, and only opacity/transform. Reduced motion is handled globally
+     in globals.css, which drops this to a static block — the accessible name
+     below still announces the state, so nothing is lost (§1). */
+  animation: pulse 1.4s var(--ease-out) infinite;
+}
+
+/* Uneven widths so it reads as "content is coming", not as a broken table. */
+.bar:nth-child(3n) {
+  width: 72%;
+}
+.bar:nth-child(3n + 2) {
+  width: 88%;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* A purely visual skeleton says nothing to a screen reader (§13). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

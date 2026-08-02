@@ -43,7 +43,7 @@ export function PersonaForm({ persona, onSave }: PersonaFormProps) {
     setDraft(persona);
   }, [persona]);
 
-  if (!draft) return <p style={{ color: '#718096' }}>載入中...</p>;
+  if (!draft) return <p style={{ color: 'var(--color-muted-foreground)' }}>載入中...</p>;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -59,7 +59,10 @@ export function PersonaForm({ persona, onSave }: PersonaFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 480 }}>
+    <form
+      onSubmit={handleSubmit}
+      style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 480 }}
+    >
       <label>
         稱呼
         <input
@@ -75,7 +78,12 @@ export function PersonaForm({ persona, onSave }: PersonaFormProps) {
         語言偏好
         <select
           value={draft.preferredLanguage}
-          onChange={(e) => setDraft({ ...draft, preferredLanguage: e.target.value as PersonaContext['preferredLanguage'] })}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              preferredLanguage: e.target.value as PersonaContext['preferredLanguage'],
+            })
+          }
           style={{ display: 'block', width: '100%', padding: 8, marginTop: 4 }}
         >
           {Object.entries(LANGUAGE_LABELS).map(([value, label]) => (
@@ -90,7 +98,12 @@ export function PersonaForm({ persona, onSave }: PersonaFormProps) {
         回覆長度
         <select
           value={draft.responseLength}
-          onChange={(e) => setDraft({ ...draft, responseLength: e.target.value as PersonaContext['responseLength'] })}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              responseLength: e.target.value as PersonaContext['responseLength'],
+            })
+          }
           style={{ display: 'block', width: '100%', padding: 8, marginTop: 4 }}
         >
           {Object.entries(RESPONSE_LENGTH_LABELS).map(([value, label]) => (
@@ -105,7 +118,9 @@ export function PersonaForm({ persona, onSave }: PersonaFormProps) {
         語速
         <select
           value={draft.speakingSpeed}
-          onChange={(e) => setDraft({ ...draft, speakingSpeed: e.target.value as PersonaContext['speakingSpeed'] })}
+          onChange={(e) =>
+            setDraft({ ...draft, speakingSpeed: e.target.value as PersonaContext['speakingSpeed'] })
+          }
           style={{ display: 'block', width: '100%', padding: 8, marginTop: 4 }}
         >
           {Object.entries(SPEAKING_SPEED_LABELS).map(([value, label]) => (
@@ -120,7 +135,12 @@ export function PersonaForm({ persona, onSave }: PersonaFormProps) {
         互動風格
         <select
           value={draft.interactionStyle}
-          onChange={(e) => setDraft({ ...draft, interactionStyle: e.target.value as PersonaContext['interactionStyle'] })}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              interactionStyle: e.target.value as PersonaContext['interactionStyle'],
+            })
+          }
           style={{ display: 'block', width: '100%', padding: 8, marginTop: 4 }}
         >
           {Object.entries(INTERACTION_STYLE_LABELS).map(([value, label]) => (
@@ -146,7 +166,7 @@ export function PersonaForm({ persona, onSave }: PersonaFormProps) {
         <button type="submit" disabled={saving}>
           {saving ? '儲存中...' : '儲存設定'}
         </button>
-        {saved && <span style={{ color: '#2f855a', fontSize: 14 }}>已儲存</span>}
+        {saved && <span style={{ color: 'var(--color-accent-text)', fontSize: 14 }}>已儲存</span>}
       </div>
     </form>
   );

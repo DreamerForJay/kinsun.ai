@@ -15,13 +15,25 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  /* The one place a literal colour is correct rather than merely tolerated:
+     this becomes <meta name="theme-color">, which the browser's own chrome
+     reads before any stylesheet is applied, so a CSS variable cannot resolve
+     here. Keep the value equal to --color-primary (cyan-600) in tokens.css. */
+  // eslint-disable-next-line no-restricted-syntax -- theme-color meta cannot use a CSS variable (MASTER.md §14)
   themeColor: '#0891B2',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
+    /* The default surface is `voice`, not `care`.
+       tokens.css's :root values happen to equal the care scale, which meant any
+       page that forgot to declare a surface silently rendered at 16px — the
+       smallest scale, on a product whose primary user is 75+. MASTER.md §5.1
+       calls 22px a floor, not a preference, so the safe failure mode is the
+       elder scale. The care and family surfaces override this explicitly in
+       SurfaceShell; nothing renders at the elder scale by accident. */
     <html lang="zh-Hant-TW">
-      <body>
+      <body data-surface="voice">
         {children}
         <ServiceWorkerRegistration />
       </body>

@@ -8,6 +8,7 @@ from agent_runtime.api.error_handlers import register_exception_handlers
 from agent_runtime.api.health import router as health_router
 from agent_runtime.api.rag_retrievals import router as rag_retrievals_router
 from agent_runtime.middleware.correlation import CorrelationIdMiddleware
+from agent_runtime.models.bedrock_provider import build_bedrock_model_provider
 from agent_runtime.models.mock_provider import MockModelProvider
 from agent_runtime.orchestration.orchestrator import AgentOrchestrator
 from agent_runtime.rag.models import RagRuntimeSettings
@@ -23,6 +24,18 @@ def build_provider():
     provider_key = settings.MODEL_PROVIDER.lower()
     if provider_key == "mock":
         return MockModelProvider()
+    if provider_key == "bedrock":
+        # Fail at startup rather than degrade to the mock: a companion that
+        # silently answers from rules while the operator believes a real model
+        # is grounded in the knowledge base is worse than one that will not start.
+        if not settings.AWS_REGION or not settings.BEDROCK_TEXT_MODEL_ID:
+            raise ValueError("MODEL_PROVIDER=bedrock requires AWS_REGION and BEDROCK_TEXT_MODEL_ID")
+        return build_bedrock_model_provider(
+            region=settings.AWS_REGION,
+            model_id=settings.BEDROCK_TEXT_MODEL_ID,
+            max_tokens=settings.BEDROCK_TEXT_MAX_TOKENS,
+            temperature=settings.BEDROCK_TEXT_TEMPERATURE,
+        )
     raise ValueError(f"Unsupported MODEL_PROVIDER: {settings.MODEL_PROVIDER}")
 
 

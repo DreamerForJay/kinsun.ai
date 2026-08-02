@@ -2,16 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { CompanionTextPanel } from '@/components/companion/CompanionTextPanel';
+import { InputModeToggle, type InputMode } from '@/components/InputModeToggle';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
 import { readDevPreviewState } from '@/components/voice/dev-preview';
 import { VoiceInteractionPanel } from '@/components/voice/VoiceInteractionPanel';
 import { activeBasicVoiceConsent, listConsents } from '@/lib/api/consent';
-import { getRuntimeConfig, getVoiceSessionConfig, type RuntimeConfig, type VoiceSessionConfig } from '@/lib/runtime-config';
+import { getRuntimeConfig, type RuntimeConfig } from '@/lib/runtime-config';
 
 export default function HomePage() {
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
-  const [voiceSession, setVoiceSession] = useState<VoiceSessionConfig | null>(null);
   const [isDevPreview, setIsDevPreview] = useState(false);
+  // Voice is the default: this is a voice-first product, and reaching for a
+  // keyboard is the higher-effort path for the elders it serves.
+  const [inputMode, setInputMode] = useState<InputMode>('voice');
   const [consentGranted, setConsentGranted] = useState<boolean | null>(null);
   const [consentError, setConsentError] = useState(false);
 
@@ -20,7 +23,6 @@ export default function HomePage() {
     void getRuntimeConfig().then((nextConfig) => {
       if (!cancelled) setConfig(nextConfig);
     });
-    setVoiceSession(getVoiceSessionConfig());
     // The preview needs no credentials — it renders CompanionCharacter's
     // states only, opens no socket (see VoiceInteractionPanel's isPreview
     // gate), so it must not be blocked behind a real voice session existing.
@@ -67,7 +69,11 @@ export default function HomePage() {
         <h1 style={{ fontSize: 'var(--text-xl)', color: 'var(--color-foreground)', margin: 0 }}>
           智慧長照 AI 陪伴系統
         </h1>
-        <VoiceInteractionPanel wsUrl="" token="" consentGranted />
+        <VoiceInteractionPanel
+          apiConfig={{ apiBaseUrl: '' }}
+          elderId=""
+          consentGranted
+        />
       </main>
     );
   }
@@ -109,11 +115,23 @@ export default function HomePage() {
           尚未取得 BASIC_VOICE 同意。<a href="/consent">前往同意設定</a>
         </p>
       )}
-      {!consentError && consentGranted === true && voiceSession?.wsUrl && voiceSession.token && (
-        <VoiceInteractionPanel wsUrl={voiceSession.wsUrl} token={voiceSession.token} consentGranted={consentGranted} />
-      )}
-      {!consentError && consentGranted === true && !(voiceSession?.wsUrl && voiceSession.token) && (
-        <CompanionTextPanel apiConfig={config} elderId={config.elderId} />
+      {/* Both surfaces run the same canonical path over the same-origin BFF —
+          recognition and synthesis via the speech gateway, reply from Core — so
+          the choice here is only how the elder prefers to enter a turn.
+          Rendering one at a time keeps the screen short and unambiguous. */}
+      {!consentError && consentGranted === true && (
+        <>
+          <InputModeToggle mode={inputMode} onChange={setInputMode} />
+          {inputMode === 'voice' ? (
+            <VoiceInteractionPanel
+              apiConfig={config}
+              elderId={config.elderId}
+              consentGranted={consentGranted}
+            />
+          ) : (
+            <CompanionTextPanel apiConfig={config} elderId={config.elderId} />
+          )}
+        </>
       )}
 
       <nav style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>

@@ -68,7 +68,7 @@ export function FamilySharingConsentPanel({
   }
 
   return (
-    <section style={{ borderTop: '1px solid #d1d5db', maxWidth: 560, padding: 24 }}>
+    <section style={{ borderTop: '1px solid var(--color-border)', maxWidth: 560, padding: 24 }}>
       <h2>家屬分享同意</h2>
       <p>
         開啟後，您才可以產生一次性邀請碼。家屬只能讀取您選定的正式家庭報表，不能查看逐字稿、記憶或其他長者資料。

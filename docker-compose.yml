@@ -42,6 +42,9 @@ services:
     environment:
       # 容器內要走 compose 網路的 postgres:5432，不是 host 的 localhost
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-kinsun}:${POSTGRES_PASSWORD:-kinsun_local_dev}@postgres:5432/${POSTGRES_DB:-kinsun}
+      # 純本機 synthetic credential；staging 由 Secrets Manager 分別注入這兩欄。
+      DB_RUNTIME_USERNAME: kinsun_app
+      DB_RUNTIME_PASSWORD: ${POSTGRES_RUNTIME_PASSWORD:-kinsun_runtime_local_development_only_2026}
 
   # 選用的 DB 管理介面，預設不啟動：docker compose --profile tools up -d
   adminer:

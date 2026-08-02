@@ -1,0 +1,21 @@
+/* Care/family surface frame. Owns the `data-surface` token scope (MASTER.md §3)
+   and the language switch slot (§5.2). */
+
+.shell {
+  min-height: 100dvh;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+}
+
+.header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
