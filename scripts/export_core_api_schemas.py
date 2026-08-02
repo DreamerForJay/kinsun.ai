@@ -38,9 +38,12 @@ from app.schemas.consent import (  # noqa: E402
 from app.schemas.conversation import (  # noqa: E402
     CompanionTurnRequest,
     CompanionTurnResponse,
+    ConsumeVoiceTicketRequest,
     CreateVoiceSessionRequest,
+    CreateVoiceTicketRequest,
     TransitionVoiceSessionRequest,
     VoiceSessionResponse,
+    VoiceTicketIssuedResponse,
 )
 from app.schemas.deletion import DeletionRequestResponse  # noqa: E402
 from app.schemas.family_invitation import (  # noqa: E402
@@ -96,8 +99,11 @@ EXPORTS = {
         "ConsentV1": ConsentResponse,
         "ConsentListV1": ConsentListResponse,
         "CreateVoiceSessionRequestV1": CreateVoiceSessionRequest,
+        "CreateVoiceTicketRequestV1": CreateVoiceTicketRequest,
+        "ConsumeVoiceTicketRequestV1": ConsumeVoiceTicketRequest,
         "TransitionVoiceSessionRequestV1": TransitionVoiceSessionRequest,
         "VoiceSessionV1": VoiceSessionResponse,
+        "VoiceTicketIssuedV1": VoiceTicketIssuedResponse,
         "CompanionTurnRequestV1": CompanionTurnRequest,
         "CompanionTurnV1": CompanionTurnResponse,
         "CreateCareEventCandidateRequestV1": CreateCareEventCandidateRequest,
@@ -149,6 +155,7 @@ SUCCESS_ENVELOPES = {
     "ConsentEnvelopeV1": "domain/ConsentV1.json",
     "ConsentListEnvelopeV1": "domain/ConsentListV1.json",
     "VoiceSessionEnvelopeV1": "domain/VoiceSessionV1.json",
+    "VoiceTicketIssuedEnvelopeV1": "domain/VoiceTicketIssuedV1.json",
     "CompanionTurnEnvelopeV1": "domain/CompanionTurnV1.json",
     "CareEventEnvelopeV1": "domain/CareEventV1.json",
     "CareEventReviewEnvelopeV1": "domain/CareEventReviewV1.json",
@@ -192,6 +199,11 @@ def apply_semantic_constraints(title: str, schema: dict) -> None:
     if title == "CreateConsentRequestV1":
         properties["actor_confirmation"]["const"] = True
         properties["purposes"]["uniqueItems"] = True
+    elif title == "VoiceTicketIssuedV1":
+        schema.pop("$defs", None)
+        properties["voice_session"] = {
+            "$ref": "https://kinsun.ai/contracts/schemas/domain/VoiceSessionV1.json"
+        }
     elif title == "RevokeConsentRequestV1":
         properties["revoke_scope"]["items"]["enum"] = [
             "CONVERSATION_SESSION",
@@ -317,7 +329,11 @@ def apply_semantic_constraints(title: str, schema: dict) -> None:
                     "properties": {
                         "completed_at": {"format": "date-time", "type": "string"},
                         "items": {
-                            "items": {"properties": {"status": {"enum": ["COMPLETED", "SKIPPED"]}}}
+                            "items": {
+                                "properties": {
+                                    "status": {"enum": ["COMPLETED", "SKIPPED"]}
+                                }
+                            }
                         },
                     }
                 },

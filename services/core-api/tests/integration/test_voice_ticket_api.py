@@ -12,6 +12,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models.actor import Actor
+from app.models.care_assignment import CareAssignment
+from app.models.care_unit import CareUnit
 from app.models.consent import ConsentGrant
 from app.models.conversation import ConversationSession
 from app.models.elder import Elder
@@ -30,9 +32,13 @@ def voice_ids() -> dict[str, UUID]:
         "tenant_id": uuid4(),
         "tenant_b_id": uuid4(),
         "actor_id": uuid4(),
+        "no_consent_actor_id": uuid4(),
+        "worker_id": uuid4(),
         "elder_id": uuid4(),
         "elder_b_id": uuid4(),
+        "elder_no_consent_id": uuid4(),
         "system_actor_id": uuid4(),
+        "care_unit_id": uuid4(),
         "policy_id": uuid4(),
         "consent_id": uuid4(),
     }
@@ -59,6 +65,16 @@ async def voice_data(committed_session, voice_ids):
                 actor_type="ELDER",
                 display_name="Synthetic Voice Elder",
             ),
+            Actor(
+                id=ids["no_consent_actor_id"],
+                actor_type="ELDER",
+                display_name="Synthetic Elder Without Consent",
+            ),
+            Actor(
+                id=ids["worker_id"],
+                actor_type="HOME_CARE_WORKER",
+                display_name="Synthetic Expired Worker",
+            ),
         ]
     )
     await committed_session.flush()
@@ -77,6 +93,19 @@ async def voice_data(committed_session, voice_ids):
                 display_name="Synthetic Other Elder",
                 primary_care_setting="HOME_CARE",
             ),
+            Elder(
+                id=ids["elder_no_consent_id"],
+                actor_id=ids["no_consent_actor_id"],
+                tenant_id=ids["tenant_id"],
+                display_name="Synthetic Elder Without Consent",
+                primary_care_setting="HOME_CARE",
+            ),
+            CareUnit(
+                id=ids["care_unit_id"],
+                tenant_id=ids["tenant_id"],
+                unit_type="HOME_CARE_AGENCY",
+                name="Synthetic Expired Assignment Agency",
+            ),
             PolicyRegistry(
                 id=ids["policy_id"],
                 owner_tenant_id=ids["tenant_id"],
@@ -91,26 +120,49 @@ async def voice_data(committed_session, voice_ids):
         ]
     )
     await committed_session.flush()
-    committed_session.add(
-        ConsentGrant(
-            id=ids["consent_id"],
-            elder_id=ids["elder_id"],
-            purpose_code="BASIC_VOICE",
-            status="GRANTED",
-            version=1,
-            scope={},
-            granted_by_actor_id=ids["actor_id"],
-            policy_id=ids["policy_id"],
-            granted_at=now,
-            effective_at=now - timedelta(minutes=1),
-        )
+    committed_session.add_all(
+        [
+            ConsentGrant(
+                id=ids["consent_id"],
+                elder_id=ids["elder_id"],
+                purpose_code="BASIC_VOICE",
+                status="GRANTED",
+                version=1,
+                scope={},
+                granted_by_actor_id=ids["actor_id"],
+                policy_id=ids["policy_id"],
+                granted_at=now,
+                effective_at=now - timedelta(minutes=1),
+            ),
+            CareAssignment(
+                care_unit_id=ids["care_unit_id"],
+                elder_id=ids["elder_id"],
+                worker_id=ids["worker_id"],
+                tenant_id=ids["tenant_id"],
+                service_start=now - timedelta(hours=2),
+                service_end=now - timedelta(hours=1),
+                service_scope=["voice_session:create"],
+                status="CONFIRMED",
+            ),
+        ]
     )
     await committed_session.commit()
     yield ids
 
 
-def _app(test_engine, ids, *, role: str, tenant_key: str = "tenant_id", codec):
-    actor_id = ids["actor_id"] if role == "ELDER" else ids["system_actor_id"]
+def _app(
+    test_engine,
+    ids,
+    *,
+    role: str,
+    tenant_key: str = "tenant_id",
+    actor_key: str | None = None,
+    codec,
+):
+    if actor_key is not None:
+        actor_id = ids[actor_key]
+    else:
+        actor_id = ids["actor_id"] if role == "ELDER" else ids["system_actor_id"]
     app = identity_api_tests._build_client_app(
         test_engine,
         actor_id=actor_id,
@@ -235,9 +287,7 @@ async def test_revocation_cancels_active_session_and_invalidates_ticket(
         transport=ASGITransport(app=elder_app),
         base_url="http://test",
     ) as client:
-        current = await client.get(
-            f"/api/v1/voice-sessions/{data['voice_session']['session_id']}"
-        )
+        current = await client.get(f"/api/v1/voice-sessions/{data['voice_session']['session_id']}")
     assert current.status_code == 200
     assert current.json()["data"]["state"] == "CANCELLED"
     assert current.json()["data"]["ended_at"] is not None
@@ -267,6 +317,19 @@ async def test_unconsumed_ticket_is_invalid_after_revocation(
             },
         )
     assert revoked.status_code == 200
+
+    before_reissue = await _counts(test_engine)
+    async with AsyncClient(
+        transport=ASGITransport(app=elder_app),
+        base_url="http://test",
+    ) as client:
+        denied_reissue = await _issue(
+            client,
+            ids["elder_id"],
+            "voice-ticket-after-revoke",
+        )
+    assert denied_reissue.status_code == 404
+    assert await _counts(test_engine) == before_reissue
 
     system_app = _app(test_engine, ids, role="SYSTEM_SERVICE", codec=codec)
     async with AsyncClient(
@@ -352,3 +415,80 @@ async def test_cross_tenant_issue_has_zero_session_or_outbox_side_effect(
 
     after = await _counts(test_engine)
     assert after == before
+
+
+@pytest.mark.asyncio
+async def test_missing_consent_and_same_tenant_cross_elder_issue_are_denied(
+    test_engine,
+    voice_data,
+) -> None:
+    ids = voice_data
+    codec = VoiceTicketCodec(SECRET)
+    before = await _counts(test_engine)
+
+    no_consent_app = _app(
+        test_engine,
+        ids,
+        role="ELDER",
+        actor_key="no_consent_actor_id",
+        codec=codec,
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=no_consent_app),
+        base_url="http://test",
+    ) as client:
+        missing_consent = await _issue(
+            client,
+            ids["elder_no_consent_id"],
+            "voice-ticket-missing-consent",
+        )
+
+    elder_app = _app(test_engine, ids, role="ELDER", codec=codec)
+    async with AsyncClient(
+        transport=ASGITransport(app=elder_app),
+        base_url="http://test",
+    ) as client:
+        cross_elder = await _issue(
+            client,
+            ids["elder_no_consent_id"],
+            "voice-ticket-same-tenant-cross-elder",
+        )
+
+    assert missing_consent.status_code == cross_elder.status_code == 404
+    assert (
+        missing_consent.json()["error"]["reason_code"]
+        == cross_elder.json()["error"]["reason_code"]
+        == "RESOURCE_NOT_FOUND"
+    )
+    assert await _counts(test_engine) == before
+
+
+@pytest.mark.asyncio
+async def test_expired_assignment_issue_has_zero_session_or_outbox_side_effect(
+    test_engine,
+    voice_data,
+) -> None:
+    ids = voice_data
+    codec = VoiceTicketCodec(SECRET)
+    worker_app = _app(
+        test_engine,
+        ids,
+        role="HOME_CARE_WORKER",
+        actor_key="worker_id",
+        codec=codec,
+    )
+    before = await _counts(test_engine)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=worker_app),
+        base_url="http://test",
+    ) as client:
+        denied = await _issue(
+            client,
+            ids["elder_id"],
+            "voice-ticket-expired-assignment",
+        )
+
+    assert denied.status_code == 404
+    assert denied.json()["error"]["reason_code"] == "RESOURCE_NOT_FOUND"
+    assert await _counts(test_engine) == before

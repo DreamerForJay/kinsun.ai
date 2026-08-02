@@ -57,6 +57,13 @@ DATA_SCHEMA_FOR = {
     "companion-turn-response.json": "domain/CompanionTurnV1.json",
     "companion-turn-request-extra-field.json": "domain/CompanionTurnRequestV1.json",
     "companion-turn-response-with-input.json": "domain/CompanionTurnV1.json",
+    "voice-ticket-issue-request.json": "domain/CreateVoiceTicketRequestV1.json",
+    "voice-ticket-issued-response.json": "domain/VoiceTicketIssuedV1.json",
+    "voice-ticket-consume-request.json": "domain/ConsumeVoiceTicketRequestV1.json",
+    "voice-ticket-issue-with-client-scope.json": (
+        "domain/CreateVoiceTicketRequestV1.json"
+    ),
+    "voice-ticket-consume-with-actor.json": ("domain/ConsumeVoiceTicketRequestV1.json"),
     "care-event-candidate.json": "domain/CreateCareEventCandidateRequestV1.json",
     "care-event-candidate-with-transcript.json": "domain/CreateCareEventCandidateRequestV1.json",
     "care-event-candidate-evidence-must-be-opaque.json": (

@@ -1,6 +1,6 @@
 # Contract 與文件 10 差異清單
 
-- 更新日期：2026-08-01
+- 更新日期：2026-08-02
 - 文件基準：`docs/10智慧長照 AI 陪伴系統－API、Event、Tool 與 Data Contracts v0.1.md`
 - 執行基準：目前 `services/core-api` 與 `services/agent-runtime`
 
@@ -89,7 +89,23 @@ major 才移除。`VOICE` 仍需 candidate-specific affirmative evidence，因�
 
 ### Voice transport
 
-Core 已實作 Voice Session metadata 與受控狀態轉移，但 WebSocket binary/audio transport、ASR Final、低信心確認與 TTS 仍屬 Speech workstream。回應明確標示 `transport_status = NOT_CONFIGURED`。
+Core 已實作 Voice Session metadata、受控狀態轉移，以及 dedicated Voice Ticket issue／consume：
+
+- `POST /api/v1/elders/{elder_id}/voice-tickets` 只從可信 `ActorContext` 推導 actor／tenant／elder，
+  重驗授權與 `BASIC_VOICE` Consent，回傳最長 120 秒的 opaque Ticket；Ticket 不含可解碼的
+  scope claim，也不寫入 outbox、一般 log 或 idempotency response body。
+- `POST /api/v1/internal/voice-tickets/consume` 只允許 server-side `SYSTEM_SERVICE` actor，使用
+  tenant-scoped row lock 重驗 Ticket、Session、Consent ID/version，且只有第一次
+  `CREATED → RECORDING` 成功；到期、重播、cross-tenant／elder、撤回或取消一律 fail closed。
+- `BASIC_VOICE` 撤回或被新 grant 取代時，同交易取消相關 active Voice Session，使未使用 Ticket
+  立即失效。這不影響其他 Consent Purpose。
+
+目前 `SYSTEM_SERVICE` guard 已可執行，但 ADR 0009 的 production service credential mechanism
+（例如 IAM 或 mTLS）仍待 Owner 核准；因此 internal consume contract 不代表 production service
+identity 已部署。WebSocket binary/audio transport、Speech Gateway、ASR Final、低信心確認與 TTS
+仍屬尚未實作的 Speech workstream。`VoiceSessionV1.transport_status` 仍明確標示
+`NOT_CONFIGURED`，Ticket 不得放在 URL；後續只能經 allowlisted header、WebSocket subprotocol
+或第一個受保護 frame 傳送。
 
 Core 另提供已實作的單輪文字 fallback：`POST /api/v1/voice-sessions/{session_id}/companion-turns`。
 它會在 Core 重新檢查 tenant／elder scope、`BASIC_VOICE` Consent snapshot 與 Session state，
