@@ -72,6 +72,9 @@ class TestSettingsConstruction:
             COGNITO_JWKS_CACHE_SECONDS="120",
             COGNITO_HTTP_TIMEOUT_SECONDS="4",
             FAMILY_INVITATION_HMAC_SECRET="test-family-invitation-secret-32-bytes",
+            VOICE_TICKET_ENABLED="true",
+            VOICE_TICKET_HMAC_SECRET="test-voice-ticket-secret-material-32-bytes",
+            VOICE_TICKET_TTL_SECONDS="75",
             AGENT_RUNTIME_URL="http://127.0.0.1:8001",
             AGENT_RUNTIME_TIMEOUT_SECONDS="8",
             AGENT_RUNTIME_MODEL_ID="mock-v1",
@@ -99,6 +102,9 @@ class TestSettingsConstruction:
         assert s.cognito_jwks_cache_seconds == 120
         assert s.cognito_http_timeout_seconds == 4
         assert s.family_invitation_hmac_secret == "test-family-invitation-secret-32-bytes"
+        assert s.voice_ticket_enabled is True
+        assert s.voice_ticket_hmac_secret == "test-voice-ticket-secret-material-32-bytes"
+        assert s.voice_ticket_ttl_seconds == 75
         assert s.agent_runtime_url == "http://127.0.0.1:8001"
         assert s.agent_runtime_timeout_seconds == 8
         assert s.agent_runtime_model_id == "mock-v1"
@@ -176,6 +182,18 @@ class TestValidation:
                 COGNITO_APP_CLIENT_ID="client-id",
             )
 
+    def test_enabled_voice_ticket_requires_strong_secret(self) -> None:
+        with pytest.raises(ValidationError, match="VOICE_TICKET_HMAC_SECRET"):
+            _make_settings(
+                VOICE_TICKET_ENABLED="true",
+                VOICE_TICKET_HMAC_SECRET="too-short",
+            )
+
+    @pytest.mark.parametrize("ttl", ["14", "121"])
+    def test_voice_ticket_ttl_is_bounded(self, ttl: str) -> None:
+        with pytest.raises(ValidationError):
+            _make_settings(VOICE_TICKET_TTL_SECONDS=ttl)
+
 
 # ─── Secret redaction ────────────────────────────────────────────────────────
 
@@ -208,6 +226,12 @@ class TestSecretRedaction:
         secret = "test-family-invitation-secret-32-bytes"
         settings = _make_settings(FAMILY_INVITATION_HMAC_SECRET=secret)
         assert settings.model_dump()["family_invitation_hmac_secret"] == "***"
+        assert secret not in repr(settings)
+
+    def test_voice_ticket_secret_is_redacted(self) -> None:
+        secret = "test-voice-ticket-secret-material-32-bytes"
+        settings = _make_settings(VOICE_TICKET_HMAC_SECRET=secret)
+        assert settings.model_dump()["voice_ticket_hmac_secret"] == "***"
         assert secret not in repr(settings)
 
 

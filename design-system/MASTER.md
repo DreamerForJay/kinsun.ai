@@ -18,7 +18,7 @@
 | # | 項目 | 狀態 | 內容 |
 | --- | --- | --- | --- |
 | 1 | App 拓撲 | **已定案** | **單一 multi-role PWA**，程式在 `packages/frontend`，以 route 區分角色。`apps/` 的三個目錄已移除（[ADR 0006](../docs/adr/0006-frontend-stack-and-app-topology.md)）。 |
-| 2 | Stack | **已定案** | **Next.js 14 App Router + TypeScript + CSS Modules + CSS custom properties**。**不是 Vite，也不用 Tailwind**——前端同時是 BFF，OAuth 交換與 access token 必須留在伺服器端（ADR 0006 §2、§3）。 |
+| 2 | Stack | **已定案** | **Next.js 16 App Router + React 19 + TypeScript + CSS Modules + CSS custom properties**。**不是 Vite，也不用 Tailwind**——前端同時是 BFF，OAuth 交換與 access token 必須留在伺服器端（ADR 0006 §2、§3；版本見 ADR 0008）。 |
 | 3 | 主要載具 | **已採用** | **平板為主**。手機為次要，桌機僅照護端。 |
 
 仍待 ADR、不要預先鎖定的：狀態管理函式庫、i18n 函式庫（現為 `src/lib/i18n/` 的自建
@@ -70,9 +70,15 @@
 [data-surface="voice"]     長者端覆寫
 [data-surface="care"]      照護端覆寫
 [data-surface="family"]    家屬端覆寫
+[data-surface="public"]    登入前（行銷／法遵頁）覆寫
 ```
 
 Surface 由 route group 決定，掛在 `<body data-surface="...">`。
+
+`public` 是第四個 surface，涵蓋 `/sign-in` 之前的行銷首頁與 `/privacy`、`/terms` 等法遵頁——
+這批頁面在文件 04 §五的 22 頁清單之外，是 Gate 1 範圍外的新增（見 §15）。訪客身分未知
+（可能是長者本人、家屬或照服員），因此不沿用既有任一 surface：字級介於 voice 與 family
+之間，不用 family 的「單欄 720px 閱讀版」限制，也不用 voice 的「不放語言切換」限制。
 
 ---
 
@@ -163,16 +169,20 @@ Figtree 放前面只吃 Latin 與數字，中文自動落到 Noto Sans TC。
 
 ### 5.1 字級
 
-| Token | voice | care | family |
-| --- | --- | --- | --- |
-| `--text-xs` | 18px | 12px | 14px |
-| `--text-sm` | 20px | 14px | 16px |
-| `--text-base` | **22px** | 16px | 18px |
-| `--text-lg` | 26px | 18px | 20px |
-| `--text-xl` | 32px | 20px | 24px |
-| `--text-2xl` | 40px | 24px | 30px |
-| `--text-3xl` | 48px | 30px | 36px |
-| line-height (body) | 1.75 | 1.5 | 1.6 |
+| Token | voice | care | family | public |
+| --- | --- | --- | --- | --- |
+| `--text-xs` | 18px | 12px | 14px | 14px |
+| `--text-sm` | 20px | 14px | 16px | 16px |
+| `--text-base` | **22px** | 16px | 18px | 20px |
+| `--text-lg` | 26px | 18px | 20px | 24px |
+| `--text-xl` | 32px | 20px | 24px | 30px |
+| `--text-2xl` | 40px | 24px | 30px | 38px |
+| `--text-3xl` | 48px | 30px | 36px | 48px |
+| line-height (body) | 1.75 | 1.5 | 1.6 | 1.7 |
+
+`public` 的 20px base 不是四捨五入取中間值，是同一套理由的延伸：§5.1 對長者端 22px 的
+論證（訪客可能是本人）在這裡同樣成立，只是訪客身分未知，所以不能直接套用 22px 的密度與
+單一操作限制——20px 對 75+ 仍可讀，對其他角色也不會顯得笨重。
 
 長者端 22px 是**下限不是選擇**——目標使用者 75+，skill 的 16px 是通用網頁下限，
 對此族群不足。
@@ -188,6 +198,7 @@ Figtree 放前面只吃 Latin 與數字，中文自動落到 Noto Sans TC。
 | voice | 中文，**不提供切換** | 無 |
 | care | 中／英 | 頁首右上 |
 | family | 中／英 | 頁首右上 |
+| public | 中／英 | 頁首右上 |
 
 長者端不放語言切換，是設計決定不是待辦：§1「一次一個主要操作」與 §6.1「長者端不得
 要求精準點擊」都反對在語音畫面加這類 chrome。
@@ -217,6 +228,7 @@ Surface 密度：
 | voice | 1（極寬鬆） | 32px | 48px |
 | care | 8（密集） | 16px | 24px |
 | family | 4（標準） | 24px | 32px |
+| public | 3（寬鬆） | 24px | 40px |
 
 ### 6.1 觸控目標（平板優先，高於通用標準）
 
@@ -225,6 +237,7 @@ Surface 密度：
 | voice | **64×64px** | 72×72px | ≥16px |
 | care | 48×48px | 56×56px | ≥8px |
 | family | 48×48px | 48×48px | ≥8px |
+| public | 56×56px | 56×56px | ≥8px |
 
 長者端 64px 高於 skill 的 44px 標準。理由：平板持握不穩、握力與精細動作衰退、
 且多數操作不可逆（確認記憶、撤回同意）。誤觸成本高於畫面效率。
@@ -278,6 +291,18 @@ Surface 密度：
 **family**
 - 永遠單欄，`max-width: 720px`。閱讀導向，不需要寬版。
 - 報表內容行長控制在 35–60 字元（中文約 25–35 字）。
+
+**public**
+- Header 固定於頂端（sticky），`padding-top` 補償等高（§7.4）；<768 收合為
+  disclosure，觸發元件是圖示 + 「選單」文字，不得只有圖示（§8.4、§14）。
+- Hero 與角色卡區塊可全寬（full-bleed 背景），但文字內容仍限制在
+  `max-width: 720px` 的量測寬度內，理由同 family（skill §6 `line-length`）。
+- 角色卡（長者／家屬／照服員）採 `repeat(auto-fit, minmax(280px, 1fr))`，
+  與 care 的長者卡格線同一套規則，390 時自然落為單欄。
+- 法遵頁（`/privacy`、`/terms`、`/data-rights`、`/accessibility`）沿用 family
+  的單欄 720px 閱讀版面，不使用 hero 或全寬區塊。
+- Footer 不 sticky，內容包含法遵頁連結、GitHub 連結；不得放語音互動或需要
+  Core 授權的內容。
 
 ### 7.4 硬性規則
 
@@ -478,3 +503,8 @@ Withdrawn（`#DC2626` on `#FEF2F2` ＝ 4.41:1）都達不到本節要求的 4.5:
 - 頁面覆寫：`design-system/pages/<page-name>.md`（目前無）
 - 頁面清單與優先級：`docs/04…資訊架構、UX 與 User Flow v0.1.md` §五
 - 不可違反邊界：`AGENTS.md` §4
+- Public surface（登入前行銷／法遵頁）：文件 04 §五 22 頁清單未涵蓋，屬 Gate 1
+  之外的新增範圍，不代表已由該文件核准的資訊架構；實作位置
+  `packages/frontend/src/components/public/`、`src/app/(public)/`。文案撰寫
+  時必須對照 `AGENTS.md` §1 的既有實作狀態，未實作的模組（ASR／TTS、每日自動
+  摘要、家屬推播、真實模型回覆）不得描述成已可使用。

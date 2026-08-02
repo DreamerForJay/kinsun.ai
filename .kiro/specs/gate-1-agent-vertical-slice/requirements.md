@@ -78,13 +78,21 @@ worker、跨服務 E2E 與 CI quality gate。
 2. WHEN Core 呼叫 Agent Runtime，THE SYSTEM SHALL 從可信 server-side context 推導 actor、
    tenant、elder、assignment、consent purpose/version 與 policy version，不得信任 client 或模型
    提供的同名欄位作為授權依據。
-3. WHEN 正式語音連線被建立，Core SHALL 核發短效、單次、綁 actor／tenant／elder／purpose 的
+3. BEFORE canonical Core 啟用任何 Agent Tool，THE SYSTEM SHALL 建立經核准的雙向 service
+   identity／credential contract；Agent Runtime SHALL 拒絕未驗證 caller，且 browser credential
+   SHALL NOT 被 Runtime 轉送成 system-service identity。
+4. WHEN Core 允許 Agent Tool，Tool allowlist 與 scope SHALL 完全由 Core 根據 trusted context、
+   consent、policy 與 session server-side 推導，browser 或模型 SHALL NOT 擴張該 scope。
+5. THE SYSTEM SHALL 為每次 Tool-enabled turn 指定唯一 AgentRun 正式寫入權威；Core pre-register
+   與 Runtime register 兩種 lifecycle SHALL NOT 同時為同一回合建立或完成不同正式 AgentRun。
+6. WHEN 正式語音連線被建立，Core SHALL 核發短效、單次、綁 actor／tenant／elder／purpose 的
    Voice Ticket；Access Token 與 ID Token SHALL NOT 出現在 URL、browser-readable storage 或
    WebSocket query string。
-4. THE SYSTEM SHALL NOT 對 `packages/backend`、legacy Lambda／DynamoDB／Step Functions stack
+7. THE SYSTEM SHALL NOT 對 `packages/backend`、legacy Lambda／DynamoDB／Step Functions stack
    新增功能或正式寫入，也 SHALL NOT 建立 DynamoDB＋Aurora dual write。
-5. IF actor、tenant、elder、assignment、relationship、purpose 或 resource state 無法由可信 context
-   證明，THEN Core SHALL deny by default，且不得產生 domain write、outbox 或 Tool side effect。
+8. IF actor、tenant、elder、assignment、relationship、purpose、service identity 或 resource state
+   無法由可信 context 證明，THEN Core 與 Agent Runtime SHALL deny by default，且不得產生 domain
+   write、outbox 或 Tool side effect。
 
 ### Requirement 2: Purpose-Separated Consent and Immediate Revocation
 
@@ -99,7 +107,10 @@ worker、跨服務 E2E 與 CI quality gate。
    建立 Event Candidate 或 Memory Candidate。
 4. WHEN consent 被撤回，THE SYSTEM SHALL 先停止對應用途的未來處理，並 SHALL 阻止 retry、
    replay、backfill、scheduler 或 projection rebuild 產生新的對應資料。
-5. WHEN 長者說「停止」、「不要記」或「不要再提」，THE SYSTEM SHALL 優先停止相關流程，不得
+5. WHEN consent 在 Voice Ticket 核發後被撤回，THE SYSTEM SHALL 立即使未使用 ticket 失效、將
+   active session 轉為取消狀態，並停止 ASR、TTS、retry、Agent 與 Candidate extraction；不得等到
+   final transcript 回到 Core 才停止。
+6. WHEN 長者說「停止」、「不要記」或「不要再提」，THE SYSTEM SHALL 優先停止相關流程，不得
    為提升互動率改寫意圖或自動重試。
 
 ### Requirement 3: Voice Session and Low-Confidence Confirmation
@@ -147,16 +158,21 @@ worker、跨服務 E2E 與 CI quality gate。
 
 1. WHEN `CARE_EVENT_EXTRACTION` 有效、Safety 允許且 extractor 找到事件，Agent Runtime MAY 提出
    schema-valid Event Candidate；模型 SHALL NOT 宣告事件已被人工確認。
-2. WHEN Agent Runtime 執行 `create_event_candidate`，Core SHALL 重新驗證 service identity、tenant、
+2. BEFORE canonical path 啟用 `create_event_candidate`，Core 與 Agent Runtime SHALL 使用已核准的
+   service identity contract、server-derived Tool allowlist 與唯一 AgentRun authority；現有隔離
+   lifecycle test SHALL NOT 單獨作為 canonical E2E 證據。
+3. WHEN Agent Runtime 執行 `create_event_candidate`，Core SHALL 重新驗證 service identity、tenant、
    elder、session、policy、consent、scope、state、idempotency 與 Tool allowlist。
-3. THE SYSTEM SHALL 使用顯式 Event State：`CANDIDATE → NEEDS_REVIEW → VERIFIED／CORRECTED／
-   REJECTED → SUPERSEDED`。
-4. UNTIL 照服員依有效 assignment 完成人工覆核，Event Candidate SHALL NOT 進入摘要、Graph、
+4. WHEN Tool-enabled turn 完成，THE SYSTEM SHALL 只由選定的 AgentRun authority 建立與完成同一
+   正式 AgentRun，不得由 Core companion path 與 Runtime lifecycle 重複寫入。
+5. THE SYSTEM SHALL 使用顯式 Event State：`CANDIDATE → NEEDS_REVIEW`，再由人工命令分支為
+   `VERIFIED`、`CORRECTED` 或 `REJECTED`；已驗證／修正事件 MAY 後續轉為 `SUPERSEDED`。
+6. UNTIL 照服員依有效 assignment 完成人工覆核，Event Candidate SHALL NOT 進入摘要、Graph、
    Search、Family response 或後續對話事實。
-5. WHEN 照服員 verify、correct 或 reject Event，Core SHALL 保存 reviewer、timestamp、前後值、
+7. WHEN 照服員 verify、correct 或 reject Event，Core SHALL 保存 reviewer、timestamp、前後值、
    reason 與 optimistic version。
-6. IF authorization、consent、scope、state 或 version 驗證失敗，THEN Core SHALL 使用與不存在資源
-   一致的回應，且 SHALL NOT 寫入 Event 或 outbox。
+8. IF authorization、consent、scope、state、service identity 或 version 驗證失敗，THEN Core SHALL
+   使用與不存在資源一致的回應，且 SHALL NOT 寫入 Event 或 outbox。
 
 ### Requirement 6: Memory Candidate and Explicit Confirmation Gate
 
@@ -166,14 +182,15 @@ worker、跨服務 E2E 與 CI quality gate。
 
 1. WHEN `LONG_TERM_MEMORY` 有效且內容屬穩定偏好、重要關係或固定作息，Agent MAY 提出
    Memory Candidate；一般閒聊、一次性事件、敏感健康推測與陪伴需求推估 SHALL NOT 成為候選。
-2. THE SYSTEM SHALL 使用顯式 Memory State：`CANDIDATE → PENDING_CONFIRMATION → CONFIRMED／
-   REJECTED／DEFERRED → ACTIVE → INACTIVE → DELETED`。
+2. THE SYSTEM SHALL 使用顯式 Memory State：`CANDIDATE → PENDING_CONFIRMATION`，再分支為
+   `CONFIRMED → ACTIVE`、`REJECTED` 或 `DEFERRED`；`ACTIVE` MAY 後續轉為 `INACTIVE → DELETED`。
 3. WHEN Memory Candidate 建立，THE SYSTEM SHALL 以簡短問題詢問長者是否保存，且 SHALL 保存
    source reference、schema/model/policy version 與 bounded confidence metadata。
 4. UNTIL 長者明確確認，Memory Candidate SHALL NOT 成為 `ACTIVE`，也 SHALL NOT 進入 Context、
    Graph、摘要、Family response 或後續對話事實。
-5. WHEN 長者拒絕、延後、說「不要記」或 consent 已撤回，Core SHALL 阻止 ACTIVE transition；
-   拒絕不得產生正式 Memory write 或 activation outbox。
+5. WHEN 長者拒絕、延後、說「不要記」或 consent 已撤回，Core SHALL 阻止 ACTIVE transition，
+   SHALL NOT 建立 ACTIVE Memory 或 activation outbox，並 SHALL 只保存防止重問、支援 idempotency
+   與稽核所需的最小化 `REJECTED／DEFERRED` transition evidence。
 6. WHEN 授權照服員修正或處理候選，Core SHALL 仍依規格保留長者明確確認 Gate，不得由模型、
    Hook、retry、scheduler 或資料修復程序宣告確認完成。
 7. WHEN Memory 被停用、刪除或撤回，THE SYSTEM SHALL 立即停止檢索，並以 tombstone 阻止 replay、
@@ -241,8 +258,14 @@ worker、跨服務 E2E 與 CI quality gate。
 3. Unauthorized 與 nonexistent 單一資源 SHALL 使用一致的狀態碼與 envelope，避免存在性探測。
 4. THE SYSTEM SHALL 保存 bounded trace metadata，包括 API、Agent、Prompt、Model route、Policy、
    Guardrail、Tool schema、Context manifest、Speech、Graph 與 Release version。
-5. Context Manifest 若跨服務傳遞，THE SYSTEM SHALL 使用 reference 或經核准的 Restricted Data
+5. WHEN executable Agent Run 傳遞 current turn，THE SYSTEM SHALL 使用經核准的 private Restricted
+   Data service contract：包含雙向 service authentication、傳輸加密、資料最小化、bounded
+   retention／timeout cleanup 與 audit；若無此核准，SHALL 改傳 reference，不得把 raw transcript
+   path 當成 canonical Gate 1 完成證據。
+6. Context Manifest 若跨服務傳遞，THE SYSTEM SHALL 使用 reference 或經核准的 Restricted Data
    contract；不得直接啟用目前內嵌逐字稿的 target Handoff shape。
+7. Agent Runtime SHALL 拒絕 browser direct access 與未驗證 caller，且 SHALL NOT 將 caller
+   credential 轉換或轉送為 Core system-service permission。
 
 ### Requirement 11: Verification and Gate 1 Evidence
 
@@ -279,3 +302,6 @@ worker、跨服務 E2E 與 CI quality gate。
    之衝突 SHALL 保留為 Owner decision，不得在本 Spec 內默默啟用自動核准。
 5. Voice／Agent／TTS latency 門檻因規格文件不一致，Owner SHALL 先核准統一門檻；在此之前只記錄
    實測 baseline，不宣告達標。
+6. BEFORE canonical Tool-enabled turn 或 raw current-turn transport 被視為完成，Security／Architecture
+   Owner SHALL 核准 Core↔Agent service identity、唯一 AgentRun authority、server-derived Tool scope
+   與 Restricted Data transport／retention contract。

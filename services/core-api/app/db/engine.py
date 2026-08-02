@@ -39,6 +39,11 @@ class DatabaseEngine:
         if settings.db_pool_mode == DatabasePoolMode.NULL:
             engine_options["poolclass"] = NullPool
         else:
+            # Validate pooled connections when they are checked out. Aurora and
+            # local PostgreSQL can close an idle TCP connection while the
+            # process still considers it reusable; pre-ping replaces that
+            # connection before a request starts a transaction.
+            engine_options["pool_pre_ping"] = True
             engine_options["pool_size"] = settings.db_pool_size
             engine_options["max_overflow"] = settings.db_max_overflow
 
@@ -67,6 +72,10 @@ class DatabaseEngine:
     def is_ready(self) -> bool:
         """Return True if the last connectivity check succeeded."""
         return self._ready
+
+    def mark_unready(self) -> None:
+        """Require a bounded connectivity check before the next DB request."""
+        self._ready = False
 
     async def check_connectivity(self) -> bool:
         """Execute SELECT 1 to verify database connectivity.

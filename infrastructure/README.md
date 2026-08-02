@@ -50,8 +50,9 @@ External Cognito app-client reference 已指向 `kinsun-web-bff-staging`；
 - 建立第二套 Cognito、OpenSearch、DynamoDB Domain Store 或 Legacy Lambda backend。
 - 把 foundation 的成功部署當成 application runtime 已完成；目前 AWS 尚未建立 canonical
   application task／service。
-- 在 Next.js deployment security gate 未解除前推送 Frontend release image、修改 Cognito
-  callback 或把 service 從 `desiredCount=0` 調為 `1`。
+- 未完成 ECR digest、Cognito callback、migration 與內部 smoke gates 就把 service 從
+  `desiredCount=0` 調為 `1`。Frontend framework blocker 已由 ADR 0008 在本機解除，
+  但尚未推送候選 image，也不因此自動取得公開流量授權。
 
 Application rollout 必須依序完成：foundation runtime DB Secret／migration repository update、
 四個 ECR digest preflight、`desiredCount=0` change set、Cognito callback 複驗、one-shot migration

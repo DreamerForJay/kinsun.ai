@@ -20,6 +20,37 @@ class ConversationRepository(BaseRepository):
         )
         return result.scalar_one_or_none()
 
+    async def get_by_id_for_update(
+        self,
+        session_id: UUID,
+    ) -> ConversationSession | None:
+        result = await self._session.execute(
+            select(ConversationSession)
+            .where(
+                ConversationSession.id == session_id,
+                ConversationSession.tenant_id == self._tenant_id,
+            )
+            .with_for_update()
+        )
+        return result.scalar_one_or_none()
+
+    async def list_active_for_consent_for_update(
+        self,
+        consent_id: UUID,
+    ) -> list[ConversationSession]:
+        result = await self._session.execute(
+            select(ConversationSession)
+            .where(
+                ConversationSession.tenant_id == self._tenant_id,
+                ConversationSession.consent_id == consent_id,
+                ConversationSession.state.in_(
+                    {"CREATED", "RECORDING", "PROCESSING", "RESPONDING"}
+                ),
+            )
+            .with_for_update()
+        )
+        return list(result.scalars().all())
+
     async def get_for_elder(
         self,
         session_id: UUID,

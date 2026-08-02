@@ -4,10 +4,11 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 import agent_runtime.rag.client as opensearch_module
 import agent_runtime.rag.query_embedder as embedder_module
-from agent_runtime.rag.citations import render_cited_chunk
+from agent_runtime.rag.citations import render_citation, render_cited_chunk
 from agent_runtime.rag.client import OpenSearchClient, build_opensearch_transport
 from agent_runtime.rag.fallback import NO_DATA_MESSAGE
 from agent_runtime.rag.filters import is_normal_rag_eligible
@@ -19,6 +20,7 @@ from agent_runtime.rag.models import (
     QueryEmbeddingSettings,
     RagRuntimeSettings,
     RetrievalRequestV1,
+    RetrievalResultV1,
 )
 from agent_runtime.rag.query_embedder import (
     BedrockQueryEmbedder,
@@ -395,6 +397,42 @@ async def test_no_results_returns_explicit_fallback_and_never_guesses() -> None:
     assert response.results == []
     assert response.fallback_message == NO_DATA_MESSAGE
     assert "無法" in response.fallback_message
+
+
+def test_unpaginated_source_cites_without_inventing_a_page_number() -> None:
+    """An official web page has no page number; a placeholder would be a lie."""
+
+    result = RetrievalResultV1(
+        chunk_id="mohw_1966_apply_ltc_definition_001",
+        text="長期照顧服務的申請方式說明。",
+        score=0.9,
+        document_name="申請長照服務",
+        section="什麼是長期照顧服務",
+        page_start=None,
+        page_end=None,
+        source_url="https://1966.gov.tw/LTC/cp-6533-70777-207.html",
+    )
+
+    citation = render_citation(result)
+
+    assert "申請長照服務" in citation
+    assert "什麼是長期照顧服務" in citation
+    assert "p." not in citation
+    assert "pp." not in citation
+
+
+def test_half_populated_page_range_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="both be set or both be null"):
+        RetrievalResultV1(
+            chunk_id="chunk-1",
+            text="內容",
+            score=0.9,
+            document_name="文件",
+            section="章節",
+            page_start=3,
+            page_end=None,
+            source_url="https://example.test/doc",
+        )
 
 
 @pytest.mark.asyncio

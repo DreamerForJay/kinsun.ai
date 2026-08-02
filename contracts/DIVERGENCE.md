@@ -1,6 +1,6 @@
 # Contract 與文件 10 差異清單
 
-- 更新日期：2026-08-01
+- 更新日期：2026-08-02
 - 文件基準：`docs/10智慧長照 AI 陪伴系統－API、Event、Tool 與 Data Contracts v0.1.md`
 - 執行基準：目前 `services/core-api` 與 `services/agent-runtime`
 
@@ -11,7 +11,7 @@
 - 所有業務 API 成功回應都使用 `SuccessEnvelope`，並帶 `meta.schema_version = "1.0"`；`/health`、`/ready` 保持運維探針格式。
 - 所有錯誤回應都使用 `ErrorEnvelope`，並帶穩定的 `reason_code` 與 `retryable`。
 - Elder、Consent、Voice Session metadata、Care Event、Memory、Daily Summary、Family Report、Assignment、Deletion status 與受控 Tool endpoint 已列入 OpenAPI。
-- Care Event 一般讀取只回傳 `VERIFIED`／`CORRECTED`，Daily Summary 一般讀取只回傳 `READY`／`PUBLISHED`；明確要求其他可覆核狀態時必須額外通過對應 review scope，長者本人不得取得照護者 review scope，單筆拒絕維持不可探測 404，`DELETED` Care Event 不會由讀取 API 回傳。
+- Care Event 一般讀取只回傳 `VERIFIED`／`CORRECTED`，Daily Summary 一般讀取只回傳 `READY`／`PUBLISHED`；明確要求其他可覆核狀態時必須額外通過對應 review scope，長者本人不得取得照護者 review scope，單筆拒絕維持不可探測 404，`DELETED` Care Event 不會由讀取 API 回傳。Care Event 的 `event_type`、`date_from`、`date_to` 會在 tenant／elder scope 內、opaque cursor 分頁之前由 repository 過濾；日期以 UTC `COALESCE(event_time, created_at)` 且含首尾日。
 - JSON Schema 頂層採 `additionalProperties: false`；Care Event、Tool 與 Domain Event 會拒絕 transcript、audio、prompt、secret、token 等 Restricted Data 欄位。
 - 新增 Domain Event Envelope、AsyncAPI 與 provider-neutral publisher／consumer failure contract；Outbox relay 與 Consumer 的 idempotent foundation 會在處理前重查 Consent、tenant scope、aggregate state 與通用 hash Tombstone，並以穩定 `reason_code`、`retryable`、attempt limit 與 `RETRY`／`DEAD_LETTER` 表達失敗，不保存原始 exception message。
 - Contract validator 驗證 JSON Schema、OpenAPI、AsyncAPI、正常與刻意錯誤範例；live verifier 比對 runtime 與 contract operation，並抽查 GET endpoint 的 fail-closed 行為。
@@ -78,9 +78,34 @@ Core 已實作 Cognito JWT verifier，且以兩條明確分離的路徑使用：
 目前 contract 不代表 staging Cognito domain、Google provider secret、callback URL 或正式
 Refresh Token rotation 已部署／驗證；這些仍須由環境設定與部署證據確認。
 
+### Memory confirmation authority
+
+目前 `POST /api/v1/elders/{elder_id}/memory-candidates/{memory_id}/confirm` 只有通過
+server-side elder-self authorization 的 `ELDER_UI` 可使 Candidate 成為 `ACTIVE`。Core 由
+request trace 產生 opaque `confirmation_evidence_ref`，不接受 client 提供 actor、elder 或
+confirmation authority。`CAREGIVER_REVIEW` 與 `LEGAL_REPRESENTATIVE` 僅為同一 major 的
+相容解析值，執行時一律以不可探測回應 fail closed，且不得留下 formal write／outbox；後續
+major 才移除。`VOICE` 仍需 candidate-specific affirmative evidence，因此尚不可用。
+
 ### Voice transport
 
-Core 已實作 Voice Session metadata 與受控狀態轉移，但 WebSocket binary/audio transport、ASR Final、低信心確認與 TTS 仍屬 Speech workstream。回應明確標示 `transport_status = NOT_CONFIGURED`。
+Core 已實作 Voice Session metadata、受控狀態轉移，以及 dedicated Voice Ticket issue／consume：
+
+- `POST /api/v1/elders/{elder_id}/voice-tickets` 只從可信 `ActorContext` 推導 actor／tenant／elder，
+  重驗授權與 `BASIC_VOICE` Consent，回傳最長 120 秒的 opaque Ticket；Ticket 不含可解碼的
+  scope claim，也不寫入 outbox、一般 log 或 idempotency response body。
+- `POST /api/v1/internal/voice-tickets/consume` 只允許 server-side `SYSTEM_SERVICE` actor，使用
+  tenant-scoped row lock 重驗 Ticket、Session、Consent ID/version，且只有第一次
+  `CREATED → RECORDING` 成功；到期、重播、cross-tenant／elder、撤回或取消一律 fail closed。
+- `BASIC_VOICE` 撤回或被新 grant 取代時，同交易取消相關 active Voice Session，使未使用 Ticket
+  立即失效。這不影響其他 Consent Purpose。
+
+目前 `SYSTEM_SERVICE` guard 已可執行，但 ADR 0009 的 production service credential mechanism
+（例如 IAM 或 mTLS）仍待 Owner 核准；因此 internal consume contract 不代表 production service
+identity 已部署。WebSocket binary/audio transport、Speech Gateway、ASR Final、低信心確認與 TTS
+仍屬尚未實作的 Speech workstream。`VoiceSessionV1.transport_status` 仍明確標示
+`NOT_CONFIGURED`，Ticket 不得放在 URL；後續只能經 allowlisted header、WebSocket subprotocol
+或第一個受保護 frame 傳送。
 
 Core 另提供已實作的單輪文字 fallback：`POST /api/v1/voice-sessions/{session_id}/companion-turns`。
 它會在 Core 重新檢查 tenant／elder scope、`BASIC_VOICE` Consent snapshot 與 Session state，

@@ -28,6 +28,12 @@ os.environ["FAKE_AUTH_ENABLED"] = "false"
 # Live contract verification must never fetch Cognito JWKS or require a real
 # Google/Cognito token. These probes exercise the implemented fail-closed edge.
 os.environ["COGNITO_AUTH_ENABLED"] = "false"
+# Keep Voice Ticket dependencies deterministic while probing their unauthenticated
+# fail-closed edge; this synthetic secret is verifier-only and not a deployment credential.
+os.environ["VOICE_TICKET_ENABLED"] = "true"
+os.environ["VOICE_TICKET_HMAC_SECRET"] = (
+    "live-contract-voice-ticket-secret-material-32-bytes"
+)
 
 from app.main import create_app  # noqa: E402 - path must be installed before app import
 
@@ -164,6 +170,66 @@ async def main() -> int:
         )
 
         sample_uuid = "2a6f9c31-8e47-4b52-9d10-3c8a7e5b1a40"
+
+        response = await client.post(
+            f"/api/v1/elders/{sample_uuid}/voice-tickets",
+            headers={"Idempotency-Key": "live-contract-voice-ticket-issue"},
+            json={
+                "language_preference": "ZH_TW",
+                "input_mode": "voice_with_text_fallback",
+                "client_audio_format": "audio/webm",
+                "client_timezone": "Asia/Taipei",
+                "purpose": "BASIC_VOICE",
+            },
+        )
+        if response.status_code != 401:
+            failures.append(
+                "POST /api/v1/elders/{elder_id}/voice-tickets returned "
+                f"{response.status_code}, expected 401"
+            )
+            print(
+                "FAIL  POST /api/v1/elders/{elder_id}/voice-tickets fails closed: "
+                f"{response.status_code}"
+            )
+        else:
+            print(
+                "ok    POST /api/v1/elders/{elder_id}/voice-tickets "
+                "fails closed with 401"
+            )
+        check(
+            "POST /api/v1/elders/{elder_id}/voice-tickets 401 body "
+            "vs ErrorEnvelopeV1",
+            response.json(),
+            load("common/ErrorEnvelopeV1.json"),
+        )
+
+        response = await client.post(
+            "/api/v1/internal/voice-tickets/consume",
+            json={
+                "session_id": sample_uuid,
+                "voice_ticket": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            },
+        )
+        if response.status_code != 401:
+            failures.append(
+                "POST /api/v1/internal/voice-tickets/consume returned "
+                f"{response.status_code}, expected 401"
+            )
+            print(
+                "FAIL  POST /api/v1/internal/voice-tickets/consume fails closed: "
+                f"{response.status_code}"
+            )
+        else:
+            print(
+                "ok    POST /api/v1/internal/voice-tickets/consume "
+                "fails closed with 401"
+            )
+        check(
+            "POST /api/v1/internal/voice-tickets/consume 401 body "
+            "vs ErrorEnvelopeV1",
+            response.json(),
+            load("common/ErrorEnvelopeV1.json"),
+        )
 
         response = await client.post(
             "/api/v1/internal/agent-runs",
@@ -311,9 +377,16 @@ async def main() -> int:
         )
         for path in protected_gets:
             url = re.sub(r"\{[^}]+\}", sample_uuid, path)
-            params = (
-                {"mode": "daycare"} if path == "/api/v1/me/authorized-elders" else None
-            )
+            if path == "/api/v1/me/authorized-elders":
+                params = {"mode": "daycare"}
+            elif path == "/api/v1/elders/{elder_id}/care-events":
+                params = {
+                    "event_type": "MEAL",
+                    "date_from": "2026-08-01",
+                    "date_to": "2026-08-02",
+                }
+            else:
+                params = None
             response = await client.get(url, params=params)
             label = f"GET {path} fails closed"
             if response.status_code != 401:

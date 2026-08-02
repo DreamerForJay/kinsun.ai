@@ -20,13 +20,21 @@ from app.middleware.auth import ActorContext
 from app.repositories.idempotency_repo import IdempotencyRepository
 from app.schemas.conversation import (
     CompanionTurnRequest,
+    ConsumeVoiceTicketRequest,
     CreateVoiceSessionRequest,
+    CreateVoiceTicketRequest,
     TransitionVoiceSessionRequest,
     VoiceSessionResponse,
+    VoiceTicketIssuedResponse,
 )
 from app.services.authorization_service import authorize_elder
 from app.services.companion_service import CompanionService
 from app.services.conversation_service import ConversationService
+from app.services.voice_ticket_codec import (
+    IssuedVoiceTicket,
+    VoiceTicketCodec,
+    get_voice_ticket_codec,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["voice-sessions"])
 
@@ -41,6 +49,14 @@ def _response(conversation) -> dict:
         policy_version=conversation.policy_version,
         started_at=conversation.started_at,
         ended_at=conversation.ended_at,
+    ).model_dump(mode="json")
+
+
+def _ticket_response(conversation, issued: IssuedVoiceTicket) -> dict:
+    return VoiceTicketIssuedResponse(
+        voice_session=VoiceSessionResponse.model_validate(_response(conversation)),
+        voice_ticket=issued.value,
+        expires_at=issued.expires_at,
     ).model_dump(mode="json")
 
 
@@ -85,6 +101,75 @@ async def create_voice_session(
             response_status=status.HTTP_201_CREATED,
             response_body=_response(conversation),
         )
+    return success(_response(conversation))
+
+
+@router.post(
+    "/elders/{elder_id}/voice-tickets",
+    status_code=status.HTTP_201_CREATED,
+)
+async def issue_voice_ticket(
+    request: CreateVoiceTicketRequest,
+    elder_id: UUID = Path(...),
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    actor_context: ActorContext = Depends(require_active_actor),
+    session: AsyncSession = Depends(get_db_session),
+    codec: VoiceTicketCodec = Depends(get_voice_ticket_codec),
+) -> dict:
+    """Issue an opaque, short-lived capability from trusted server context."""
+    await authorize_elder(session, actor_context, elder_id, "voice_session:create")
+    idem = IdempotencyRepository(session, actor_context.tenant_id, actor_context.actor_id)
+    replay = await idem.begin(
+        key=idempotency_key,
+        operation="issue_voice_ticket",
+        payload={"elder_id": elder_id, **request.model_dump(mode="json")},
+    )
+    service = ConversationService(session, actor_context.tenant_id)
+    if replay.replayed:
+        if replay.resource_id is None:
+            raise NotFoundError("Resource not found")
+        conversation, issued = await service.replay_ticket(replay.resource_id, codec)
+    else:
+        conversation, issued = await service.issue_ticket(
+            elder_id=elder_id,
+            actor_id=actor_context.actor_id,
+            actor_role=actor_context.actor_role,
+            request=request,
+            trace_id=get_correlation_id(),
+            idempotency_key=idempotency_key,
+            codec=codec,
+        )
+        await idem.complete(
+            key=idempotency_key,
+            resource_type="conversation_session",
+            resource_id=conversation.id,
+            response_status=status.HTTP_201_CREATED,
+            response_body={
+                "session_id": str(conversation.id),
+                "expires_at": issued.expires_at.isoformat(),
+            },
+        )
+    return success(_ticket_response(conversation, issued))
+
+
+@router.post("/internal/voice-tickets/consume")
+async def consume_voice_ticket(
+    request: ConsumeVoiceTicketRequest,
+    actor_context: ActorContext = Depends(require_system_service_actor),
+    session: AsyncSession = Depends(get_db_session),
+    codec: VoiceTicketCodec = Depends(get_voice_ticket_codec),
+) -> dict:
+    """Consume a Ticket once after service identity and live-consent checks."""
+    conversation = await ConversationService(
+        session,
+        actor_context.tenant_id,
+    ).consume_ticket(
+        session_id=request.session_id,
+        value=request.voice_ticket,
+        actor_id=actor_context.actor_id,
+        trace_id=get_correlation_id(),
+        codec=codec,
+    )
     return success(_response(conversation))
 
 

@@ -27,6 +27,21 @@ Lambda／DynamoDB stack 或既有 foundation 的完成標記。
     - 決定 Bedrock model／inference profile、Guardrails、fallback 與 cost ceiling。
     - 不得把現有 adapter、AWS foundation 或 unsigned RAG 當成 deployment approval。
     - _Requirements: R4, R8, R12_
+  - [ ] 1.4 收斂 Core↔Agent service identity、Tool scope 與 AgentRun authority
+    - 選定且記錄唯一 AgentRun lifecycle：Core pre-register 後由 Runtime reuse，或 Runtime register
+      且 Core companion path 不重複建立；不得讓兩套 authority 同時正式寫入。
+    - 定義雙向 service authentication／credential contract；Agent Runtime 必須拒絕 browser direct
+      access 與未驗證 caller，不得把 browser credential 轉送成 `SYSTEM_SERVICE`。
+    - Tool allowlist／scope 只能由 Core 根據 trusted context、consent、policy、session server-side
+      推導，不能由 browser 或模型擴張。
+    - 規劃使用真實 Core guard 的 integration test，不以 MockTransport lifecycle test 代替。
+    - _Requirements: R1, R5, R10, R12_
+  - [ ] 1.5 核准 executable Agent Run 的 Restricted Data transport
+    - 決定 current turn 使用 reference，或建立經核准的 private raw transcript service contract。
+    - 合約必須涵蓋雙向 service auth、傳輸加密、最小化、bounded retention／timeout cleanup、
+      audit 與 browser direct-access denial。
+    - 邊界完成前，不把現行 `input_text` path 當成 canonical Gate 1 完成證據。
+    - _Requirements: R1, R10, R12_
 
 - [ ] 2. 建立 canonical Voice Ticket 與可信 Voice Session
   - **Dependencies:** Task 1.2
@@ -39,6 +54,7 @@ Lambda／DynamoDB stack 或既有 foundation 的完成標記。
     - 從 trusted `ActorContext` 解析 scope，驗證 assignment 與 `BASIC_VOICE` consent/version。
     - unauthorized／nonexistent 使用一致回應；失敗不得建立 session、ticket 或 outbox。
     - ticket 成功使用後失效，過期、重播、cross-tenant、cross-elder 一律拒絕。
+    - consent 在核發後撤回時，未使用 ticket 立即失效，active session 轉為取消並停止後續處理。
     - _Requirements: R1, R2, R10_
   - [ ] 2.3 實作 BFF Voice Ticket boundary
     - Browser 只呼叫 BFF；token 保留伺服器端，BFF 不把 cookie 或 raw token 送到 browser-readable voice URL。
@@ -47,7 +63,8 @@ Lambda／DynamoDB stack 或既有 foundation 的完成標記。
     - _Requirements: R1, R3, R10_
   - [ ] 2.4 新增 Voice Ticket 契約與驗證證據
     - endpoint 實作完成後才新增 JSON Schema／OpenAPI、valid/invalid examples 與 core live verifier。
-    - 測試 missing/revoked consent、expired assignment、replay、cross-scope、錯誤不回填敏感值。
+    - 測試 missing/revoked consent、核發後撤回、active-session cancel、expired assignment、replay、
+      cross-scope、錯誤不回填敏感值。
     - _Requirements: R1, R2, R10, R11_
 
 - [ ] 3. 實作 canonical Speech 與 server-side low-confidence Gate
@@ -60,7 +77,8 @@ Lambda／DynamoDB stack 或既有 foundation 的完成標記。
   - [ ] 3.2 實作 server-side low-confidence confirmation state machine
     - 低於 Policy threshold 時進 `LOW_CONFIDENCE_CONFIRMATION`，要求重說或確認關鍵內容。
     - reject、再次不清楚、cancel、timeout 時安全結束；同一輪自動 retry 最多一次。
-    - 未確認前禁止 Event／Memory extractor、formal write 與 outbox。
+    - consent 在 ASR 或低信心確認期間撤回時，立即取消 session，停止 ASR／TTS／retry／Agent。
+    - 未確認或已撤回前禁止 Event／Memory extractor、formal write 與 outbox。
     - _Requirements: R2, R3, R11_
   - [ ] 3.3 完成 Voice UI 狀態與可恢復 fallback
     - 將既有 lowConfidence UI state 接到可信 server outcome，而非 client 自行判斷。
@@ -73,29 +91,37 @@ Lambda／DynamoDB stack 或既有 foundation 的完成標記。
     - _Requirements: R3, R10, R11_
 
 - [ ] 4. 串接 Consent-aware Safe Companion Turn
-  - **Dependencies:** Tasks 2, 3
-  - [ ] 4.1 由 Core 組合可信 Agent Context
-    - 按 Policy→Auth→Consent→Current Turn→Session→Active Memory→Verified Event→Graph/RAG→constraints 組合。
-    - 排除 unconfirmed／unreviewed／revoked／deleted／cross-scope data，保存實際 reference 與版本。
+  - **Dependencies:** Tasks 1.4, 1.5, 2, 3
+  - [ ] 4.1 由 Core 組合基礎可信 Agent Context
+    - 本階段只組合 Policy→Auth→Consent→Current Turn→Session→Output Constraints，並保留
+      Active Memory／Verified Event／Graph／RAG 的空 extension point 與 no-data fallback。
+    - 排除 revoked／deleted／cross-scope data，保存實際 reference 與版本；confirmed-data reuse
+      必須等 Task 5–7 完成後由 Task 7.3 接入。
     - 不把 client／model 送入的 actor、tenant、elder、consent 或 permission scope 當成授權。
-    - _Requirements: R1, R2, R4, R8, R10_
-  - [ ] 4.2 將 confirmed Voice turn 接到 private Agent Runtime
-    - 僅在低信心 Gate 通過後呼叫 bounded Companion；維持 step／Tool／rewrite ceiling。
+    - _Requirements: R1, R2, R4, R10_
+  - [ ] 4.2 以核准的 service transport 呼叫 private Agent Runtime
+    - 僅在低信心 Gate 通過後，以 Task 1.4 的 service identity 與 Task 1.5 的 Restricted Data
+      transport 呼叫 bounded Companion；本階段使用 Core server-derived 的空 Tool allowlist。
     - 語言偏好、稱呼與回覆長度來自 trusted profile；Safety block 時回安全替代內容且不執行 Tool。
     - dependency／資料不足時 no-guess fallback；不得切回 legacy WebSocket backend。
-    - _Requirements: R3, R4, R10_
-  - [ ] 4.3 補齊 Companion failure／privacy／scope tests
-    - 涵蓋醫療紅線、資料不足、model timeout、max-step、Tool allowlist、張阿姨資料不得進林阿嬤 Context。
-    - 驗證 error／log／trace 不含完整 transcript、prompt、token 或未覆核內容。
-    - _Requirements: R4, R10, R11_
+    - _Requirements: R1, R3, R4, R10_
+  - [ ] 4.3 補齊 Companion service-auth／privacy／scope tests
+    - 涵蓋未驗證 caller、browser direct access、醫療紅線、資料不足、model timeout、max-step、
+      空 Tool allowlist，以及張阿姨資料不得進林阿嬤 Context。
+    - 驗證 current-turn transport 的 auth／cleanup contract，且 error／log／trace 不含完整 transcript、
+      prompt、token 或未覆核內容。
+    - _Requirements: R1, R4, R10, R11_
 
 - [ ] 5. 完成 Event Candidate 人工覆核閉環
-  - **Dependencies:** Task 4
-  - [ ] 5.1 稽核並補齊 Event Candidate state／repository／policy
-    - 以現有 `create_event_candidate` lifecycle 為 baseline，不重做已完成的 register→Tool→complete。
-    - 確保 Candidate 只在 `CARE_EVENT_EXTRACTION` 有效且 Core reauthorization 通過時建立。
-    - 所有 repository query 明確帶 tenant scope；Candidate 不進 formal read path。
-    - _Requirements: R2, R5, R10_
+  - **Dependencies:** Tasks 1.4, 4
+  - [ ] 5.1 將受控 Event Candidate lifecycle 接入 canonical Core path
+    - 重用現有 Runtime register→Tool→complete 的已測行為，但先依 Task 1.4 選定唯一 AgentRun
+      authority；不得讓 Core companion path 與 Runtime 重複建立／完成 AgentRun。
+    - Core 依 trusted context、`CARE_EVENT_EXTRACTION` consent、policy 與 session server-side 推導
+      `create_event_candidate` allowlist；browser／模型不能要求或擴張 Tool scope。
+    - 使用核准的 service identity 呼叫真實 Core guard；所有 repository query 明確帶 tenant scope，
+      Candidate 不進 formal read path。
+    - _Requirements: R1, R2, R5, R10_
   - [ ] 5.2 實作照服員 verify／correct／reject Command Gate
     - 驗證 role、assignment、tenant、elder、state、optimistic version 與 idempotency。
     - 保存 reviewer、timestamp、reason、修正前後值；Gate 1 不自動 VERIFIED。
@@ -107,15 +133,18 @@ Lambda／DynamoDB stack 或既有 foundation 的完成標記。
     - _Requirements: R5, R10_
   - [ ] 5.4 新增 Event review contract、integration 與 negative tests
     - 實作後同步 schema、OpenAPI、event schema、examples、live verifier 與 traceability。
+    - 以真實 Core service guard 驗證 canonical Core→Agent→Core lifecycle、唯一 AgentRun UUID、
+      server-derived Tool scope 與未驗證 Runtime caller 拒絕，不只測 MockTransport。
     - 測試 cross-tenant／elder、expired assignment、consent revoked、version conflict、重送、失敗無 outbox。
     - 驗證 unreviewed/rejected Event 不進 Summary／Projection／Context。
-    - _Requirements: R5, R7, R11_
+    - _Requirements: R1, R5, R7, R10, R11_
 
 - [ ] 6. 完成 Memory Candidate 與長者明確確認閉環
-  - **Dependencies:** Task 4
+  - **Dependencies:** Tasks 1.4, 4
   - [ ] 6.1 檢查 Memory baseline 並定義 explicit-confirmation state machine
     - 人工比對 frozen baseline、現有 Memory model／API／enum；需要 schema 變更時新增 revision，不修改 baseline。
-    - 固定 `CANDIDATE→PENDING_CONFIRMATION→CONFIRMED/REJECTED/DEFERRED→ACTIVE→INACTIVE→DELETED`。
+    - 固定 `CANDIDATE→PENDING_CONFIRMATION`，再分支為 `CONFIRMED→ACTIVE`、`REJECTED` 或
+      `DEFERRED`；只有 `ACTIVE` 可後續轉為 `INACTIVE→DELETED`。
     - 定義 stable preference／important relationship／routine allowlist；排除一次性事件與敏感推測。
     - _Requirements: R2, R6, R7_
   - [ ] 6.2 實作 Agent Memory Candidate proposal 與 Core Tool Gate
@@ -125,7 +154,8 @@ Lambda／DynamoDB stack 或既有 foundation 的完成標記。
     - _Requirements: R2, R4, R6_
   - [ ] 6.3 實作 Core confirm／reject／defer／deactivate／delete commands
     - Confirm 必須來自可信 elder confirmation context；照服員修正不能繞過長者確認 Gate。
-    - ACTIVE transition＋outbox 同交易；reject/defer/stop/revoke 不得產生 activation outbox。
+    - ACTIVE transition＋outbox 同交易；reject/defer/stop/revoke 不得建立 ACTIVE Memory 或 activation
+      outbox，但需保存防止重問、支援 idempotency 與稽核所需的最小化 non-active transition evidence。
     - delete/revoke 建立 tombstone 並立即停止 retrieval。
     - _Requirements: R6, R7, R8_
   - [ ] 6.4 完成 Elder confirmation UI／Voice interaction

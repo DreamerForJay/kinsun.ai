@@ -1,0 +1,41 @@
+{
+  "_why_invalid": "A citation must carry both page numbers or neither. A start without an end points at no location, so an unpaginated web source must null both rather than half-fill the range.",
+  "data": {
+    "schema_version": "1.0.0",
+    "request_id": "rag-request-003",
+    "status": "SUCCESS",
+    "fallback_message": null,
+    "results": [
+      {
+        "chunk_id": "mohw_1966_apply_ltc_long_term_care_definition_001",
+        "text": "長期照顧服務的申請方式與可用資源說明。",
+        "score": 0.91,
+        "document_name": "申請長照服務",
+        "section": "什麼是長期照顧服務",
+        "page_start": 1,
+        "page_end": null,
+        "source_url": "https://1966.gov.tw/LTC/cp-6533-70777-207.html"
+      },
+      {
+        "chunk_id": "mohw_1966_apply_ltc_long_term_care_definition_002",
+        "text": "長照服務對象與申請流程概述。",
+        "score": 0.84,
+        "document_name": "申請長照服務",
+        "section": "誰可以申請",
+        "page_start": null,
+        "page_end": null,
+        "source_url": "https://1966.gov.tw/LTC/cp-6533-70777-207.html"
+      },
+      {
+        "chunk_id": "mohw_1966_apply_ltc_long_term_care_definition_003",
+        "text": "申請後的評估與服務安排說明。",
+        "score": 0.78,
+        "document_name": "申請長照服務",
+        "section": "申請之後",
+        "page_start": null,
+        "page_end": null,
+        "source_url": "https://1966.gov.tw/LTC/cp-6533-70777-207.html"
+      }
+    ]
+  }
+}

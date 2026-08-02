@@ -1,0 +1,9 @@
+{
+  "data": {
+    "language_preference": "ZH_TW",
+    "input_mode": "voice_with_text_fallback",
+    "client_audio_format": "audio/webm",
+    "client_timezone": "Asia/Taipei",
+    "purpose": "BASIC_VOICE"
+  }
+}

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -13,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.responses import get_correlation_id, success
 from app.core.cursor import decode_cursor, encode_cursor
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ValidationError
 from app.db.session import get_db_session
 from app.middleware.actor_guard import require_active_actor
 from app.middleware.auth import ActorContext
@@ -23,6 +24,7 @@ from app.schemas.care_event import (
     CareEventListResponse,
     CareEventResponse,
     CareEventReviewResponse,
+    CareEventType,
     ConfidenceBand,
     CreateCareEventCandidateRequest,
     ReviewCareEventRequest,
@@ -150,17 +152,40 @@ async def list_care_events(
             "care_event:review. DELETED events are never returned."
         ),
     ),
+    event_type: CareEventType | None = Query(
+        default=None,
+        description="Exact event type filter applied before cursor pagination.",
+    ),
+    date_from: date | None = Query(
+        default=None,
+        description=(
+            "Inclusive UTC date for COALESCE(event_time, created_at), applied before pagination."
+        ),
+    ),
+    date_to: date | None = Query(
+        default=None,
+        description=(
+            "Inclusive UTC date for COALESCE(event_time, created_at), applied before pagination."
+        ),
+    ),
     cursor: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
     actor_context: ActorContext = Depends(require_active_actor),
     session: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """List formal events by default; expose review states only to reviewers."""
+    """List scoped events with server-side filters before opaque pagination."""
     await authorize_elder(session, actor_context, elder_id, "care_event:read")
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise ValidationError(
+            details=[
+                {
+                    "field": "date_from",
+                    "reason": "date_from must be on or before date_to",
+                }
+            ]
+        )
     requested_statuses = event_status or list(FORMAL_CARE_EVENT_STATUSES)
     if not set(requested_statuses).issubset(ALLOWED_STATUSES):
-        from app.core.exceptions import ValidationError
-
         raise ValidationError(
             details=[{"field": "status", "reason": "status contains an unsupported value"}]
         )
@@ -170,6 +195,13 @@ async def list_care_events(
     events = await service.list_for_elder(
         elder_id=elder_id,
         statuses=requested_statuses,
+        event_type=event_type.value if event_type is not None else None,
+        event_time_from=(
+            datetime.combine(date_from, time.min, tzinfo=UTC) if date_from is not None else None
+        ),
+        event_time_to=(
+            datetime.combine(date_to, time.max, tzinfo=UTC) if date_to is not None else None
+        ),
         limit=limit,
         cursor=decode_cursor(cursor) if cursor else None,
     )

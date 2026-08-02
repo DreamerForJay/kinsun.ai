@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -194,6 +195,48 @@ async def test_onboarding_id_token_rejects_unverified_email() -> None:
 
     with pytest.raises(AuthenticationError, match="Authentication required"):
         await _verifier(cache).verify_id_token(token)
+
+
+async def test_id_token_rejection_logs_only_a_bounded_claim_reason(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    token, cache = _signed_token(
+        claims=_claims(
+            token_use="id",
+            aud="client-id",
+            email="restricted-family@example.test",
+            email_verified="true",
+        )
+    )
+    caplog.set_level(logging.WARNING, logger="app.adapters.auth.cognito")
+
+    with pytest.raises(AuthenticationError, match="Authentication required"):
+        await _verifier(cache).verify_id_token(token)
+
+    assert "reason=IDENTITY_CLAIMS expected_token_use=id" in caplog.text
+    assert token not in caplog.text
+    assert "restricted-family@example.test" not in caplog.text
+
+
+async def test_id_token_audience_rejection_logs_only_a_bounded_reason(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    token, cache = _signed_token(
+        claims=_claims(
+            token_use="id",
+            aud="another-client",
+            email="restricted-family@example.test",
+            email_verified=True,
+        )
+    )
+    caplog.set_level(logging.WARNING, logger="app.adapters.auth.cognito")
+
+    with pytest.raises(AuthenticationError, match="Authentication required"):
+        await _verifier(cache).verify_id_token(token)
+
+    assert "reason=AUDIENCE expected_token_use=id" in caplog.text
+    assert token not in caplog.text
+    assert "restricted-family@example.test" not in caplog.text
 
 
 class _SessionContext:

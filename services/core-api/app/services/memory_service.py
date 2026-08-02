@@ -13,9 +13,8 @@ from app.domain.state_machine import require_memory_transition
 from app.events.outbox_writer import write_outbox_entry
 from app.middleware.auth import ActorContext
 from app.models.care_event import CareEvent
-from app.models.enums import ActorType, RelationshipType
+from app.models.enums import ActorType
 from app.models.memory import Memory, MemoryVersion
-from app.repositories.care_relationship_repo import CareRelationshipRepository
 from app.repositories.memory_repo import MemoryRepository
 from app.schemas.consent import ConsentPurpose
 from app.schemas.memory import (
@@ -113,11 +112,17 @@ class MemoryService:
         trace_id: str,
         idempotency_key: str,
     ) -> Memory:
-        """Promote a candidate only after verifiable human confirmation.
+        """Promote a candidate only after the authenticated elder confirms it.
 
-        VOICE confirmation is deliberately unavailable until a versioned,
-        consent-scoped transcript/evidence model can prove an affirmative answer
-        to this exact candidate. A completed conversation alone is insufficient.
+        ``ELDER_UI`` is an explicit Core command made by the elder self. Core
+        derives the actor and elder relationship from trusted server-side
+        context and generates an opaque evidence reference from the request
+        trace. Caregiver and legal-representative review may help prepare a
+        candidate, but cannot satisfy the elder confirmation gate.
+
+        VOICE confirmation remains unavailable until a versioned,
+        consent-scoped record can prove an affirmative answer to this exact
+        candidate. A completed conversation alone is insufficient.
         """
         if memory.current_version != request.expected_candidate_version:
             raise ConflictError("Memory candidate version conflict")
@@ -141,7 +146,7 @@ class MemoryService:
         memory.confirmed_at = now
         memory.confirmation_method = request.confirmation_method
         memory.confirmation_session_id = None
-        memory.confirmation_evidence_ref = None
+        memory.confirmation_evidence_ref = f"core-command:{trace_id}"
         require_memory_transition(memory.status, "ACTIVE")
         memory.status = "ACTIVE"
         memory.activated_at = now
@@ -162,7 +167,7 @@ class MemoryService:
         actor_context: ActorContext,
         request: ConfirmMemoryRequest,
     ) -> None:
-        """Verify method-specific human authority without trusting client claims."""
+        """Allow only an authenticated elder to confirm their own candidate."""
         if request.confirmation_method == "VOICE":
             raise ValidationError(
                 details=[
@@ -176,35 +181,7 @@ class MemoryService:
                 ]
             )
 
-        if request.confirmation_method == "CAREGIVER_REVIEW":
-            if actor_context.actor_role not in {
-                ActorType.DAYCARE_CARE_WORKER,
-                ActorType.HOME_CARE_WORKER,
-            }:
-                raise AuthorizationDeniedError("Resource not found")
-            return
-
-        if request.confirmation_method != "LEGAL_REPRESENTATIVE":
-            raise ValidationError(
-                details=[
-                    {
-                        "field": "confirmation_method",
-                        "reason": "unsupported confirmation method",
-                    }
-                ]
-            )
-        if actor_context.actor_role != ActorType.FAMILY_MEMBER:
-            raise AuthorizationDeniedError("Resource not found")
-        relationship = await CareRelationshipRepository(
-            self._session,
-            self._tenant_id,
-        ).find_valid_for_actor(
-            actor_id=actor_context.actor_id,
-            elder_id=memory.elder_id,
-            relationship_type=RelationshipType.LEGAL_REPRESENTATIVE.value,
-            current_time=datetime.now(UTC),
-        )
-        if relationship is None or "memory:confirm" not in (relationship.scope or []):
+        if request.confirmation_method != "ELDER_UI" or actor_context.actor_role != ActorType.ELDER:
             raise AuthorizationDeniedError("Resource not found")
 
     async def set_candidate_state(

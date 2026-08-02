@@ -85,6 +85,11 @@ credential；現行 adapter 只轉交 caller 的 `Authorization`，由 Core 重�
 tenant／elder／session／policy、Consent、授權、狀態與 idempotency。Core dependency、Tool 或
 completion 失敗一律 fail closed，不會以本地 UUID 假裝成功。
 
+這條 lifecycle 已有隔離測試，但尚未接成 canonical Core→Agent→Core E2E：目前仍需收斂雙向
+service identity、由 Core server-side 推導的 Tool scope，以及 Core pre-register／Runtime register
+二選一的唯一 AgentRun authority。完成前不得把直接呼叫 Runtime 的 Tool 測試描述成 Gate 1
+canonical Candidate 閉環，也不得讓 browser credential 被 Runtime 轉送成 `SYSTEM_SERVICE`。
+
 ## Adapter 邊界
 
 外部服務只能在以下 Provider／Adapter 邊界出現：
@@ -105,7 +110,12 @@ SDK 呼叫散進 orchestration 或 agent 層**，否則之後無法在沒有 AWS
 `ContextManifestV1` 的 `items[].content` 目前直接放使用者輸入（逐字稿）。現況下 manifest
 只存在於記憶體，API 回應只帶 `context_manifest_id`，不回傳 manifest 本體。
 
-但 `HandoffEnvelopeV1` **內嵌了整份 manifest**。一旦 handoff 真的跨服務傳遞，逐字稿就會
+但 executable `AgentRunRequest.input_text` 已能在 Core→Agent 呼叫中攜帶 current turn。正式
+canonical path 在啟用前必須採 reference，或建立經核准的 private Restricted Data service
+contract，涵蓋雙向 service authentication、傳輸加密、資料最小化、bounded retention／timeout
+cleanup 與 audit；「不寫一般 log」本身不足以構成安全傳輸邊界。
+
+此外，`HandoffEnvelopeV1` **內嵌了整份 manifest**。一旦 handoff 真的跨服務傳遞，逐字稿就會
 離開本服務，牴觸根目錄 `AGENTS.md` §8.1「contract 不得包含 Restricted Data」。在啟用
 handoff 前，必須先決定 manifest 改成只帶 reference，或建立明確的 Restricted Data 傳輸、
 授權與 retention 邊界。

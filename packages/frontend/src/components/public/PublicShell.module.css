@@ -1,0 +1,15 @@
+/* PublicShell — owns the `data-surface="public"` token scope (MASTER.md §3). */
+
+.shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+}
+
+.main {
+  flex: 1;
+}

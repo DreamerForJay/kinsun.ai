@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useState } from 'react';
 import { EventFilterBar } from '@/components/dashboard/EventFilterBar';
 import { EventTable } from '@/components/dashboard/EventTable';
 import { MemoryList } from '@/components/dashboard/MemoryList';
@@ -51,8 +51,8 @@ function describeError(error: unknown, fallback: MessageKey): MessageKey {
   return fallback;
 }
 
-export default function ElderDetailPage({ params }: { params: { elderId: string } }) {
-  const { elderId } = params;
+export default function ElderDetailPage({ params }: { params: Promise<{ elderId: string }> }) {
+  const { elderId } = use(params);
   const { t, locale } = useLocale();
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig | null>(null);
   const apiConfig = useMemo(

@@ -1,0 +1,57 @@
+/* BoundaryList — tokens only (§14). Icon colour is a prohibition symbol, not
+   an error/destructive state, but reuses --color-destructive per the existing
+   convention in docs/demo/ui/index.html's own "明確禁止" section. */
+
+.section {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4) var(--space-10);
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+.subtitle {
+  max-width: 720px;
+  margin: 0 0 var(--space-6);
+  color: var(--color-muted-foreground);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-foreground);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-destructive);
+}

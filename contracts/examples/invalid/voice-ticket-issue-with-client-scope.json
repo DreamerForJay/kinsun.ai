@@ -1,0 +1,12 @@
+{
+  "_why_invalid": "Voice Ticket scope and identity must come from trusted server context; callers cannot provide tenant_id or actor_id.",
+  "data": {
+    "language_preference": "ZH_TW",
+    "input_mode": "voice",
+    "client_audio_format": "audio/webm",
+    "client_timezone": "Asia/Taipei",
+    "purpose": "BASIC_VOICE",
+    "tenant_id": "10000000-0000-4000-8000-000000000001",
+    "actor_id": "20000000-0000-4000-8000-000000000001"
+  }
+}

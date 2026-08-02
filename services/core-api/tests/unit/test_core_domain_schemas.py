@@ -11,11 +11,37 @@ from pydantic import ValidationError
 from app.schemas.assignment import CreateAssignmentRequest
 from app.schemas.care_event import CreateCareEventCandidateRequest, ReviewCareEventRequest
 from app.schemas.consent import CreateConsentRequest, RevokeConsentRequest
+from app.schemas.conversation import ConsumeVoiceTicketRequest, CreateVoiceTicketRequest
 from app.schemas.memory import CreateMemoryCandidateRequest
 from app.schemas.report import CreateFamilyReportDraftRequest, PublishFamilyReportRequest
 from app.schemas.summary import CreateSummaryDraftRequest, ReviewSummaryRequest
 from app.schemas.tool import ToolRequest
 from app.services.tool_service import ToolExecutionService
+
+
+def test_voice_ticket_request_rejects_text_only_and_extra_scope() -> None:
+    with pytest.raises(ValidationError):
+        CreateVoiceTicketRequest(
+            language_preference="ZH_TW",
+            input_mode="text",
+        )
+    with pytest.raises(ValidationError):
+        CreateVoiceTicketRequest(
+            language_preference="ZH_TW",
+            input_mode="voice",
+            tenant_id=uuid4(),
+        )
+
+
+def test_voice_ticket_consume_request_is_strict_and_bounded() -> None:
+    with pytest.raises(ValidationError):
+        ConsumeVoiceTicketRequest(session_id=uuid4(), voice_ticket="too-short")
+    with pytest.raises(ValidationError):
+        ConsumeVoiceTicketRequest(
+            session_id=uuid4(),
+            voice_ticket="x" * 43,
+            actor_id=uuid4(),
+        )
 
 
 def test_consent_requires_explicit_confirmation() -> None:

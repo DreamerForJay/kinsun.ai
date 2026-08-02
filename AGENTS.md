@@ -16,7 +16,7 @@
   - `services/rag-ingestion`：RAG 文件 ingestion 與 allowlist 建置。搭配
     agent-runtime 的 **staging-only** RAG 路徑，尚未對真實 AWS／OpenSearch 環境驗證，
     不得描述成可用於 production（見 `services/agent-runtime/AGENTS.md`）。
-  - `packages/frontend`：**唯一的前端**，單一 multi-role PWA，Next.js 14 App Router，
+  - `packages/frontend`：**唯一的前端**，單一 multi-role PWA，Next.js 16 App Router + React 19，
     同時是 BFF（Cognito OAuth 與 access token 留在伺服器端，反向代理 core-api）
     （[ADR 0006](docs/adr/0006-frontend-stack-and-app-topology.md)）。
     `apps/` 已依 ADR 0006 清空，不要把 `elder-web`／`care-web`／`family-web` 加回來。
@@ -32,8 +32,10 @@
   AWS CDK v2 已定為 canonical IaC 工具；`kinsun-staging-foundation-v1` 已建立 VPC、ECS
   cluster、ECR、Aurora、Secrets、Logs 與 IAM foundation。四個 runtime／migration image 與
   `kinsun-staging-application-v1` template 已可在本機建立／驗證，但 AWS 尚未建立 canonical
-  ECS application task／service，不能描述成 application runtime 已上線。Next.js 14 的目前
-  production audit 仍有 high severity dependency，受支援版本升級完成前不得公開部署 BFF。
+  ECS application task／service，不能描述成 application runtime 已上線。Frontend 已依
+  [ADR 0008](docs/adr/0008-next-16-supported-release-upgrade.md) 升至受支援 release，且本機
+  production audit／Linux image smoke 已通過；這只解除 framework dependency blocker，
+  不代表 ECR push、Cognito callback、application deploy 或公開流量 gate 已完成。
 - 尚未建立 CI quality gate。
 - 不得把 Target Architecture、建議目錄或候選服務描述成已實作功能。
 - 開始實作前，先確認工作項目對應的 Persona、User Story、Acceptance Criteria、Domain State、Security Gate 與 Test Gate。
@@ -321,7 +323,7 @@ uv run --with pyyaml --with jsonschema --with referencing python ../../scripts/v
   - models 目前只涵蓋 48 張 baseline table 中的 33 張，`alembic revision --autogenerate`
     仍會把未映射 table 誤判為應刪除；產生的 migration 一律需人工檢查後才可使用。
 - 前端已定案，程式在 `packages/frontend/`（[ADR 0006](docs/adr/0006-frontend-stack-and-app-topology.md)）：
-  - Next.js 14 App Router + TypeScript。**不是 Vite，不用 Tailwind**；
+  - Next.js 16 App Router + React 19 + TypeScript。**不是 Vite，不用 Tailwind**；
     樣式一律 CSS Modules ＋ `src/app/tokens.css` 的 CSS 變數。
   - TypeScript 側用 npm workspaces（根 `package.json` ＋ `package-lock.json`），
     與 Python 側的 uv 不共用。
