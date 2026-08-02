@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
+import { ClearBrowserSessionState } from '@/components/ClearBrowserSessionState';
+import { accessTokenCookieName } from '@/lib/server/auth-cookie';
 
 /* The role chooser is the one page whose audience is unknown — an elder, a
    family member and a care worker all land here before anything is known about
@@ -23,9 +26,14 @@ export default async function SignInPage({
 }: {
   searchParams: Promise<{ error?: string | string[] }>;
 }) {
-  const { error } = await searchParams;
+  const [{ error }, cookieStore] = await Promise.all([searchParams, cookies()]);
+  const sessionCookiePresent = Boolean(cookieStore.get(accessTokenCookieName())?.value);
   return (
     <main style={{ margin: '0 auto', maxWidth: 680, padding: 'var(--space-6)' }}>
+      {/* Cookie presence is only a cleanup guard, never authorization. When a
+          session cookie remains (for example after a failed re-auth), preserve
+          its browser selection instead of creating a half-signed-in state. */}
+      {!sessionCookiePresent && <ClearBrowserSessionState />}
       <h1 style={{ fontSize: 'var(--text-2xl)', marginBottom: 'var(--space-2)' }}>
         登入智慧長照 AI 陪伴系統
       </h1>

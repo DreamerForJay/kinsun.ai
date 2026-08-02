@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { CompanionTextPanel } from '@/components/companion/CompanionTextPanel';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { SignOutButton } from '@/components/SignOutButton';
+import { touchLinkStyle } from '@/components/touch-link';
 import { readDevPreviewState } from '@/components/voice/dev-preview';
 import { VoiceInteractionPanel } from '@/components/voice/VoiceInteractionPanel';
 import { activeBasicVoiceConsent, listConsents } from '@/lib/api/consent';
@@ -125,10 +127,25 @@ export default function HomePage() {
         <CompanionTextPanel apiConfig={config} elderId={config.elderId} />
       )}
 
-      <nav style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 'var(--text-sm)' }}>
-        <a href="/consent">同意設定</a>
-        <a href="/elder/family-access">家屬分享</a>
-        <a href="/sign-in">登入</a>
+      {/* Everything below this point renders only when credentialStatus is
+          'present', so the elder is signed in. The link here used to be an
+          unconditional "登入", which told a signed-in elder to sign in again and
+          left no way to sign out at all. */}
+      <nav
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          gap: 'var(--space-4)',
+        }}
+      >
+        <a href="/consent" style={touchLinkStyle}>
+          同意設定
+        </a>
+        <a href="/elder/family-access" style={touchLinkStyle}>
+          家屬分享
+        </a>
+        <SignOutButton label="登出" />
       </nav>
     </main>
   );

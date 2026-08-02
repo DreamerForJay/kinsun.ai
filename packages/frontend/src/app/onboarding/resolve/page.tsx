@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { touchLinkStyle } from '@/components/touch-link';
+import { SignOutButton } from '@/components/SignOutButton';
 import { ApiRequestError, apiFetch } from '@/lib/api/client';
 
 interface ActorProfile {
@@ -81,11 +81,9 @@ export default function ResolveOnboardingPage() {
       <p aria-live="polite" style={{ fontSize: 'var(--text-base)' }}>
         {message}
       </p>
-      <p>
-        <a href="/sign-in" style={touchLinkStyle}>
-          返回登入入口
-        </a>
-      </p>
+      <div style={{ marginTop: 'var(--space-4)' }}>
+        <SignOutButton label="登出並返回登入" />
+      </div>
     </main>
   );
 }

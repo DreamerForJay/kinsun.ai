@@ -26,6 +26,26 @@ export function clearLegacyBrowserCredential(): void {
 }
 
 /**
+ * Everything sign-out has to remove from the browser itself.
+ *
+ * `POST /backend/auth/logout` runs on the server, so it can only expire the
+ * HttpOnly cookies. Without this, signing out left the previous session's elder
+ * and caregiver ids behind — and, worse, the legacy voice Cognito ID token,
+ * which is a reusable credential. The deployment target is a shared tablet in a
+ * care setting, so "the next person inherits the last person's selection and a
+ * live token" is the realistic failure, not a hypothetical one.
+ *
+ * Safe to call when already signed out; `removeItem` on a missing key is a no-op.
+ */
+export function clearBrowserSessionState(): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
+  window.localStorage.removeItem(VOICE_WS_TOKEN_STORAGE_KEY);
+  window.localStorage.removeItem(AUTH_STORAGE_KEYS.elderId);
+  window.localStorage.removeItem(AUTH_STORAGE_KEYS.caregiverId);
+}
+
+/**
  * Voice is a separate backend (packages/backend's WebSocket API, Cognito
  * JWT verified in workflow/handlers/connect.ts) from the Core API this file
  * otherwise configures — different auth realm, different credential. Kept

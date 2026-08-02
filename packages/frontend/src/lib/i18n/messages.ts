@@ -31,6 +31,7 @@ const zhHant = {
   // ---- shared ----
   'common.loading': '載入中…',
   'common.signIn': '前往登入 →',
+  'common.signOut': '登出',
   'common.continueWithGoogle': '使用 Google 繼續',
   'common.empty': '—',
   'common.version': '版本 {version}',
@@ -231,6 +232,7 @@ const en: Record<MessageKey, string> = {
 
   'common.loading': 'Loading…',
   'common.signIn': 'Go to sign-in →',
+  'common.signOut': 'Sign out',
   'common.continueWithGoogle': 'Continue with Google',
   'common.empty': '—',
   'common.version': 'Version {version}',
