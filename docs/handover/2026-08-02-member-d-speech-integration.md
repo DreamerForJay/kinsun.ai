@@ -15,7 +15,7 @@
 | Core → Agent／RAG 串接 | 已依現行 contract 實作 client | 工作台只呼叫 Core companion-turn，不直連 Agent |
 | Gradio 工作台 | 已實作並做瀏覽器 smoke test | `evals/speech/speech_workbench.py` |
 | 外部台／客語 TTS 評估 | Synthetic 實測成功 | `evals/speech/evaluate_external_tts.py` |
-| SageMaker TTS | `Dockerfile.tts` 已固定模型 revision，Endpoint 尚未部署 | 仍需授權決策、image build 與 AWS 實測 |
+| SageMaker TTS | 本機 image 與台／客語 WAV 已通過，Endpoint 尚未部署 | 仍需 ECR push、SageMaker 建立與 AWS invoke |
 | 正式前端語音串流 | 尚未實作 | 目前 Core response 仍是 `TEXT_ONLY` |
 
 ## 2. 正式資料流
@@ -128,6 +128,22 @@ RAG 的成功與否由 Agent Runtime 現行邏輯決定。沒有足夠來源或 
 
 ## 7. TTS 候選與限制
 
+Owner 於 2026-08-02 明確確認：台語與客語模型只用於本次非商用黑客松展示，同意在此
+範圍內使用 CC-BY-NC-4.0；不得把此決策延伸成正式商用授權。正式商用版本仍須換成允許
+商用的模型或另取得授權。
+
+本機最終容器 `kinsun-speech-tts:tts-v1` 驗證結果：
+
+| Route | Synthetic 輸出 | 冷載入延遲 | 結果 |
+| --- | ---: | ---: | --- |
+| 台語 `nan-TW` | 18,988 bytes，WAV `RIFF` | 18,003.9 ms | 通過 |
+| 客語 `hak-TW` | 248,954 bytes，WAV `RIFF` | 39,846.0 ms | 通過 |
+
+- Image ID：`sha256:03238c3dfbd25fb2f0cd5d274bfb8264703b74e8b5ab6809de8adf094375ae35`
+- 本機 image 大小：約 11.44 GB。
+- HTTP server：Gunicorn、單 worker、access log 關閉。
+- 上述數字只證明可合成與 wire compatibility，不是母語者音質評分。
+
 | 語言 | 候選 | Synthetic 實測 | 限制 |
 | --- | --- | --- | --- |
 | 客語 | `ivanusto/tw-hakka-tts` | 成功；可回傳斷詞、拼音、WAV | 第三方；底層模型授權待 Owner 確認 |
@@ -160,8 +176,8 @@ git status --short
 
 ## 9. 下一位接手者的工作
 
-1. 取得 Owner 對台語／客語 TTS 模型與授權的明確決策。
-2. 固定 TTS 模型 revision、建置並掃描容器。
+1. 建置並掃描已固定 revision 的 TTS 容器；授權決策已於 2026-08-02 完成。
+2. 將 immutable image digest 推到私人 ECR。
 3. 建立私有 `kinsun-speech-tts-v1` SageMaker Model／Config／Endpoint。
 4. 使用 Synthetic 句子實際 invoke，驗證 WAV、延遲與文字降級。
 5. 前端補 Voice transport；目前 Core contract 明確回傳 `TEXT_ONLY`。

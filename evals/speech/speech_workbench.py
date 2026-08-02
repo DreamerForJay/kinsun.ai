@@ -26,7 +26,15 @@ DEFAULT_REGION = os.getenv("AWS_DEFAULT_REGION", "us-west-2")
 DEFAULT_ASR_ENDPOINT = os.getenv("KINSUN_ASR_ENDPOINT", "kinsun-speech-asr-v1")
 DEFAULT_TTS_ENDPOINT = os.getenv("KINSUN_TTS_ENDPOINT", "kinsun-speech-tts-v1")
 DEFAULT_CORE_URL = os.getenv("KINSUN_CORE_API_URL", "http://127.0.0.1:8000")
-LANGUAGES = {"台語（nan-TW）": "nan-TW", "客語（hak-TW）": "hak-TW"}
+LANGUAGES = {
+    "繁體中文（zh-TW／Amazon Transcribe）": "zh-TW",
+    "英文（en-US／Amazon Transcribe）": "en-US",
+    "台語（nan-TW／SageMaker）": "nan-TW",
+    "客語（hak-TW／SageMaker）": "hak-TW",
+}
+LOW_RESOURCE_LANGUAGES = {"nan-TW", "hak-TW"}
+MANAGED_LANGUAGES = {"zh-TW", "en-US"}
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CONFIDENCE_THRESHOLD = float(os.getenv("KINSUN_ASR_CONFIRM_THRESHOLD", "0.65"))
 HAKKA_DIALECTS = ["sixian", "hailu", "dapu", "raoping", "zhaoan", "nansixian"]
 
@@ -58,25 +66,71 @@ def _pcm_from_audio(audio_path: str) -> bytes:
     return completed.stdout
 
 
-def invoke_sagemaker_asr(
-    audio_path: str | None, language_label: str, endpoint_name: str, region: str
+def invoke_asr(
+    audio_path: str | None,
+    language_label: str,
+    endpoint_name: str,
+    region: str,
+    approved_test_data: bool,
 ) -> tuple[str, float, str, dict[str, Any]]:
     if not audio_path:
         raise gr.Error("請先錄音或上傳 Synthetic／已去識別音訊。")
+    if not approved_test_data:
+        raise gr.Error("必須確認音訊為 Synthetic／核准去識別資料，才可呼叫 AWS。")
     language = LANGUAGES[language_label]
     started = time.perf_counter()
     try:
-        response = boto3.client(
-            "sagemaker-runtime", region_name=region
-        ).invoke_endpoint(
-            EndpointName=endpoint_name.strip(),
-            ContentType="application/octet-stream",
-            CustomAttributes=json.dumps({"language": language, "sampleRate": 16000}),
-            Body=_pcm_from_audio(audio_path),
-        )
-        payload = json.loads(response["Body"].read())
+        pcm_bytes = _pcm_from_audio(audio_path)
+        if language in LOW_RESOURCE_LANGUAGES:
+            response = boto3.client(
+                "sagemaker-runtime", region_name=region
+            ).invoke_endpoint(
+                EndpointName=endpoint_name.strip(),
+                ContentType="application/octet-stream",
+                CustomAttributes=json.dumps(
+                    {"language": language, "sampleRate": 16000}
+                ),
+                Body=pcm_bytes,
+            )
+            payload = json.loads(response["Body"].read())
+            provider = "aws-sagemaker"
+            model_version = response.get("CustomAttributes")
+        elif language in MANAGED_LANGUAGES:
+            with tempfile.NamedTemporaryFile(suffix=".pcm", delete=False) as pcm_file:
+                pcm_file.write(pcm_bytes)
+                pcm_path = Path(pcm_file.name)
+            try:
+                npm_command = "npm.cmd" if os.name == "nt" else "npm"
+                completed = subprocess.run(
+                    [
+                        npm_command,
+                        "run",
+                        "smoke:transcribe",
+                        "--workspace",
+                        "@elderly-care/backend",
+                        "--",
+                        "--audio",
+                        str(pcm_path),
+                        "--language",
+                        language,
+                        "--synthetic",
+                        "--json",
+                    ],
+                    cwd=REPOSITORY_ROOT,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    check=True,
+                )
+                payload = json.loads(completed.stdout.strip().splitlines()[-1])
+            finally:
+                pcm_path.unlink(missing_ok=True)
+            provider = "amazon-transcribe-streaming"
+            model_version = payload.get("modelVersion")
+        else:  # pragma: no cover
+            raise ValueError(f"Unsupported language: {language}")
     except Exception as exc:
-        raise gr.Error(f"SageMaker ASR 呼叫失敗：{type(exc).__name__}") from exc
+        raise gr.Error(f"AWS ASR 呼叫失敗：{type(exc).__name__}") from exc
 
     transcript = str(payload.get("text", "")).strip()
     confidence = float(payload.get("confidence", 0.0))
@@ -87,14 +141,16 @@ def invoke_sagemaker_asr(
         else "信心值達門檻；仍可人工修正後再送出。"
     )
     metadata = {
-        "provider": "aws-sagemaker",
-        "endpoint": endpoint_name.strip(),
+        "provider": provider,
+        "endpoint": endpoint_name.strip()
+        if language in LOW_RESOURCE_LANGUAGES
+        else None,
         "language": language,
         "confidence": confidence,
         "confirmation_threshold": CONFIDENCE_THRESHOLD,
         "needs_confirmation": needs_confirmation,
         "latency_ms": round((time.perf_counter() - started) * 1000, 1),
-        "model_version": response.get("CustomAttributes"),
+        "model_version": model_version,
     }
     return transcript, confidence, status, metadata
 
@@ -277,10 +333,8 @@ def build_demo() -> gr.Blocks:
             "**ASR → 人工確認 → Core Authorization/Consent → Agent/RAG → TTS**。"
         )
         gr.Markdown(
-            "**ASR 語言範圍：**這個 SageMaker endpoint 專門處理台語 `nan-TW` 與"
-            "客語 `hak-TW`；兩者使用同一個 Taiwan-Tongues 模型。華語／英語依目標"
-            "架構走 AWS Transcribe，不會送到這個 endpoint。下拉選單預設台語不代表"
-            "模型只有台語。"
+            "**四語 ASR 路由：**台語 `nan-TW`／客語 `hak-TW` 走 SageMaker；"
+            "繁體中文 `zh-TW`／英文 `en-US` 走 Amazon Transcribe Streaming。"
         )
         with gr.Tab("1. ASR 與低信心確認"):
             with gr.Row():
@@ -291,13 +345,18 @@ def build_demo() -> gr.Blocks:
                 )
                 with gr.Column():
                     asr_language = gr.Dropdown(
-                        list(LANGUAGES), value="台語（nan-TW）", label="語言"
+                        list(LANGUAGES),
+                        value="台語（nan-TW／SageMaker）",
+                        label="語言",
                     )
                     asr_endpoint = gr.Textbox(
                         value=DEFAULT_ASR_ENDPOINT, label="SageMaker ASR Endpoint"
                     )
                     asr_region = gr.Textbox(value=DEFAULT_REGION, label="AWS Region")
-                    asr_run = gr.Button("執行 SageMaker ASR", variant="primary")
+                    asr_approved_data = gr.Checkbox(
+                        label="我確認音訊為 Synthetic／核准去識別資料"
+                    )
+                    asr_run = gr.Button("執行 AWS ASR", variant="primary")
             with gr.Accordion("Mock 模式（不呼叫 AWS）", open=False):
                 mock_text = gr.Textbox(
                     value="這是一段 Synthetic 測試逐字稿。", label="Mock 逐字稿"
@@ -312,8 +371,8 @@ def build_demo() -> gr.Blocks:
             confirmed = gr.Checkbox(label="我已人工確認逐字稿正確")
             asr_metadata = gr.JSON(label="ASR Metadata（不含音訊）")
             asr_run.click(
-                invoke_sagemaker_asr,
-                [audio, asr_language, asr_endpoint, asr_region],
+                invoke_asr,
+                [audio, asr_language, asr_endpoint, asr_region, asr_approved_data],
                 [transcript, confidence, asr_status, asr_metadata],
             )
             mock_run.click(
@@ -345,7 +404,12 @@ def build_demo() -> gr.Blocks:
             copy_reply.click(lambda value: value, agent_reply, tts_text)
             with gr.Row():
                 tts_language = gr.Dropdown(
-                    list(LANGUAGES), value="客語（hak-TW）", label="語言"
+                    [
+                        "台語（nan-TW／SageMaker）",
+                        "客語（hak-TW／SageMaker）",
+                    ],
+                    value="客語（hak-TW／SageMaker）",
+                    label="語言",
                 )
                 hakka_dialect = gr.Dropdown(
                     HAKKA_DIALECTS, value="sixian", label="客語腔調"

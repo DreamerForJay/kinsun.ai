@@ -38,7 +38,23 @@ def test_agent_call_fails_before_network_when_not_confirmed() -> None:
 def test_external_tts_rejects_unconfirmed_data_classification() -> None:
     with pytest.raises(Exception, match="Synthetic"):
         workbench.synthesize_external_tts(
-            "Synthetic text", "台語（nan-TW）", False, "sixian", 1.0, "model6"
+            "Synthetic text",
+            "台語（nan-TW／SageMaker）",
+            False,
+            "sixian",
+            1.0,
+            "model6",
+        )
+
+
+def test_asr_rejects_unapproved_audio_before_conversion() -> None:
+    with pytest.raises(Exception, match="Synthetic"):
+        workbench.invoke_asr(
+            "synthetic.wav",
+            "繁體中文（zh-TW／Amazon Transcribe）",
+            "kinsun-speech-asr-v1",
+            "us-west-2",
+            False,
         )
 
 

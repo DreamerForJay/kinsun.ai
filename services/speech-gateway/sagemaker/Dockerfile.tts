@@ -29,6 +29,14 @@ RUN python3 -m venv .venv-main \
 RUN .venv-main/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='facebook/mms-tts-nan', revision='${NAN_TTS_MODEL_REVISION}', local_dir='/opt/models/mms-tts-nan')" \
     && .venv-voxhakka/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='formospeech/yourtts-htia-240704', revision='${HAK_TTS_MODEL_REVISION}', local_dir='/opt/models/voxhakka')"
 
+# Coqui-TTS imports torchaudio even when this specific YourTTS path does not
+# call its audio transforms directly. Keep it exactly aligned with the Torch
+# version resolved in the isolated environment. Gunicorn provides the
+# single-worker SageMaker HTTP server; multiple workers would duplicate models.
+RUN .venv-voxhakka/bin/pip install --no-cache-dir torch==2.11.0 torchaudio==2.11.0 \
+    && .venv-voxhakka/bin/pip install --no-cache-dir 'coqui-tts[codec]==0.27.5' \
+    && .venv-main/bin/pip install --no-cache-dir gunicorn==23.0.0
+
 COPY core/ ./core/
 COPY scripts/ ./scripts/
 COPY inference_tts.py ./
@@ -40,4 +48,4 @@ ENV KINSUN_NAN_TTS_MODEL_PATH=/opt/models/mms-tts-nan \
     PYTHONUNBUFFERED=1
 
 EXPOSE 8080
-ENTRYPOINT [".venv-main/bin/python", "-m", "flask", "--app", "inference_tts:app", "run", "--host", "0.0.0.0", "--port", "8080"]
+ENTRYPOINT [".venv-main/bin/gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--timeout", "600", "--access-logfile", "/dev/null", "inference_tts:app"]

@@ -43,3 +43,5 @@ rag-embeddings-*.jsonl
 # Speech eval 產物：可能包含第三方生成音訊，只保留在本機，不進版控。
 evals/reports/tts/
 evals/reports/speech-*
+# 本機 TTS 容器煙霧測試輸出；音訊可供人工試聽，但不納入版控。
+evals/reports/tts-*-smoke.wav
