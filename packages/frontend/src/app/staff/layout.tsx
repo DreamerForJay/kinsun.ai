@@ -5,8 +5,9 @@ import { cookies } from 'next/headers';
 
 /* Staff sign-in is a care-surface entry point, so it uses the care token scale
    and offers the same language choice the dashboard does. */
-export default function StaffLayout({ children }: { children: ReactNode }) {
-  const locale = parseLocaleCookie(cookies().get(LOCALE_COOKIE)?.value);
+export default async function StaffLayout({ children }: { children: ReactNode }) {
+  const cookieStore = await cookies();
+  const locale = parseLocaleCookie(cookieStore.get(LOCALE_COOKIE)?.value);
   return (
     <SurfaceShell surface="care" initialLocale={locale}>
       {children}

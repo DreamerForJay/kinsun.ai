@@ -18,7 +18,12 @@ const cardStyle = {
   textDecoration: 'none',
 };
 
-export default function SignInPage({ searchParams }: { searchParams: { error?: string } }) {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string | string[] }>;
+}) {
+  const { error } = await searchParams;
   return (
     <main style={{ margin: '0 auto', maxWidth: 680, padding: 'var(--space-6)' }}>
       <h1 style={{ fontSize: 'var(--text-2xl)', marginBottom: 'var(--space-2)' }}>
@@ -34,7 +39,7 @@ export default function SignInPage({ searchParams }: { searchParams: { error?: s
       >
         請選擇您要使用的服務。我們會先使用 Google 確認身分，再由系統確認可使用的資料範圍。
       </p>
-      {searchParams.error && (
+      {error && (
         <p
           role="alert"
           style={{ color: 'var(--color-destructive)', marginBottom: 'var(--space-4)' }}

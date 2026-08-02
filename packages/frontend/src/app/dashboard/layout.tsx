@@ -7,8 +7,9 @@ import { cookies } from 'next/headers';
    what keeps SSR and the first client render in agreement — an `en` visitor
    would otherwise see a flash of Chinese on every navigation. It also opts these
    routes out of static rendering, which is correct: they are authenticated. */
-export default function CaregiverDashboardLayout({ children }: { children: ReactNode }) {
-  const locale = parseLocaleCookie(cookies().get(LOCALE_COOKIE)?.value);
+export default async function CaregiverDashboardLayout({ children }: { children: ReactNode }) {
+  const cookieStore = await cookies();
+  const locale = parseLocaleCookie(cookieStore.get(LOCALE_COOKIE)?.value);
   return (
     <SurfaceShell surface="care" initialLocale={locale}>
       {children}

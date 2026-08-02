@@ -4,11 +4,12 @@ import { proxyCoreRequest } from '@/lib/server/core-proxy';
 export const dynamic = 'force-dynamic';
 
 interface RouteContext {
-  params: { path: string[] };
+  params: Promise<{ path: string[] }>;
 }
 
-function handle(request: NextRequest, context: RouteContext): Promise<Response> {
-  return proxyCoreRequest(request, context.params.path);
+async function handle(request: NextRequest, context: RouteContext): Promise<Response> {
+  const { path } = await context.params;
+  return proxyCoreRequest(request, path);
 }
 
 export const GET = handle;
