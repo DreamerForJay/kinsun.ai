@@ -17,6 +17,7 @@ from app.models.conversation import ConversationSession
 from app.models.safety import SafetyEvaluation
 from app.schemas.conversation import CompanionTurnResponse
 from app.services.conversation_service import ConversationService
+from app.services.knowledge_intent import resolve_turn_purpose
 
 _ACTOR_ROLE_MAP = {
     "ELDER": "elder",
@@ -86,6 +87,11 @@ class CompanionService:
             raise ConflictError("Voice session has no policy version")
 
         request_id = f"req-{uuid4()}"
+        # The Agent Runtime selects a retrieval profile from `purpose`
+        # (rag_integration.RAG_PURPOSES) and does not infer intent itself, so an
+        # information request has to be identified here or the knowledge base is
+        # never consulted. Everyday conversation keeps BASIC_VOICE.
+        turn_purpose = resolve_turn_purpose(input_text)
         request_payload: dict[str, object] = {
             "schema_version": "1.0.0",
             "request_id": request_id,
@@ -95,7 +101,7 @@ class CompanionService:
             "actor_role": _ACTOR_ROLE_MAP.get(actor_context.actor_role, "staff"),
             "elder_id": str(conversation.elder_id),
             "tenant_id": str(actor_context.tenant_id),
-            "purpose": "BASIC_VOICE",
+            "purpose": turn_purpose,
             "consent_version": str(conversation.consent_version),
             "policy_version": conversation.policy_version,
             "language": _LANGUAGE_MAP[conversation.language_route],

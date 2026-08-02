@@ -1,0 +1,37 @@
+[project]
+name = "kinsun-speech-gateway"
+version = "0.1.0"
+description = "Transcribe/Polly boundary for the canonical voice path"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.5.0",
+    "boto3>=1.35.0",
+    "amazon-transcribe>=0.6.2",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.3.0", "pytest-asyncio>=0.24.0"]
+dev = ["ruff>=0.6.0"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I", "UP"]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+]
