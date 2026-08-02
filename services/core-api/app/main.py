@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # ── Step 3: Check DB connectivity (non-fatal) ────────────────────────────
     try:
-        connected = await db_engine.check_connectivity()
+        connected = await db_engine.recover_connectivity()
         if not connected:
             logger.warning(
                 "db_startup_degraded",
@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 "detail": "Database unreachable at startup — running in degraded mode",
             },
         )
-        # db_engine.is_ready remains False → session dependency will 503
+        # Readiness remains false; a later DB-backed request may run one bounded retry.
 
     # ── Step 4: Wire engine into app state and session dependency ─────────────
     app.state.db_engine = db_engine

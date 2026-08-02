@@ -6,17 +6,22 @@ info:
   summary: Agent execution and staging RAG retrieval for the smart eldercare AI companion system.
   description: |
     Contract for the endpoints that are ACTUALLY IMPLEMENTED in
-    `services/agent-runtime`. Every path can be exercised against a running
-    instance with no database, AWS credentials or network access: the local
-    agent path is deterministic, while unconfigured retrieval fails closed with
-    an explicit no-guess fallback. A successful AWS-backed retrieval requires
-    separately supplied staging configuration and credentials.
+    `services/agent-runtime`. The default local profile uses a deterministic
+    Mock provider, and unconfigured retrieval fails closed with an explicit
+    no-guess fallback, so no-Tool turns and failure paths can be exercised with
+    no database, AWS credentials or network access. A requested Event Candidate
+    write additionally requires a reachable Core API and its database; a
+    successful AWS-backed retrieval or Bedrock reply requires separately
+    supplied staging configuration and credentials.
 
-    What this service does NOT do yet, despite `contracts/schemas/` containing
-    shapes for them: execute tools, extract care events, create memory
-    candidates, query Neptune, or hand off between agents.
-    `HandoffEnvelopeV1`, `ToolRequestV1` and `ToolResponseV1` are target shapes
-    and are deliberately absent from this document.
+    This service implements one bounded Tool path, not a generic Tool engine.
+    When Safety allows the turn, `allowed_tools` explicitly includes
+    `create_event_candidate`, and the deterministic Event Extractor finds a
+    Candidate, the Runtime registers a Core-owned AgentRun, calls the
+    allowlisted Core Tool, and completes that same run. It does not yet create
+    memory candidates, query Neptune, run a general multi-Tool loop, or hand off
+    between agents. `HandoffEnvelopeV1` and legacy `ToolResponseV1` remain
+    target shapes and are deliberately absent from executable paths here.
 
     `POST /api/v1/rag/retrievals` is staging-only. When its Bedrock and
     OpenSearch adapters are configured it retrieves approved chunks; when they
@@ -24,9 +29,10 @@ info:
     results, and an explicit fallback message. It does not make the staging
     index a production projection or evidence that source review is complete.
 
-    Model output comes from `MockModelProvider` — deterministic, local, and not
-    a language model. Nothing here is evidence that a Bedrock-backed runtime
-    behaves the same way.
+    The default local model is `MockModelProvider`. A configurable Bedrock
+    Converse provider also exists and consumes the bounded Context Manifest,
+    but this contract and the current tests are not evidence that a real AWS
+    deployment, production Guardrails, or model parity has been verified.
 
     Safety behaviour worth knowing before integrating: a high-risk request is
     answered with HTTP 200 whose `data.result_status` is `BLOCKED` and whose

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from rag_ingestion.allowlist import CHUNK_ID_PATTERN, Allowlist
+from rag_ingestion.settings import forbidden_chunk_directory
 
 
 class ChunkLoadError(ValueError):
@@ -30,8 +31,9 @@ def load_allowlisted_chunks(chunks_dir: Path, allowlist: Allowlist) -> tuple[Loa
     """Load the exact approved set; unknown, missing, or duplicate IDs are fatal."""
 
     directory = chunks_dir.expanduser().resolve()
-    if "pending-revalidation" in {part.casefold() for part in directory.parts}:
-        raise ChunkLoadError("pending-revalidation is never an allowed chunks directory")
+    forbidden = forbidden_chunk_directory(directory)
+    if forbidden is not None:
+        raise ChunkLoadError(f"{forbidden} is never an allowed chunks directory")
     if not directory.is_dir():
         raise ChunkLoadError("chunks directory does not exist")
 

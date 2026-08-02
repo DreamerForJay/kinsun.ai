@@ -7,6 +7,7 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.pool import NullPool
 
 from app.core.config import Settings
 from app.db.engine import DatabaseEngine
@@ -40,11 +41,35 @@ class TestEngineCreation:
 
             mock_create.assert_called_once_with(
                 _VALID_DB_URL,
+                connect_args={"timeout": 5.0},
                 pool_size=3,
                 max_overflow=7,
                 echo=True,  # development mode
             )
             assert db_engine.engine is mock_create.return_value
+
+    def test_null_pool_omits_queue_pool_arguments(self) -> None:
+        """NullPool must not receive QueuePool-only sizing arguments."""
+        settings = _make_settings(
+            DB_POOL_MODE="null",
+            DB_POOL_SIZE="3",
+            DB_MAX_OVERFLOW="7",
+            DB_CONNECT_TIMEOUT_SECONDS="2.5",
+        )
+        with patch("app.db.engine.create_async_engine") as mock_create:
+            mock_create.return_value = MagicMock()
+
+            DatabaseEngine(settings)
+
+            mock_create.assert_called_once_with(
+                _VALID_DB_URL,
+                connect_args={"timeout": 2.5},
+                echo=True,
+                poolclass=NullPool,
+            )
+            _, kwargs = mock_create.call_args
+            assert "pool_size" not in kwargs
+            assert "max_overflow" not in kwargs
 
     def test_echo_disabled_in_production(self) -> None:
         """Engine echo is False when app_env is production."""
@@ -150,6 +175,65 @@ class TestReadinessState:
             mock_engine.connect.return_value = mock_cm_fail
             await db_engine.check_connectivity()
             assert db_engine.is_ready is False
+
+
+class TestConnectivityRecovery:
+    @pytest.mark.asyncio
+    async def test_concurrent_recovery_calls_share_one_check(self) -> None:
+        settings = _make_settings()
+        with patch("app.db.engine.create_async_engine") as mock_create:
+            mock_create.return_value = MagicMock()
+            db_engine = DatabaseEngine(settings)
+
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def delayed_success() -> bool:
+            started.set()
+            await release.wait()
+            db_engine._ready = True
+            return True
+
+        check = AsyncMock(side_effect=delayed_success)
+        with patch.object(db_engine, "check_connectivity", check):
+            recoveries = [asyncio.create_task(db_engine.recover_connectivity()) for _ in range(8)]
+            await started.wait()
+            await asyncio.sleep(0)
+            release.set()
+            results = await asyncio.gather(*recoveries)
+
+        assert results == [True] * 8
+        check.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_failed_recovery_can_be_retried_by_later_request(self) -> None:
+        settings = _make_settings()
+        with patch("app.db.engine.create_async_engine") as mock_create:
+            mock_create.return_value = MagicMock()
+            db_engine = DatabaseEngine(settings)
+
+        check = AsyncMock(side_effect=[False, True])
+        with patch.object(db_engine, "check_connectivity", check):
+            assert await db_engine.recover_connectivity() is False
+            assert await db_engine.recover_connectivity() is True
+
+        assert check.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_recovery_is_bounded_by_configured_timeout(self) -> None:
+        settings = _make_settings(DB_RECOVERY_TIMEOUT_SECONDS="0.01")
+        with patch("app.db.engine.create_async_engine") as mock_create:
+            mock_create.return_value = MagicMock()
+            db_engine = DatabaseEngine(settings)
+
+        async def never_completes() -> bool:
+            await asyncio.sleep(60)
+            return True
+
+        with patch.object(db_engine, "check_connectivity", side_effect=never_completes):
+            assert await db_engine.recover_connectivity() is False
+
+        assert db_engine.is_ready is False
 
 
 # ─── Dispose ─────────────────────────────────────────────────────────────────

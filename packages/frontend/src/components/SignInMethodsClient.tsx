@@ -48,7 +48,7 @@ export function SignInMethodsClient() {
   if (error) {
     return (
       <div>
-        <p role="alert" style={{ color: '#b91c1c' }}>
+        <p role="alert" style={{ color: 'var(--color-destructive)' }}>
           {error}
         </p>
         <a href="/sign-in">前往登入</a>
@@ -59,11 +59,11 @@ export function SignInMethodsClient() {
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
-      <section style={{ border: '1px solid #cbd5e1', borderRadius: 12, padding: 18 }}>
+      <section style={{ border: '1px solid var(--color-border-strong)', borderRadius: 12, padding: 18 }}>
         <h2 style={{ fontSize: 20, marginTop: 0 }}>Google</h2>
         <p style={{ marginBottom: 0 }}>{status.googleLinked ? '已連結' : '未連結'}</p>
       </section>
-      <section style={{ border: '1px solid #cbd5e1', borderRadius: 12, padding: 18 }}>
+      <section style={{ border: '1px solid var(--color-border-strong)', borderRadius: 12, padding: 18 }}>
         <h2 style={{ fontSize: 20, marginTop: 0 }}>LINE Login</h2>
         <p>{status.lineLinked ? '已連結' : '未連結'}</p>
         {!status.lineLoginEnabled && <p>目前環境尚未啟用 LINE Login。</p>}
@@ -72,7 +72,7 @@ export function SignInMethodsClient() {
             <button
               disabled={!status.googleLinked}
               style={{
-                background: status.googleLinked ? '#06c755' : '#94a3b8',
+                background: status.googleLinked ? 'var(--color-accent)' : 'var(--color-muted-foreground)',
                 border: 0,
                 borderRadius: 8,
                 color: 'white',

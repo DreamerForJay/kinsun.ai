@@ -7,17 +7,23 @@ inclusion: always
 ```text
 kinsun.ai/
 ├── .kiro/                 Kiro specs、steering 與 hooks
-├── apps/                  前端應用殼；技術選型尚待決策
+├── apps/                  刻意保持空；前端在 packages/frontend（ADR 0006）
 ├── contracts/             OpenAPI、JSON Schema、valid/invalid examples
 ├── data/                  資料相關資產邊界
+├── design-system/         MASTER.md：視覺、RWD、無障礙規範
 ├── docs/                  產品、domain、security、architecture、ADR
 ├── evals/                 Agent evaluation 與報告
 ├── infra/                 IaC 邊界；工具尚待決策
 ├── ops/                   維運資產
+├── packages/
+│   ├── frontend/          單一 multi-role PWA＋BFF（Next.js App Router）
+│   ├── shared/            前端／backend 共用 TypeScript 型別
+│   └── backend/           第二套後端，尚未收斂；見 AGENTS.md §1
 ├── scripts/               Contract 與 repository 驗證腳本
 ├── services/
 │   ├── core-api/          正式 Domain Core 與 API
-│   └── agent-runtime/     受控 Agent Runtime
+│   ├── agent-runtime/     受控 Agent Runtime
+│   └── rag-ingestion/     RAG ingestion 與 allowlist 建置
 └── tests/                 跨服務測試邊界
 ```
 

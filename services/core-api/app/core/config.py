@@ -25,7 +25,15 @@ class AppEnv(str, Enum):
     PRODUCTION = "production"
 
 
+class DatabasePoolMode(str, Enum):
+    """Supported SQLAlchemy connection-pool strategies."""
+
+    QUEUE = "queue"
+    NULL = "null"
+
+
 # Resolve the repository-level .env independently of the process working directory.
+# In production we never read .env; in development we do (env vars still take precedence).
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 _env_file: str | None = (
     str(_REPOSITORY_ROOT / ".env") if os.getenv("APP_ENV", "development") != "production" else None
@@ -64,8 +72,11 @@ class Settings(BaseSettings):
 
     # ─── Database ────────────────────────────────────────────────────────────────
     database_url: str  # Required — validated below
+    db_pool_mode: DatabasePoolMode = DatabasePoolMode.QUEUE
     db_pool_size: int = Field(default=5, ge=1)
     db_max_overflow: int = Field(default=10, ge=0)
+    db_connect_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    db_recovery_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
 
     # ─── Testing ─────────────────────────────────────────────────────────────────
     test_database_url: str = ""

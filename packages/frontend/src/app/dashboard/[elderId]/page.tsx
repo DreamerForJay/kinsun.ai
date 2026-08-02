@@ -1,17 +1,22 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EventFilterBar } from '@/components/dashboard/EventFilterBar';
 import { EventTable } from '@/components/dashboard/EventTable';
 import { MemoryList } from '@/components/dashboard/MemoryList';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
+import { Skeleton } from '@/components/Skeleton';
+import { StateCard } from '@/components/StateCard';
 import { ApiRequestError } from '@/lib/api/client';
 import {
   listEvents,
   reviewEvent,
+  summariseNeedsReview,
   type CareEventDecision,
   type EventView,
   type ListEventsFilters,
+  type NeedsReviewSummary,
 } from '@/lib/api/events';
 import {
   confirmMemory,
@@ -22,31 +27,33 @@ import {
   type MemoryView,
 } from '@/lib/api/memories';
 import { listSummaries, type SummaryView } from '@/lib/api/summaries';
+import { useLocale } from '@/lib/i18n/locale-context';
+import type { MessageKey } from '@/lib/i18n/messages';
 import { getRuntimeConfig, type RuntimeConfig } from '@/lib/runtime-config';
 
 type Tab = 'events' | 'memories' | 'summaries';
 
-const SUMMARY_STATUS_LABEL: Record<SummaryView['status'], string> = {
-  DRAFT: '草稿',
-  READY: '可供覆核',
-  NEEDS_REVIEW: '待覆核',
-  PUBLISHED: '已發布',
-  STALE: '需重建',
-  WITHDRAWN: '已撤回',
+const TAB_LABEL: Record<Tab, MessageKey> = {
+  events: 'elderDetail.tabEvents',
+  memories: 'elderDetail.tabMemories',
+  summaries: 'elderDetail.tabSummaries',
 };
 
-function describeError(error: unknown, fallback: string): string {
+/** Returns a key rather than a string so a stored error re-renders in the
+ *  language selected *now*, not the one active when it was raised. */
+function describeError(error: unknown, fallback: MessageKey): MessageKey {
   if (error instanceof ApiRequestError && (error.status === 403 || error.status === 404)) {
-    return '目前身分沒有查看或操作這位長者資料的權限。';
+    return 'error.noElderDataPermission';
   }
   if (error instanceof ApiRequestError && error.status === 409) {
-    return '資料版本已更新，請重新載入後再操作。';
+    return 'error.versionConflict';
   }
   return fallback;
 }
 
 export default function ElderDetailPage({ params }: { params: { elderId: string } }) {
   const { elderId } = params;
+  const { t, locale } = useLocale();
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig | null>(null);
   const apiConfig = useMemo(
     () => ({ apiBaseUrl: runtimeConfig?.apiBaseUrl ?? '/backend/core' }),
@@ -57,7 +64,12 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
   const [eventFilters, setEventFilters] = useState<ListEventsFilters>({});
   const [memories, setMemories] = useState<MemoryListView>({ candidates: [], confirmed: [] });
   const [summaries, setSummaries] = useState<SummaryView[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [needsReview, setNeedsReview] = useState<NeedsReviewSummary | null>(null);
+  /* Distinguishes Loading from Empty (§10.2). Without it an in-flight fetch
+     renders the empty-state copy — "沒有符合條件的事件紀錄" — which asserts
+     something the page does not yet know. */
+  const [loading, setLoading] = useState(true);
+  const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,24 +82,40 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
   }, []);
 
   const loadEvents = useCallback(() => {
-    setError(null);
+    setErrorKey(null);
+    setLoading(true);
     listEvents(apiConfig, elderId, eventFilters)
       .then((response) => setEvents(response.items))
-      .catch((caught) => setError(describeError(caught, '讀取事件失敗')));
+      .catch((caught) => setErrorKey(describeError(caught, 'error.loadEventsFailed')))
+      .finally(() => setLoading(false));
   }, [apiConfig, elderId, eventFilters]);
 
   const loadMemories = useCallback(() => {
-    setError(null);
+    setErrorKey(null);
+    setLoading(true);
     listMemories(apiConfig, elderId)
       .then(setMemories)
-      .catch((caught) => setError(describeError(caught, '讀取記憶失敗')));
+      .catch((caught) => setErrorKey(describeError(caught, 'error.loadMemoriesFailed')))
+      .finally(() => setLoading(false));
   }, [apiConfig, elderId]);
 
   const loadSummaries = useCallback(() => {
-    setError(null);
+    setErrorKey(null);
+    setLoading(true);
     listSummaries(apiConfig, elderId)
       .then((response) => setSummaries(response.items))
-      .catch((caught) => setError(describeError(caught, '讀取摘要失敗')));
+      .catch((caught) => setErrorKey(describeError(caught, 'error.loadSummariesFailed')))
+      .finally(() => setLoading(false));
+  }, [apiConfig, elderId]);
+
+  /* Independent of the active tab: §10.2 requires the review queue to be
+     visible whichever tab the caregiver is on, not only inside the events one.
+     A failure here is deliberately swallowed — the queue count is secondary,
+     and blanking the page over it would be worse than not showing it. */
+  const loadNeedsReview = useCallback(() => {
+    summariseNeedsReview(apiConfig, elderId)
+      .then(setNeedsReview)
+      .catch(() => setNeedsReview(null));
   }, [apiConfig, elderId]);
 
   useEffect(() => {
@@ -97,12 +125,17 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
     if (tab === 'summaries') loadSummaries();
   }, [tab, runtimeConfig?.credentialStatus, loadEvents, loadMemories, loadSummaries]);
 
+  useEffect(() => {
+    if (runtimeConfig?.credentialStatus !== 'present') return;
+    loadNeedsReview();
+  }, [runtimeConfig?.credentialStatus, loadNeedsReview]);
+
   if (!runtimeConfig) return null;
   if (runtimeConfig.credentialStatus === 'unavailable') {
-    return <NotLoggedIn reason="無法確認登入憑證狀態；系統已停止，不會略過認證" />;
+    return <NotLoggedIn reason={t('auth.credentialUnavailable')} linkLabel={t('common.signIn')} />;
   }
   if (runtimeConfig.credentialStatus !== 'present') {
-    return <NotLoggedIn reason="尚未設定登入資訊，請先完成登入設定" />;
+    return <NotLoggedIn reason={t('auth.credentialMissing')} linkLabel={t('common.signIn')} />;
   }
 
   async function handleReviewEvent(
@@ -113,8 +146,11 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
     try {
       await reviewEvent(apiConfig, elderId, event, decision, correctedContent);
       loadEvents();
+      // The queue just shrank; leaving the banner stale would send the reviewer
+      // looking for work that is already done.
+      loadNeedsReview();
     } catch (caught) {
-      setError(describeError(caught, '覆核事件失敗'));
+      setErrorKey(describeError(caught, 'error.reviewEventFailed'));
       throw caught;
     }
   }
@@ -134,17 +170,79 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
     loadMemories();
   }
 
+  const listSeparator = locale === 'en' ? ', ' : '、';
+
+  /* §10.2 Permission Denied. A denial replaces the page rather than being
+     appended to it (§1 "不得先畫再遮"), and it carries no elder identity — not
+     the name, and not the id either, even though the caller already has the id
+     from the URL.
+
+     Deliberately NOT a StateCard: §2 reserves that colour vocabulary for
+     workflow state. A denial is not a state the record is in, and dressing it
+     as one would teach the palette a second, conflicting meaning. */
+  if (errorKey === 'error.noElderDataPermission') {
+    return (
+      <main
+        style={{
+          maxWidth: 480,
+          margin: '80px auto',
+          padding: 'var(--space-6)',
+          textAlign: 'center',
+        }}
+      >
+        <h1 style={{ fontSize: 'var(--text-xl)', color: 'var(--color-foreground)' }}>
+          {t('denied.title')}
+        </h1>
+        <p style={{ color: 'var(--color-muted-foreground)', margin: 'var(--space-5) 0' }}>
+          {t('error.noElderDataPermission')}
+        </p>
+        <Link href="/dashboard">{t('denied.back')}</Link>
+      </main>
+    );
+  }
+
   return (
     <main style={{ maxWidth: 960, margin: '0 auto', padding: 24 }}>
-      <h1 style={{ fontSize: 22, marginBottom: 4 }}>長者詳情</h1>
-      <p style={{ color: '#718096', marginBottom: 20 }}>Elder ID: {elderId}</p>
+      <h1 style={{ fontSize: 22, marginBottom: 4 }}>{t('elderDetail.title')}</h1>
+      <p style={{ color: 'var(--color-muted-foreground)', marginBottom: 20 }}>
+        Elder ID: {elderId}
+      </p>
+
+      {/* §10.2 Needs Review: the count and the reason, on every tab. */}
+      {needsReview && needsReview.count > 0 && (
+        <div style={{ marginBottom: 'var(--space-5)' }}>
+          <StateCard
+            state="needsReview"
+            title={t(needsReview.atLeast ? 'needsReview.countAtLeast' : 'needsReview.count', {
+              count: needsReview.count,
+            })}
+            actions={
+              <button
+                type="button"
+                onClick={() => {
+                  setEventFilters({ status: 'NEEDS_REVIEW' });
+                  setTab('events');
+                }}
+              >
+                {t('needsReview.reviewNow')}
+              </button>
+            }
+          >
+            {t('needsReview.byConfidence', {
+              low: needsReview.byConfidence.LOW,
+              medium: needsReview.byConfidence.MEDIUM,
+              high: needsReview.byConfidence.HIGH,
+            })}
+          </StateCard>
+        </div>
+      )}
 
       <div
         style={{
           display: 'flex',
           gap: 12,
           marginBottom: 20,
-          borderBottom: '1px solid #e2e8f0',
+          borderBottom: '1px solid var(--color-border)',
         }}
       >
         {(['events', 'memories', 'summaries'] as Tab[]).map((item) => (
@@ -152,68 +250,97 @@ export default function ElderDetailPage({ params }: { params: { elderId: string 
             key={item}
             type="button"
             onClick={() => setTab(item)}
+            aria-pressed={tab === item}
             style={{
               padding: '8px 16px',
               border: 'none',
-              borderBottom: tab === item ? '2px solid #2b6cb0' : '2px solid transparent',
+              borderBottom:
+                tab === item ? '2px solid var(--color-primary)' : '2px solid transparent',
               background: 'none',
               fontWeight: tab === item ? 700 : 400,
               cursor: 'pointer',
             }}
           >
-            {item === 'events' ? '照護事件' : item === 'memories' ? '記憶管理' : '每日摘要'}
+            {t(TAB_LABEL[item])}
           </button>
         ))}
       </div>
 
-      {error && <p style={{ color: '#e53e3e' }}>{error}</p>}
+      {errorKey && <p style={{ color: 'var(--color-destructive)' }}>{t(errorKey)}</p>}
 
       {tab === 'events' && (
         <>
           <EventFilterBar filters={eventFilters} onChange={setEventFilters} />
-          <EventTable events={events} onReview={handleReviewEvent} />
+          {/* Skeleton replaces the previous rows rather than sitting beside
+              them: on a care dashboard, rows belonging to a previous filter or
+              a previous elder are worse than a visibly empty panel (§10.2). */}
+          {loading ? (
+            <Skeleton rows={5} />
+          ) : (
+            <EventTable events={events} onReview={handleReviewEvent} />
+          )}
         </>
       )}
 
-      {tab === 'memories' && (
-        <MemoryList
-          candidates={memories.candidates}
-          confirmed={memories.confirmed}
-          onConfirm={handleConfirmMemory}
-          onReject={handleRejectMemory}
-          onDelete={handleDeleteMemory}
-        />
-      )}
+      {tab === 'memories' &&
+        (loading ? (
+          <Skeleton rows={4} />
+        ) : (
+          <MemoryList
+            candidates={memories.candidates}
+            confirmed={memories.confirmed}
+            onConfirm={handleConfirmMemory}
+            onReject={handleRejectMemory}
+            onDelete={handleDeleteMemory}
+          />
+        ))}
 
-      {tab === 'summaries' && (
+      {tab === 'summaries' && loading && <Skeleton rows={3} />}
+
+      {tab === 'summaries' && !loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <p style={{ color: '#718096' }}>
-            Core API 目前僅提供摘要讀取；摘要發布與家屬報表是不同的正式流程。
-          </p>
-          {summaries.length === 0 && <p style={{ color: '#718096' }}>目前沒有正式摘要。</p>}
+          <p style={{ color: 'var(--color-muted-foreground)' }}>{t('elderDetail.summaryNotice')}</p>
+          {summaries.length === 0 && (
+            <p style={{ color: 'var(--color-muted-foreground)' }}>
+              {t('elderDetail.summaryEmpty')}
+            </p>
+          )}
           {summaries.map((summary) => (
             <section
               key={summary.summaryId}
-              style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 8 }}
+              style={{
+                padding: 'var(--space-3)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+              }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <strong>{summary.date}</strong>
-                <span>{SUMMARY_STATUS_LABEL[summary.status]}</span>
-                <span style={{ fontSize: 12, color: '#718096' }}>版本 {summary.version}</span>
+                <span>{t(`summaryStatus.${summary.status}` as MessageKey)}</span>
+                <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}>
+                  {t('common.version', { version: summary.version })}
+                </span>
               </div>
               {summary.items.length === 0 ? (
-                <p style={{ color: '#718096' }}>沒有可顯示的來源支持項目。</p>
+                <p style={{ color: 'var(--color-muted-foreground)' }}>
+                  {t('elderDetail.summaryNoItems')}
+                </p>
               ) : (
                 <ul>
                   {summary.items.map((item, index) => (
                     <li key={`${item.category}-${index}`}>
-                      [{item.category}] {item.text}（來源 {item.sourceEventIds.length} 筆）
+                      [{item.category}] {item.text}
+                      {t('common.sources', { count: item.sourceEventIds.length })}
                     </li>
                   ))}
                 </ul>
               )}
               {summary.missingFields.length > 0 && (
-                <p style={{ color: '#718096' }}>資料缺口：{summary.missingFields.join('、')}</p>
+                <p style={{ color: 'var(--color-muted-foreground)' }}>
+                  {t('elderDetail.dataGaps', {
+                    fields: summary.missingFields.join(listSeparator),
+                  })}
+                </p>
               )}
             </section>
           ))}

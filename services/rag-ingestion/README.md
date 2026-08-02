@@ -115,6 +115,32 @@ python scripts/rag/inspect_pipelines.py
 uv run --project services/rag-ingestion python -m rag_ingestion.cli inspect-pipelines
 ```
 
+Adding or editing an approved chunk means recomputing every hash the Allowlist
+declares, which is the step most likely to go wrong by hand. This reports what
+the approved JSONL files imply, and writes the manifest only with `--write`:
+
+```powershell
+python scripts/rag/rebuild_allowlist.py
+python scripts/rag/rebuild_allowlist.py --write
+```
+
+It recomputes `text_sha256` and `embedding_text_sha256`, refreshes per-source
+and total counts, and reports added, removed, and rehashed chunks. It never
+touches governance: manifest status, owner risk acceptance, human review, and
+production status are copied verbatim, and a chunk the manifest has not seen
+before inherits `review_status=needs_review`, `human_source_review=NOT_COMPLETED`
+and `production_gate=BLOCKED` rather than the state of its neighbours. A chunk
+whose `source_id` has no reviewed `sources[]` entry is refused, because
+`source_number` ties a source to the human review catalogue and a script must
+not invent one.
+
+Reformatting alone is reported as `UNCHANGED`; rewriting then would change the
+Allowlist SHA-256 without any chunk differing, invalidating the attested
+`RAG_ALLOWLIST_EXPECTED_SHA256` for nothing. When chunks really did change,
+place the new SHA-256 into that variable by hand from an independently trusted
+record, then rebuild the index: ingestion writes the complete approved set and
+verifies an exact count, so it is a full rebuild rather than an append.
+
 Every command prints a JSON summary without chunk text or vectors. Structural
 validation can report `VALID` while `execution_allowed` is false; every command
 that could contact AWS independently enforces the governance gate. Successful

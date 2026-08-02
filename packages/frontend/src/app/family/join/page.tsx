@@ -1,63 +1,14 @@
 export const dynamic = 'force-dynamic';
 
+import { FamilyJoinView } from './FamilyJoinView';
+
+/**
+ * Server wrapper: LINE_LOGIN_ENABLED is a server-only flag (not NEXT_PUBLIC_,
+ * so a client component can't read it directly), decided per-request the same
+ * way the actual /backend/auth/login route gates LINE sign-in. The i18n hook
+ * needs a client component, so the real markup lives in FamilyJoinView.
+ */
 export default function FamilyJoinPage() {
   const showLine = process.env.LINE_LOGIN_ENABLED?.trim().toLowerCase() === 'true';
-  return (
-    <main style={{ margin: '0 auto', maxWidth: 560, padding: 24 }}>
-      <h1 style={{ fontSize: 28 }}>家屬服務</h1>
-      <p style={{ color: '#4a5568', lineHeight: 1.7 }}>
-        請輸入服務單位提供的邀請碼。系統會先用 Google 確認您的身分，再確認您可查看的報表範圍。
-      </p>
-      <p style={{ color: '#4a5568', lineHeight: 1.7 }}>
-        邀請碼不會直接提供資料存取權；邀請核銷會在受保護的伺服器流程中完成。
-      </p>
-      <form action="/backend/auth/login" method="post" style={{ marginTop: 20 }}>
-        <input name="intent" type="hidden" value="FAMILY" />
-        <input name="provider" type="hidden" value="GOOGLE" />
-        <input name="returnTo" type="hidden" value="/onboarding/resolve" />
-        <label
-          htmlFor="invitationCode"
-          style={{ display: 'block', fontWeight: 700, marginBottom: 8 }}
-        >
-          家屬邀請碼
-        </label>
-        <input
-          autoComplete="one-time-code"
-          id="invitationCode"
-          name="invitationCode"
-          required
-          style={{ boxSizing: 'border-box', fontSize: 18, padding: 12, width: '100%' }}
-        />
-        <button
-          style={{
-            background: '#1d4ed8',
-            border: 0,
-            borderRadius: 10,
-            color: 'white',
-            fontSize: 18,
-            marginTop: 14,
-            padding: '14px 18px',
-          }}
-          type="submit"
-        >
-          使用 Google 繼續
-        </button>
-      </form>
-      {showLine && (
-        <form action="/backend/auth/login" method="post" style={{ marginTop: 20 }}>
-          <input name="intent" type="hidden" value="FAMILY" />
-          <input name="provider" type="hidden" value="LINE" />
-          <input name="returnTo" type="hidden" value="/onboarding/resolve" />
-          <button type="submit">已有帳號：使用已連結的 LINE 登入</button>
-          <p style={{ color: '#4a5568', lineHeight: 1.6 }}>
-            此按鈕不會使用上方邀請碼；首次加入家屬服務仍須使用 Google。
-          </p>
-        </form>
-      )}
-      <p style={{ marginTop: 24 }}>
-        已完成綁定？ <a href="/family/sign-in">前往家屬登入</a>
-      </p>
-      <a href="/sign-in">返回選擇服務</a>
-    </main>
-  );
+  return <FamilyJoinView showLine={showLine} />;
 }

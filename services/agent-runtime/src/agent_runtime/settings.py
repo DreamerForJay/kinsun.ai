@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     AWS_REGION: str | None = None
     BEDROCK_EMBEDDING_MODEL_ID: str | None = None
     BEDROCK_EMBEDDING_DIMENSION: int = 1024
+    # No default: choosing a generation model is an owner/ADR decision, and a
+    # silent fallback would make an unapproved model look sanctioned.
+    BEDROCK_TEXT_MODEL_ID: str | None = None
+    BEDROCK_TEXT_MAX_TOKENS: int = Field(default=512, gt=0, le=4096)
+    BEDROCK_TEXT_TEMPERATURE: float = Field(default=0.2, ge=0.0, le=1.0)
     OPENSEARCH_HOST: str | None = None
     OPENSEARCH_INDEX: str | None = None
     OPENSEARCH_ALIAS: str | None = None

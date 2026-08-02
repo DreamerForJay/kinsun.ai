@@ -1,5 +1,7 @@
 # 技術設計文件：智慧長照 AI 陪伴系統
 
+> **LEGACY SPEC。** 本文件的 Serverless、Lambda、Step Functions、DynamoDB 與舊 Cognito stack 設計已由 [ADR 0007](../../../docs/adr/0007-canonical-backend-and-aws-deployment-authority.md) 取代，不得描述成目前 canonical 架構或已部署能力。現況以 repository 根目錄 [`AGENTS.md`](../../../AGENTS.md) 與 canonical ADR／程式碼為準；歷史完成清單見 [`tasks.legacy.md`](tasks.legacy.md)。
+
 ## 概述（Overview）
 
 智慧長照 AI 陪伴系統是一套以語音優先為設計核心的 Progressive Web App（PWA），專為臺灣長照場域中的長者提供自然語言互動陪伴。系統架構採用全 Serverless 設計，以 AWS 雲端服務為基礎建構，透過 Step Functions 協調各處理節點，實現語音辨識、對話生成、事件擷取、記憶管理與衛教知識檢索等核心功能。

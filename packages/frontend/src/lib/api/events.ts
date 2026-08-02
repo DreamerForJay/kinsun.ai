@@ -117,6 +117,42 @@ export async function listEvents(
   return { items, nextCursor: result.next_cursor };
 }
 
+export interface NeedsReviewSummary {
+  count: number;
+  /**
+   * True when Core returned a further page, so `count` is a floor rather than a
+   * total. Pagination is opaque-cursor only and deliberately exposes no `total`
+   * (AGENTS.md §8.1), so an exact figure is not available — and displaying one
+   * anyway would state an unknown as a fact (§4).
+   */
+  atLeast: boolean;
+  /** Why they need review, from the band Core already assigns. */
+  byConfidence: Record<ConfidenceBand, number>;
+}
+
+/**
+ * Counts the care events waiting on this caregiver, for MASTER.md §10.2's
+ * Needs Review state ("顯示數量與原因").
+ *
+ * Filters server-side on status only: `listEvents` narrows type and date in the
+ * browser, so passing those here would count one page of a filtered view rather
+ * than the queue.
+ */
+export async function summariseNeedsReview(
+  config: ApiConfig,
+  elderId: string,
+): Promise<NeedsReviewSummary> {
+  const result = await listEvents(config, elderId, { status: 'NEEDS_REVIEW' });
+  const byConfidence: Record<ConfidenceBand, number> = { LOW: 0, MEDIUM: 0, HIGH: 0 };
+  for (const event of result.items) byConfidence[event.confidenceBand] += 1;
+
+  return {
+    count: result.items.length,
+    atLeast: result.nextCursor !== null,
+    byConfidence,
+  };
+}
+
 function correctedPayload(event: EventView, content: string): Record<string, unknown> {
   const payload = { ...event.structuredPayload };
   const existingKey = ['summary', 'content', 'description', 'text'].find(

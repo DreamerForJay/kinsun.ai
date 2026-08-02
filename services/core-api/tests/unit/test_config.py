@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from app.core.config import AppEnv, Settings, get_settings
+from app.core.config import AppEnv, DatabasePoolMode, Settings, get_settings
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -37,8 +37,11 @@ class TestSettingsConstruction:
         assert s.app_title == "kinsun.ai Core API"
         assert s.app_version == "0.1.0"
         assert s.port == 8000
+        assert s.db_pool_mode == DatabasePoolMode.QUEUE
         assert s.db_pool_size == 5
         assert s.db_max_overflow == 10
+        assert s.db_connect_timeout_seconds == 5.0
+        assert s.db_recovery_timeout_seconds == 10.0
 
     def test_production_env(self) -> None:
         s = _make_settings(APP_ENV="production")
@@ -51,8 +54,11 @@ class TestSettingsConstruction:
             DOCS_URL="/api-docs",
             HOST="127.0.0.1",
             PORT="9000",
+            DB_POOL_MODE="null",
             DB_POOL_SIZE="10",
             DB_MAX_OVERFLOW="20",
+            DB_CONNECT_TIMEOUT_SECONDS="4",
+            DB_RECOVERY_TIMEOUT_SECONDS="9",
             TEST_DATABASE_URL="postgresql+asyncpg://x:y@host/test",
             DATABASE_PASSWORD="supersecret",
             FAKE_AUTH_ENABLED="true",
@@ -75,8 +81,11 @@ class TestSettingsConstruction:
         assert s.docs_url == "/api-docs"
         assert s.host == "127.0.0.1"
         assert s.port == 9000
+        assert s.db_pool_mode == DatabasePoolMode.NULL
         assert s.db_pool_size == 10
         assert s.db_max_overflow == 20
+        assert s.db_connect_timeout_seconds == 4
+        assert s.db_recovery_timeout_seconds == 9
         assert s.test_database_url == "postgresql+asyncpg://x:y@host/test"
         assert s.database_password == "supersecret"
         assert s.fake_auth_enabled is True
@@ -141,6 +150,18 @@ class TestValidation:
     def test_db_max_overflow_non_negative(self) -> None:
         with pytest.raises(ValidationError):
             _make_settings(DB_MAX_OVERFLOW="-1")
+
+    def test_invalid_db_pool_mode_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            _make_settings(DB_POOL_MODE="unsupported")
+
+    @pytest.mark.parametrize(
+        "field",
+        ["DB_CONNECT_TIMEOUT_SECONDS", "DB_RECOVERY_TIMEOUT_SECONDS"],
+    )
+    def test_database_timeouts_must_be_positive(self, field: str) -> None:
+        with pytest.raises(ValidationError):
+            _make_settings(**{field: "0"})
 
     def test_enabled_cognito_requires_complete_server_configuration(self) -> None:
         with pytest.raises(ValidationError, match="COGNITO_REGION"):

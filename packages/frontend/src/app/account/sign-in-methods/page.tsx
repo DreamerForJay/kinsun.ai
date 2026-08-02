@@ -28,22 +28,22 @@ export default function SignInMethodsPage({
   return (
     <main style={{ margin: '0 auto', maxWidth: 620, padding: 24 }}>
       <h1 style={{ fontSize: 28 }}>登入方式</h1>
-      <p style={{ color: '#475569', lineHeight: 1.7 }}>
+      <p style={{ color: 'var(--color-muted-foreground)', lineHeight: 1.7 }}>
         Google 與 LINE Login 會連到同一個 Cognito 使用者；Core 仍只以 Cognito sub 對應正式
         Actor，不會依 Email 自動合併 Actor。
       </p>
       {notice && (
-        <p role="status" style={{ color: '#166534' }}>
+        <p role="status" style={{ color: 'var(--state-confirmed-fg)' }}>
           {notice}
         </p>
       )}
       {error && (
-        <p role="alert" style={{ color: '#b91c1c' }}>
+        <p role="alert" style={{ color: 'var(--color-destructive)' }}>
           {error}
         </p>
       )}
       <SignInMethodsClient />
-      <p style={{ color: '#475569', lineHeight: 1.7, marginTop: 24 }}>
+      <p style={{ color: 'var(--color-muted-foreground)', lineHeight: 1.7, marginTop: 24 }}>
         LINE Bot 的官方 Account Linking 是另一套 Messaging API 身分，不會在此顯示，也不會與 LINE
         Login subject 混用。
       </p>

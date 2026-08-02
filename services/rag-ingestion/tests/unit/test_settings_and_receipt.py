@@ -40,6 +40,17 @@ def test_settings_do_not_require_aws_for_local_validation() -> None:
         settings.require_bedrock()
 
 
+@pytest.mark.parametrize("forbidden", ["pending-revalidation", "not-authorized"])
+def test_uncleared_chunk_directories_are_refused_before_any_load(forbidden: str) -> None:
+    settings = isolated_settings(
+        RAG_ALLOWLIST_PATH="allowlist.json",
+        RAG_CHUNKS_DIR=f"data/rag-chunks/{forbidden}",
+    )
+
+    with pytest.raises(SettingsError, match=forbidden):
+        settings.require_paths()
+
+
 def test_smoke_test_requires_explicit_agent_runtime_base_url() -> None:
     with pytest.raises(SettingsError, match="AGENT_RUNTIME_BASE_URL"):
         isolated_settings(AGENT_RUNTIME_BASE_URL="").require_agent_runtime_base_url()

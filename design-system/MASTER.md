@@ -17,11 +17,12 @@
 
 | # | 項目 | 狀態 | 內容 |
 | --- | --- | --- | --- |
-| 1 | App 拓撲 | **待 Owner 確認** | 本檔假設 **單一 multi-role PWA**（AGENTS.md §6 Target Architecture）。`apps/` 現有 `elder-web`／`care-web`／`family-web` 三個目錄源自文件 12 骨架，與此假設衝突，需收斂。 |
-| 2 | Stack | **已採用** | Vite + React + TypeScript + Tailwind CSS。仍需補 ADR 0006 後才可建立骨架（AGENTS.md §9、§11）。 |
+| 1 | App 拓撲 | **已定案** | **單一 multi-role PWA**，程式在 `packages/frontend`，以 route 區分角色。`apps/` 的三個目錄已移除（[ADR 0006](../docs/adr/0006-frontend-stack-and-app-topology.md)）。 |
+| 2 | Stack | **已定案** | **Next.js 14 App Router + TypeScript + CSS Modules + CSS custom properties**。**不是 Vite，也不用 Tailwind**——前端同時是 BFF，OAuth 交換與 access token 必須留在伺服器端（ADR 0006 §2、§3）。 |
 | 3 | 主要載具 | **已採用** | **平板為主**。手機為次要，桌機僅照護端。 |
 
-未列入本檔、仍待 ADR 的：Router、狀態管理、i18n 函式庫、測試框架。不要在骨架中預先鎖定。
+仍待 ADR、不要預先鎖定的：狀態管理函式庫、i18n 函式庫（現為 `src/lib/i18n/` 的自建
+最小字典，見 §5.2）。Router 與測試框架已隨 ADR 0006 定案為 Next.js App Router 與 Vitest。
 
 ---
 
@@ -84,7 +85,8 @@ Surface 由 route group 決定，掛在 `<body data-surface="...">`。
 
 | Token | Hex | 白底對比 | 允許用途 |
 | --- | --- | --- | --- |
-| `--color-primary` | `#0891B2` | 3.68:1 | 填色按鈕、元件邊界、≥24px 大字 |
+| `--color-primary` | `#0891B2` | 3.68:1 | 元件邊界、≥24px 大字、**標籤 ≥24px 的**填色按鈕 |
+| `--color-primary-strong` | `#0E7490` | 5.36:1 ✅ | **標籤 <24px 的填色按鈕**（見下） |
 | `--color-primary-text` | `#0E7490` | 5.36:1 ✅ | 連結、內文級主色文字 |
 | `--color-primary-weak` | `#CFFAFE` | — | 選取態底色 |
 | `--color-accent` | `#059669` | 3.77:1 | 填色 CTA、圖示 |
@@ -97,6 +99,15 @@ Surface 由 route group 決定，掛在 `<body data-surface="...">`。
 | `--color-border-strong` | `#67E8F9` | — | 卡片外框 |
 | `--color-destructive` | `#DC2626` | 4.83:1 ✅ | 撤回、刪除、拒絕 |
 | `--color-ring` | `#0891B2` | — | focus ring |
+
+白字配 `--color-primary` 只有 **3.68:1**：過得了大字與 UI 元件的 3:1，過不了內文的 4.5:1。
+所以**填色按鈕的標籤未達 24px 時必須改用 `--color-primary-strong`**，否則違反 §13。
+長者端的主按鈕字級本來就 ≥26px，用 `--color-primary` 沒問題；家屬端與照護端的按鈕多半在 18–20px，
+要用 strong。
+
+同理，`--color-border` 與 `--color-border-strong` 在白底只有 1.25:1 與 1.45:1。它們是**分隔線**，
+不是可辨識元件的邊界；當邊框是某個可點元件唯一的輪廓時（例如登入角色卡），
+必須改用至少 3:1 的顏色。
 
 Surface 覆寫：
 
@@ -169,6 +180,28 @@ Figtree 放前面只吃 Latin 與數字，中文自動落到 Noto Sans TC。
 系統字級放大到 **200%** 時三端都不得破版：不得對含文字的容器設固定高度，
 不得用 `overflow: hidden` 裁切文字，長字串優先換行而非 ellipsis
 （skill §6 `truncation-strategy`）。
+
+### 5.2 介面語言（中／英切換）
+
+| Surface | UI 語言 | 切換入口 |
+| --- | --- | --- |
+| voice | 中文，**不提供切換** | 無 |
+| care | 中／英 | 頁首右上 |
+| family | 中／英 | 頁首右上 |
+
+長者端不放語言切換，是設計決定不是待辦：§1「一次一個主要操作」與 §6.1「長者端不得
+要求精準點擊」都反對在語音畫面加這類 chrome。
+
+**UI 顯示語言 ≠ 長者的語音互動語言。** Module A 要求的中文／臺語屬於語音互動語言，
+是 domain 資料；切換 UI 語言只改瀏覽器端偏好，**不得寫入任何 domain state**，
+尤其不得改動長者的語言偏好或 consent 記錄（ADR 0006 §5）。
+
+實作為 `packages/frontend/src/lib/i18n/`：字典 + React context，**不引入 i18n 函式庫**。
+新增使用者可見字串時，同時補 `zh-Hant` 與 `en` 兩個鍵；
+`messages.test.ts` 會在兩邊鍵不一致時失敗。
+
+英文字串通常較長：**任何加了英文的版面都要在 `en` 下重測 390／768 兩個寬度**，
+按鈕與表頭不得因此換行破版，也不得改用 ellipsis 裁切（§5.1）。
 
 ---
 
@@ -364,8 +397,21 @@ Authorization Expired／Consent Revoked／Data Insufficient。
 前端**不得渲染**以下欄位，即使 API 回傳了：逐字稿、ASR 信心值、未覆核事件、
 內部照護筆記、診斷式分數、完整 Prompt（AGENTS.md §8.1、文件 04 §8.7）。
 
-建議在 `family` 的 API client 加一道 runtime assert 攔截這些欄位並丟出錯誤，
-而不是只依賴後端不回傳。這是縱深防禦，成本極低。
+這道 runtime assert **已實作**於 `packages/frontend/src/lib/api/family-guard.ts`，
+在 `listFamilyReports` 內對 **raw Core payload** 執行（必須在 `toFamilyReportView`
+之前——mapping 只留已知欄位，洩漏的逐字稿會被靜默丟掉，違約就永遠看不到）。
+
+兩種違規的處置刻意不同：
+
+| 違規 | 處置 | 理由 |
+| --- | --- | --- |
+| 出現本節列的受限欄位 | **丟 `FamilyDataRedlineError`**，整頁失敗 | 契約已破到無法界定範圍，繼續渲染等於猜測還有什麼是壞的 |
+| 回傳非 `PUBLISHED`／`WITHDRAWN` 的報表 | **丟棄該筆**，其餘照常顯示，並記錄違規 | 沒進 DOM 就沒洩漏；為一筆壞資料讓家屬看不到其他合法報表是錯的代價 |
+
+被丟棄的報表**不得**在畫面上留下任何痕跡——讓家屬知道有一份草稿存在，本身就是揭露（§10.3）。
+
+新增家屬端 endpoint 時要一併接上這兩道；受限欄位清單也在該檔，以正規化（小寫、去
+`_`／`-`）比對，casing 或 camelCase 變動不會讓它變成空轉。
 
 ---
 
@@ -386,6 +432,15 @@ Wave 3 若確有需求再評估 Recharts，並須先確認不構成健康評估�
 ---
 
 ## 13. 無障礙驗收（每頁必過）
+
+對比度那一項**已自動化**：`packages/frontend/src/app/tokens.contrast.test.ts` 直接讀
+`tokens.css` 計算，改壞 token 會讓測試紅。其餘各項仍是人工，**尚未有任何一頁實際跑過**。
+
+**已知未解衝突**：§4.2 指定的 Candidate（`#64748B` on `#F1F5F9` ＝ 4.34:1）與
+Withdrawn（`#DC2626` on `#FEF2F2` ＝ 4.41:1）都達不到本節要求的 4.5:1。
+§4.2 與 §13 目前互相矛盾，需要 Owner 決定要放寬哪一邊；在決定之前不要各自改色，
+兩個數值已由上述測試釘住，避免繼續漂移。
+
 
 - [ ] 內文對比 ≥4.5:1，大字與 UI 元件 ≥3:1
 - [ ] focus ring 可見且未被移除，Tab 順序符合視覺順序
