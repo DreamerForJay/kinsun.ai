@@ -53,14 +53,19 @@ def render_controlled_cited_chunk(result: RetrievalResultV1, *, max_length: int 
 
 
 def render_citation(result: RetrievalResultV1) -> str:
-    """Render one compact Markdown citation for a user-facing answer."""
+    """Render one compact Markdown citation for a user-facing answer.
+
+    Deliberately omits the chunk ID. An elder reading the reply cannot act on
+    ``moj_long_term_care_services_act_20210609_article_004``; the document name,
+    section, page and link are what let them verify the answer. Traceability is
+    unaffected because the chunk IDs are retained on the context manifest
+    (context/builder.py) alongside the full cited excerpt, which is what a
+    reviewer inspects.
+    """
 
     page = _page_label(result.page_start, result.page_end)
     section = f"，{result.section}"
-    return (
-        f"- [{result.document_name}{section}{page}]({result.source_url})"
-        f"（Chunk ID：{result.chunk_id}）"
-    )
+    return f"- [{result.document_name}{section}{page}]({result.source_url})"
 
 
 def append_citations(
@@ -73,7 +78,18 @@ def append_citations(
 
     if not results:
         raise ValueError("cannot produce a cited RAG answer without results")
-    citations = "\n".join(render_citation(result) for result in results)
+    # Several chunks can share a document, section and page, so without the chunk
+    # ID they render as identical lines. Deduplicate on the rendered text while
+    # keeping retrieval order, so the reader sees each distinct source once.
+    seen: set[str] = set()
+    rendered: list[str] = []
+    for result in results:
+        citation = render_citation(result)
+        if citation in seen:
+            continue
+        seen.add(citation)
+        rendered.append(citation)
+    citations = "\n".join(rendered)
     suffix = f"\n\n引用來源：\n{citations}"
     if len(suffix) >= max_length:
         raise ValueError("RAG citations exceed the reply contract limit")

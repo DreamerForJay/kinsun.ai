@@ -9,10 +9,7 @@ import { accessTokenCookieName } from '@/lib/server/auth-cookie';
  * Forks on session-cookie presence only — never an authorization signal, Core
  * re-authorizes every read regardless (AGENTS.md §5; same contract as
  * `SurfaceShell`'s `signedIn` prop). A signed-in visitor goes straight into
- * the existing voice companion; everyone else gets the public landing page
- * instead of the bare "尚未設定本機 Demo 身分" message that used to be the
- * very first thing anyone — including a hackathon judge following the
- * README's Live Demo link — saw here.
+ * the canonical voice companion; everyone else gets the public landing page.
  */
 export default async function HomePage() {
   const cookieStore = await cookies();

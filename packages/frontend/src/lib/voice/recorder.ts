@@ -97,3 +97,69 @@ export function blobToBase64(blob: Blob): Promise<string> {
     reader.readAsDataURL(blob);
   });
 }
+
+/**
+ * Sample rate the speech gateway transcribes at. MediaRecorder captures at the
+ * device rate (usually 48 kHz), so the decoded audio is resampled rather than
+ * merely reinterpreted — sending 48 kHz samples labelled as 16 kHz yields
+ * confident-looking nonsense rather than an error.
+ */
+export const PCM_SAMPLE_RATE = 16000;
+
+/**
+ * Converts recorded audio (webm/opus from MediaRecorder) to 16-bit little-endian
+ * mono PCM at PCM_SAMPLE_RATE.
+ *
+ * The conversion happens here rather than server-side because the browser
+ * already ships an Opus decoder and a resampler in AudioContext; doing it in the
+ * gateway would mean bundling a media decoder into the service image. Transcribe
+ * streaming also accepts ogg-opus, but MediaRecorder emits a WebM container,
+ * which is not interchangeable with Ogg.
+ */
+export async function blobToPcm16Base64(blob: Blob): Promise<string> {
+  const encoded = await blob.arrayBuffer();
+
+  // decodeAudioData needs a context to decode with, but the OfflineAudioContext
+  // that performs the resampling must be created at the target rate.
+  const decodeContext = new AudioContext();
+  let decoded: AudioBuffer;
+  try {
+    decoded = await decodeContext.decodeAudioData(encoded);
+  } finally {
+    void decodeContext.close();
+  }
+
+  const frameCount = Math.max(
+    1,
+    Math.ceil(decoded.duration * PCM_SAMPLE_RATE),
+  );
+  const offline = new OfflineAudioContext(1, frameCount, PCM_SAMPLE_RATE);
+  const source = offline.createBufferSource();
+  source.buffer = decoded;
+  source.connect(offline.destination);
+  source.start();
+  const resampled = await offline.startRendering();
+
+  const samples = resampled.getChannelData(0);
+  const pcm = new DataView(new ArrayBuffer(samples.length * 2));
+  for (let index = 0; index < samples.length; index += 1) {
+    // Clamp before scaling: decoded float samples can exceed ±1.0 slightly and
+    // wrapping would turn a loud syllable into a click.
+    const clamped = Math.max(-1, Math.min(1, samples[index]));
+    pcm.setInt16(index * 2, Math.round(clamped * 0x7fff), true);
+  }
+
+  return arrayBufferToBase64(pcm.buffer);
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  // Chunked so a long utterance cannot exceed the argument limit of
+  // String.fromCharCode via spread.
+  const CHUNK = 0x8000;
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + CHUNK));
+  }
+  return btoa(binary);
+}

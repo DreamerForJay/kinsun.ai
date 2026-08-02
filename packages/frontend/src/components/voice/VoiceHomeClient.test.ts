@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   companionPanel: vi.fn(),
   getRuntimeConfig: vi.fn(),
-  getVoiceSessionConfig: vi.fn(),
   listConsents: vi.fn(),
   voicePanel: vi.fn(),
 }));
@@ -23,7 +22,6 @@ vi.mock('@/lib/api/consent', () => ({
 
 vi.mock('@/lib/runtime-config', () => ({
   getRuntimeConfig: mocks.getRuntimeConfig,
-  getVoiceSessionConfig: mocks.getVoiceSessionConfig,
 }));
 
 vi.mock('./dev-preview', () => ({
@@ -47,7 +45,6 @@ const unavailableConfig = {
 beforeEach(() => {
   mocks.companionPanel.mockReset().mockReturnValue(null);
   mocks.getRuntimeConfig.mockReset();
-  mocks.getVoiceSessionConfig.mockReset().mockReturnValue({ wsUrl: '', token: '' });
   mocks.listConsents.mockReset();
   mocks.voicePanel.mockReset().mockReturnValue(null);
 });

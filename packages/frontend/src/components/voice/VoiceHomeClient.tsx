@@ -3,16 +3,12 @@
 import { HourglassMedium } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { CompanionTextPanel } from '@/components/companion/CompanionTextPanel';
+import { InputModeToggle, type InputMode } from '@/components/InputModeToggle';
 import { NotLoggedIn } from '@/components/NotLoggedIn';
 import { SignOutButton } from '@/components/SignOutButton';
 import { touchLinkStyle } from '@/components/touch-link';
 import { activeBasicVoiceConsent, listConsents } from '@/lib/api/consent';
-import {
-  getRuntimeConfig,
-  getVoiceSessionConfig,
-  type RuntimeConfig,
-  type VoiceSessionConfig,
-} from '@/lib/runtime-config';
+import { getRuntimeConfig, type RuntimeConfig } from '@/lib/runtime-config';
 import { readDevPreviewState } from './dev-preview';
 import { VoiceInteractionPanel } from './VoiceInteractionPanel';
 import styles from './VoiceHomeClient.module.css';
@@ -20,16 +16,15 @@ import styles from './VoiceHomeClient.module.css';
 /**
  * The elder voice companion screen. Moved out of `app/page.tsx` so the route
  * can fork server-side on session-cookie presence: signed-in visitors reach
- * this unchanged; signed-out visitors get the public landing page instead
- * (see `app/page.tsx`). Everything below is unchanged from when it lived
- * there — Core still re-authorizes every read regardless of which branch
- * rendered it.
+ * this canonical voice flow; signed-out visitors get the public landing page
+ * instead (see `app/page.tsx`). Core still re-authorizes every read regardless
+ * of which branch rendered it.
  */
 export function VoiceHomeClient() {
   const [config, setConfig] = useState<RuntimeConfig | null>(null);
   const [configLoadFailed, setConfigLoadFailed] = useState(false);
-  const [voiceSession, setVoiceSession] = useState<VoiceSessionConfig | null>(null);
   const [isDevPreview, setIsDevPreview] = useState(false);
+  const [inputMode, setInputMode] = useState<InputMode>('voice');
   const [consentGranted, setConsentGranted] = useState<boolean | null>(null);
   const [consentError, setConsentError] = useState(false);
 
@@ -42,7 +37,6 @@ export function VoiceHomeClient() {
       .catch(() => {
         if (!cancelled) setConfigLoadFailed(true);
       });
-    setVoiceSession(getVoiceSessionConfig());
     // The preview needs no credentials — it renders CompanionCharacter's
     // states only, opens no socket (see VoiceInteractionPanel's isPreview
     // gate), so it must not be blocked behind a real voice session existing.
@@ -89,7 +83,7 @@ export function VoiceHomeClient() {
         <h1 style={{ fontSize: 'var(--text-xl)', color: 'var(--color-foreground)', margin: 0 }}>
           智慧長照 AI 陪伴系統
         </h1>
-        <VoiceInteractionPanel wsUrl="" token="" consentGranted />
+        <VoiceInteractionPanel apiConfig={{ apiBaseUrl: '' }} elderId="" consentGranted />
       </main>
     );
   }
@@ -146,15 +140,19 @@ export function VoiceHomeClient() {
           尚未取得 BASIC_VOICE 同意。<a href="/consent">前往同意設定</a>
         </p>
       )}
-      {!consentError && consentGranted === true && voiceSession?.wsUrl && voiceSession.token && (
-        <VoiceInteractionPanel
-          wsUrl={voiceSession.wsUrl}
-          token={voiceSession.token}
-          consentGranted={consentGranted}
-        />
-      )}
-      {!consentError && consentGranted === true && !(voiceSession?.wsUrl && voiceSession.token) && (
-        <CompanionTextPanel apiConfig={config} elderId={config.elderId} />
+      {!consentError && consentGranted === true && (
+        <>
+          <InputModeToggle mode={inputMode} onChange={setInputMode} />
+          {inputMode === 'voice' ? (
+            <VoiceInteractionPanel
+              apiConfig={config}
+              elderId={config.elderId}
+              consentGranted={consentGranted}
+            />
+          ) : (
+            <CompanionTextPanel apiConfig={config} elderId={config.elderId} />
+          )}
+        </>
       )}
 
       {/* Everything below this point renders only when credentialStatus is
