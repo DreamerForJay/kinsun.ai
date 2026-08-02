@@ -1,8 +1,10 @@
 import { normalizeAccessToken } from './auth-cookie';
+import { logAuthDiagnostic } from './auth-diagnostics';
 import { codeChallenge, type OAuthTransaction } from './oauth-transaction';
 
 const REQUIRED_SCOPES = ['openid', 'email', 'profile'];
 const TOKEN_EXCHANGE_TIMEOUT_MS = 10_000;
+const LOGGABLE_REQUEST_ERROR_TYPES = new Set(['AbortError', 'TimeoutError', 'TypeError']);
 
 export interface CognitoOAuthConfig {
   callbackUrl: URL;
@@ -96,6 +98,11 @@ function validExpiresIn(value: unknown): number | null {
   return value;
 }
 
+function safeRequestErrorType(error: unknown): string {
+  const value = error instanceof Error ? error.name : '';
+  return LOGGABLE_REQUEST_ERROR_TYPES.has(value) ? value : 'UnknownError';
+}
+
 /** Exchanges a single authorization code. Tokens stay server-side and are never logged. */
 export async function exchangeAuthorizationCode(
   config: CognitoOAuthConfig,
@@ -123,13 +130,13 @@ export async function exchangeAuthorizationCode(
       signal: AbortSignal.timeout(TOKEN_EXCHANGE_TIMEOUT_MS),
     });
   } catch (error) {
-    console.error('[auth] Cognito token exchange request failed', {
-      error_type: error instanceof Error ? error.name : 'UnknownError',
+    logAuthDiagnostic('Cognito token exchange request failed', {
+      error_type: safeRequestErrorType(error),
     });
     throw new Error('Cognito token exchange failed');
   }
   if (!response.ok) {
-    console.error('[auth] Cognito token exchange rejected', { status: response.status });
+    logAuthDiagnostic('Cognito token exchange rejected', { status: response.status });
     throw new Error('Cognito token exchange failed');
   }
 
@@ -145,7 +152,7 @@ export async function exchangeAuthorizationCode(
   const expiresIn = validExpiresIn(payload.expires_in);
   const nonce = decodeIdTokenNonce(payload.id_token);
   if (!accessToken || !expiresIn || nonce !== transaction.nonce) {
-    console.error('[auth] Cognito token response validation failed', {
+    logAuthDiagnostic('Cognito token response validation failed', {
       access_token_valid: Boolean(accessToken),
       expires_in_valid: Boolean(expiresIn),
       nonce_present: nonce !== null,

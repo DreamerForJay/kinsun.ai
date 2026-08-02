@@ -42,6 +42,7 @@ class TestEngineCreation:
             mock_create.assert_called_once_with(
                 _VALID_DB_URL,
                 connect_args={"timeout": 5.0},
+                pool_pre_ping=True,
                 pool_size=3,
                 max_overflow=7,
                 echo=True,  # development mode
@@ -111,6 +112,17 @@ class TestReadinessState:
         with patch("app.db.engine.create_async_engine") as mock_create:
             mock_create.return_value = MagicMock()
             db_engine = DatabaseEngine(settings)
+            assert db_engine.is_ready is False
+
+    def test_mark_unready_requires_next_request_to_recover(self) -> None:
+        settings = _make_settings()
+        with patch("app.db.engine.create_async_engine") as mock_create:
+            mock_create.return_value = MagicMock()
+            db_engine = DatabaseEngine(settings)
+            db_engine._ready = True
+
+            db_engine.mark_unready()
+
             assert db_engine.is_ready is False
 
     @pytest.mark.asyncio

@@ -1,4 +1,5 @@
 import type { CognitoTokenSet } from './cognito-oauth';
+import { logAuthDiagnostic } from './auth-diagnostics';
 import type { OAuthTransaction } from './oauth-transaction';
 
 const CORE_ONBOARDING_TIMEOUT_MS = 10_000;
@@ -100,7 +101,7 @@ export async function redeemCoreOnboarding(
   });
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as unknown;
-    console.error('[auth] Core onboarding rejected', {
+    logAuthDiagnostic('Core onboarding rejected', {
       status: response.status,
       reason_code: safeReasonCode(payload),
       ...idTokenClaimDiagnostics(tokenSet.idToken),

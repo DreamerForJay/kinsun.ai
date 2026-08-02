@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -16,8 +17,15 @@ from typing import Any
 import httpx
 import jwt
 from fastapi import Request
-from jwt import InvalidSignatureError
 from jwt.algorithms import RSAAlgorithm
+from jwt.exceptions import (
+    ExpiredSignatureError,
+    InvalidAudienceError,
+    InvalidIssuerError,
+    InvalidSignatureError,
+    InvalidTokenError,
+    MissingRequiredClaimError,
+)
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -28,6 +36,40 @@ from app.models.tenant import Tenant
 from app.repositories.actor_repo import ActorRepository
 
 _AUTHENTICATION_REQUIRED = "Authentication required"
+logger = logging.getLogger(__name__)
+
+
+class _InvalidCognitoHeaderError(Exception):
+    """Internal marker for a rejected, untrusted JWT header."""
+
+
+def _jwt_rejection_reason(exc: Exception) -> str:
+    """Map provider exceptions to bounded diagnostics without their messages."""
+    if isinstance(exc, _InvalidCognitoHeaderError):
+        return "HEADER"
+    if isinstance(exc, ExpiredSignatureError):
+        return "EXPIRED"
+    if isinstance(exc, InvalidAudienceError):
+        return "AUDIENCE"
+    if isinstance(exc, InvalidIssuerError):
+        return "ISSUER"
+    if isinstance(exc, InvalidSignatureError):
+        return "SIGNATURE"
+    if isinstance(exc, MissingRequiredClaimError):
+        return "REQUIRED_CLAIM"
+    if isinstance(exc, AuthenticationError):
+        return "JWKS"
+    if isinstance(exc, InvalidTokenError):
+        return "INVALID_TOKEN"
+    return "INVALID_TOKEN"
+
+
+def _log_token_rejection(reason: str, expected_token_use: str) -> None:
+    logger.warning(
+        "Cognito token rejected reason=%s expected_token_use=%s",
+        reason,
+        expected_token_use,
+    )
 
 
 @dataclass(frozen=True)
@@ -172,8 +214,14 @@ class CognitoJwtVerifier(CognitoTokenVerifier):
     async def verify_access_token(self, token: str) -> VerifiedCognitoIdentity:
         claims = await self._decode(token, token_use="access")
         if claims.get("client_id") != self._app_client_id:
+            _log_token_rejection("CLIENT_ID", "access")
             raise AuthenticationError(_AUTHENTICATION_REQUIRED)
-        return VerifiedCognitoIdentity(subject=_required_subject(claims))
+        try:
+            subject = _required_subject(claims)
+        except AuthenticationError:
+            _log_token_rejection("SUBJECT", "access")
+            raise
+        return VerifiedCognitoIdentity(subject=subject)
 
     async def verify_id_token(self, token: str) -> VerifiedCognitoIdentity:
         claims = await self._decode(token, token_use="id", verify_audience=True)
@@ -183,13 +231,18 @@ class CognitoJwtVerifier(CognitoTokenVerifier):
             or not email.strip()
             or claims.get("email_verified") is not True
         ):
+            _log_token_rejection("IDENTITY_CLAIMS", "id")
             raise AuthenticationError(_AUTHENTICATION_REQUIRED)
-        return VerifiedCognitoIdentity(
-            subject=_required_subject(claims),
-            email=email,
-            email_verified=True,
-            display_name=_optional_display_name(claims),
-        )
+        try:
+            return VerifiedCognitoIdentity(
+                subject=_required_subject(claims),
+                email=email,
+                email_verified=True,
+                display_name=_optional_display_name(claims),
+            )
+        except (AuthenticationError, ValueError):
+            _log_token_rejection("IDENTITY_CLAIMS", "id")
+            raise AuthenticationError(_AUTHENTICATION_REQUIRED) from None
 
     async def _decode(
         self,
@@ -201,7 +254,7 @@ class CognitoJwtVerifier(CognitoTokenVerifier):
         try:
             header = jwt.get_unverified_header(token)
             if header.get("alg") != "RS256" or not isinstance(header.get("kid"), str):
-                raise ValueError("Unexpected JWT header")
+                raise _InvalidCognitoHeaderError
             kid = header["kid"]
             claims = await self._decode_with_key(
                 token,
@@ -216,11 +269,14 @@ class CognitoJwtVerifier(CognitoTokenVerifier):
                     verify_audience=verify_audience,
                 )
             except Exception as exc:
-                raise AuthenticationError(_AUTHENTICATION_REQUIRED) from exc
+                _log_token_rejection(_jwt_rejection_reason(exc), token_use)
+                raise AuthenticationError(_AUTHENTICATION_REQUIRED) from None
         except Exception as exc:
-            raise AuthenticationError(_AUTHENTICATION_REQUIRED) from exc
+            _log_token_rejection(_jwt_rejection_reason(exc), token_use)
+            raise AuthenticationError(_AUTHENTICATION_REQUIRED) from None
 
         if claims.get("token_use") != token_use:
+            _log_token_rejection("TOKEN_USE", token_use)
             raise AuthenticationError(_AUTHENTICATION_REQUIRED)
         return claims
 

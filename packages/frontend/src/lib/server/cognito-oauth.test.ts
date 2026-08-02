@@ -32,9 +32,9 @@ function configureOAuth(): void {
   vi.stubEnv('CORE_ONBOARDING_REDEEM_URL', '');
 }
 
-function idToken(nonce: string): string {
+function idToken(nonce: string, claims: Record<string, unknown> = {}): string {
   const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
-  const payload = Buffer.from(JSON.stringify({ nonce })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ nonce, ...claims })).toString('base64url');
   return `${header}.${payload}.signature`;
 }
 
@@ -158,12 +158,9 @@ describe('Cognito OAuth BFF routes', () => {
     expect(response.status).toBe(303);
     expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
     expect(errorSpy).toHaveBeenCalledTimes(1);
-    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
-      stage: 'provider_error',
-      oauth_error: 'access_denied',
-      error_count: 1,
-      current_transaction_preserved: false,
-    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"provider_error","oauth_error":"access_denied","error_count":1,"current_transaction_preserved":false}',
+    );
     const serializedLog = JSON.stringify(errorSpy.mock.calls);
     expect(serializedLog).not.toContain('synthetic-provider-description-secret');
     expect(serializedLog).not.toContain('synthetic-authorization-code-secret');
@@ -178,12 +175,9 @@ describe('Cognito OAuth BFF routes', () => {
       request('/backend/auth/callback?error=attacker_chosen_log_value&error=access_denied'),
     );
 
-    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
-      stage: 'provider_error',
-      oauth_error: 'unrecognised',
-      error_count: 2,
-      current_transaction_preserved: false,
-    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"provider_error","oauth_error":"unrecognised","error_count":2,"current_transaction_preserved":false}',
+    );
     expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('attacker_chosen_log_value');
   });
 
@@ -197,12 +191,9 @@ describe('Cognito OAuth BFF routes', () => {
       ),
     );
 
-    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
-      stage: 'malformed_redirect',
-      code_count: 2,
-      state_count: 1,
-      current_transaction_preserved: false,
-    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"malformed_redirect","code_count":2,"state_count":1,"current_transaction_preserved":false}',
+    );
     expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('synthetic-code-one');
     expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('synthetic-state');
   });
@@ -215,13 +206,9 @@ describe('Cognito OAuth BFF routes', () => {
       request('/backend/auth/callback?code=synthetic-code-secret&state=synthetic-state-secret'),
     );
 
-    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
-      stage: 'transaction',
-      cookie_present: false,
-      transaction_valid: false,
-      state_matches: false,
-      current_transaction_preserved: false,
-    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"transaction","cookie_present":false,"transaction_valid":false,"state_matches":false,"current_transaction_preserved":false}',
+    );
     const serializedLog = JSON.stringify(errorSpy.mock.calls);
     expect(serializedLog).not.toContain('synthetic-code-secret');
     expect(serializedLog).not.toContain('synthetic-state-secret');
@@ -269,13 +256,9 @@ describe('Cognito OAuth BFF routes', () => {
     );
     expect(staleResponse.headers.get('location')).toBe('/sign-in?error=oauth_failed');
     expect(setCookieHeader(staleResponse)).not.toContain(`${oauthTransactionCookieName()}=`);
-    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
-      stage: 'transaction',
-      cookie_present: true,
-      transaction_valid: true,
-      state_matches: false,
-      current_transaction_preserved: true,
-    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"transaction","cookie_present":true,"transaction_valid":true,"state_matches":false,"current_transaction_preserved":true}',
+    );
 
     const fetchMock = vi.fn(async (): Promise<Response> =>
       Response.json({
@@ -321,13 +304,38 @@ describe('Cognito OAuth BFF routes', () => {
 
     expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
     expect(setCookieHeader(response)).not.toContain(`${oauthTransactionCookieName()}=`);
-    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
-      stage: 'provider_error',
-      oauth_error: 'access_denied',
-      error_count: 1,
-      current_transaction_preserved: true,
-    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"provider_error","oauth_error":"access_denied","error_count":1,"current_transaction_preserved":true}',
+    );
     expect(currentTransaction.invitationCode).toBe('family-invite-code');
+  });
+
+  it('bounds token exchange request diagnostics without logging the thrown value', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const transaction = createOAuthTransaction('/onboarding/resolve', 'ELDER');
+    const requestError = new Error('synthetic-network-detail-secret');
+    requestError.name = 'AttackerControlledErrorName';
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(requestError)));
+
+    const response = await callback(
+      request(
+        `/backend/auth/callback?code=authorization-code&state=${encodeURIComponent(transaction.state)}`,
+        {
+          headers: {
+            Cookie: `${oauthTransactionCookieName()}=${serializeOAuthTransaction(transaction)}`,
+          },
+        },
+      ),
+    );
+
+    expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] Cognito token exchange request failed {"error_type":"UnknownError"}',
+    );
+    const serializedLog = JSON.stringify(errorSpy.mock.calls);
+    expect(serializedLog).not.toContain('AttackerControlledErrorName');
+    expect(serializedLog).not.toContain('synthetic-network-detail-secret');
   });
 
   it('exchanges a matching callback code without exposing tokens in the redirect', async () => {
@@ -407,6 +415,58 @@ describe('Cognito OAuth BFF routes', () => {
     expect(String(init?.body)).toContain('family-invite-code');
   });
 
+  it('logs a readable Core rejection without logging identity or token values', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.stubEnv('CORE_ONBOARDING_REDEEM_URL', 'http://127.0.0.1:8000/api/v1/onboarding/resolve');
+    const transaction = createOAuthTransaction('/onboarding/resolve', 'ELDER');
+    const sensitiveEmail = 'restricted-family@example.test';
+    const syntheticIdToken = idToken(transaction.nonce, {
+      aud: 'web-client-id',
+      token_use: 'id',
+      email: sensitiveEmail,
+      email_verified: true,
+      name: 'Restricted Family',
+    });
+    const fetchMock = vi
+      .fn(async (): Promise<Response> => Response.json({}))
+      .mockResolvedValueOnce(
+        Response.json({
+          access_token: 'synthetic-access-token',
+          expires_in: 3600,
+          id_token: syntheticIdToken,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          { error: { reason_code: 'AUTHENTICATION_FAILED' } },
+          { status: 401 },
+        ),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await callback(
+      request(
+        `/backend/auth/callback?code=authorization-code&state=${encodeURIComponent(transaction.state)}`,
+        {
+          headers: {
+            Cookie: `${oauthTransactionCookieName()}=${serializeOAuthTransaction(transaction)}`,
+          },
+        },
+      ),
+    );
+
+    expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
+    expect(cookieValue(response, 'kinsun_access_token')).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] Core onboarding rejected {"status":401,"reason_code":"AUTHENTICATION_FAILED","payload_valid":true,"audience_matches":true,"token_use_is_id":true,"email_present":true,"email_verified_type":"boolean","email_verified_true":true,"name_present":true}',
+    );
+    const serializedLog = JSON.stringify(errorSpy.mock.calls);
+    expect(serializedLog).not.toContain(syntheticIdToken);
+    expect(serializedLog).not.toContain(sensitiveEmail);
+    expect(serializedLog).not.toContain('Restricted Family');
+  });
+
   it('does not send an ID token to a cross-origin onboarding endpoint', async () => {
     configureOAuth();
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -435,9 +495,9 @@ describe('Cognito OAuth BFF routes', () => {
     expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(cookieValue(response, 'kinsun_access_token')).toBeUndefined();
-    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
-      stage: 'core_onboarding',
-    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"core_onboarding"}',
+    );
   });
 
   it('clears the local session before redirecting through Cognito logout', () => {

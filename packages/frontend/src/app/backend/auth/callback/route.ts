@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { accessTokenCookieName, accessTokenCookieOptions } from '@/lib/server/auth-cookie';
+import { logAuthDiagnostic } from '@/lib/server/auth-diagnostics';
 import { exchangeAuthorizationCode, getCognitoOAuthConfig } from '@/lib/server/cognito-oauth';
 import { redeemCoreOnboarding } from '@/lib/server/core-onboarding';
 import {
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest): Promise<Response> {
      saw "這次登入沒有完成" and the server said nothing at all. Both are now
      reported, because which one fires is the whole diagnosis. */
   if (errors.length > 0) {
-    console.error('[auth] OAuth callback failed', {
+    logAuthDiagnostic('OAuth callback failed', {
       stage: 'provider_error',
       oauth_error: safeOAuthErrorCode(errors.length === 1 ? (errors[0] ?? null) : null),
       error_count: errors.length,
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     return failedCallback(clearCurrentTransaction);
   }
   if (codes.length !== 1 || states.length !== 1) {
-    console.error('[auth] OAuth callback failed', {
+    logAuthDiagnostic('OAuth callback failed', {
       stage: 'malformed_redirect',
       code_count: codes.length,
       state_count: states.length,
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   if (!transaction || !callbackOwnsCurrentTransaction) {
-    console.error('[auth] OAuth callback failed', {
+    logAuthDiagnostic('OAuth callback failed', {
       stage: 'transaction',
       cookie_present: Boolean(transactionCookie),
       transaction_valid: Boolean(transaction),
@@ -128,7 +129,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
     return response;
   } catch {
-    console.error('[auth] OAuth callback failed', { stage });
+    logAuthDiagnostic('OAuth callback failed', { stage });
     return failedCallback();
   }
 }
