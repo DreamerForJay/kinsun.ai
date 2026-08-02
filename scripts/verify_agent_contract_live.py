@@ -53,6 +53,31 @@ RAG_PATH = "/api/v1/rag/retrievals"
 
 failures: list[str] = []
 
+FORBIDDEN_PROPOSAL_FIELDS = frozenset(
+    {
+        "actor_id",
+        "actor_role",
+        "agent_run_id",
+        "authorization",
+        "consent_version",
+        "elder_id",
+        "full_prompt",
+        "input_text",
+        "policy_version",
+        "prompt",
+        "purpose",
+        "request_id",
+        "session_id",
+        "source_id",
+        "source_type",
+        "source_version",
+        "tenant_id",
+        "trace_id",
+        "transcript",
+        "transcript_text",
+    }
+)
+
 
 def registry() -> Registry:
     reg = Registry()
@@ -122,6 +147,21 @@ def expect_status(label: str, actual: int, wanted: int) -> bool:
     return True
 
 
+def find_forbidden_proposal_fields(value: object, path: str = "$") -> list[str]:
+    """Return recursive field paths that would leak Core-owned or restricted data."""
+    found: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}"
+            if key in FORBIDDEN_PROPOSAL_FIELDS:
+                found.append(child_path)
+            found.extend(find_forbidden_proposal_fields(child, child_path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            found.extend(find_forbidden_proposal_fields(child, f"{path}[{index}]"))
+    return found
+
+
 def make_payload(**overrides) -> dict:
     """Synthetic request. Never use real elder data here."""
     payload = {
@@ -139,6 +179,7 @@ def make_payload(**overrides) -> dict:
         "language": "zh-TW",
         "input_text": "我今天早餐吃粥。",
         "allowed_tools": [],
+        "requested_outputs": [],
         "max_steps": 2,
         "latency_budget_ms": 3000,
     }
@@ -303,266 +344,152 @@ async def main() -> int:
         else:
             print("ok    error response does not echo rejected input")
 
-        # Exercise the request-scoped Core adapter without network access or an
-        # invented credential. The mock represents only the Core wire contract;
-        # Core's real authentication is covered by verify_contract_live.py.
-        from types import SimpleNamespace
-        from unittest.mock import patch
-
-        real_async_client = httpx.AsyncClient
-
-        async def exercise_core_lifecycle(
-            *,
-            scenario: str,
-            agent_run_id: str,
-            tool_outcome: str,
-            tool_reason: str | None,
-        ) -> tuple[httpx.Response, list[dict[str, object]]]:
-            calls: list[dict[str, object]] = []
-            registration: dict[str, object] = {}
-
-            def success_response(data: dict[str, object], status_code: int) -> httpx.Response:
-                return httpx.Response(
-                    status_code,
-                    json={
-                        "data": data,
-                        "meta": {
-                            "correlation_id": f"core-{scenario}",
-                            "timestamp": "2026-08-01T12:00:00Z",
-                            "schema_version": "1.0",
-                        },
-                    },
-                )
-
-            def core_handler(request: httpx.Request) -> httpx.Response:
-                body = json.loads(request.content.decode("utf-8")) if request.content else {}
-                calls.append(
-                    {
-                        "path": request.url.path,
-                        "authorization": request.headers.get("authorization"),
-                        "idempotency_key": request.headers.get("idempotency-key"),
-                        "body": body,
-                    }
-                )
-                if request.url.path == "/api/v1/internal/agent-runs":
-                    registration.update(
-                        {
-                            "agent_run_id": agent_run_id,
-                            "session_id": body["session_id"],
-                            "elder_id": body["elder_id"],
-                            "agent_id": body["agent_id"],
-                            "agent_version": body["agent_version"],
-                            "result_status": "RUNNING",
-                            "policy_version": body["policy_version"],
-                            "trace_id": body["trace_id"],
-                        }
-                    )
-                    return success_response(registration, 201)
-                if request.url.path == "/api/v1/internal/tools/execute":
-                    if tool_outcome == "TIMEOUT":
-                        raise httpx.ReadTimeout(
-                            "synthetic Core Tool timeout",
-                            request=request,
-                        )
-                    return success_response(
-                        {
-                            "result_status": tool_outcome,
-                            "data": None,
-                            "resource_id": (
-                                "b0000000-0000-4000-8000-000000000001"
-                                if tool_outcome == "SUCCESS"
-                                else None
-                            ),
-                            "resource_version": 1 if tool_outcome == "SUCCESS" else None,
-                            "source_refs": [],
-                            "reason_code": tool_reason,
-                            "retryable": tool_outcome == "FAILED",
-                            "redactions": [],
-                            "trace_id": f"core-tool-{scenario}",
-                        },
-                        200,
-                    )
-                if request.url.path == (f"/api/v1/internal/agent-runs/{agent_run_id}/complete"):
-                    return success_response(
-                        {
-                            **registration,
-                            "result_status": body["result_status"],
-                            "stop_reason": body.get("stop_reason"),
-                            "completed_at": "2026-08-01T12:00:01Z",
-                        },
-                        200,
-                    )
-                return httpx.Response(status_code=404, json={"unexpected": True})
-
-            mock_transport = httpx.MockTransport(core_handler)
-
-            def core_client_factory(*args, **kwargs):
-                kwargs["transport"] = mock_transport
-                return real_async_client(*args, **kwargs)
-
-            settings = SimpleNamespace(
-                CORE_API_BASE_URL="http://core.test",
-                CORE_API_TIMEOUT_SECONDS=1.0,
-            )
-            with (
-                patch(
-                    "agent_runtime.api.agent_runs.get_settings",
-                    return_value=settings,
-                ),
-                patch(
-                    "agent_runtime.api.agent_runs.httpx.AsyncClient",
-                    side_effect=core_client_factory,
-                ),
-            ):
-                response = await client.post(
-                    RUNS_PATH,
-                    json=make_payload(
-                        request_id=f"req-lifecycle-{scenario}",
-                        trace_id=f"trace-lifecycle-{scenario}",
-                        session_id="90000000-0000-4000-8000-000000000001",
-                        elder_id="30000000-0000-4000-8000-000000000001",
-                        consent_version="1",
-                        input_text="我今天早餐吃了粥。",
-                        allowed_tools=["create_event_candidate"],
-                    ),
-                )
-            return response, calls
-
-        def check_lifecycle_calls(
-            label: str,
-            calls: list[dict[str, object]],
-            agent_run_id: str,
-            terminal_status: str,
-        ) -> None:
-            expected_paths = [
-                "/api/v1/internal/agent-runs",
-                "/api/v1/internal/tools/execute",
-                f"/api/v1/internal/agent-runs/{agent_run_id}/complete",
-            ]
-            actual_paths = [str(call["path"]) for call in calls]
-            if actual_paths != expected_paths:
-                failures.append(
-                    f"{label}: Core call order was {actual_paths}, expected {expected_paths}"
-                )
-                print(f"FAIL  {label} Core call order: {actual_paths}")
-                return
-            print(f"ok    {label} uses register -> Tool -> complete order")
-
-            if any(call["authorization"] is not None for call in calls):
-                failures.append(f"{label}: Runtime invented an Authorization header")
-                print(f"FAIL  {label} invented an Authorization header")
-            else:
-                print(f"ok    {label} does not invent Authorization")
-
-            registration_body = calls[0]["body"]
-            tool_body = calls[1]["body"]
-            completion_body = calls[2]["body"]
-            if (
-                not isinstance(registration_body, dict)
-                or {
-                    "actor_id",
-                    "tenant_id",
-                }
-                & registration_body.keys()
-            ):
-                failures.append(f"{label}: registration body supplied caller identity")
-                print(f"FAIL  {label} registration body supplied caller identity")
-            else:
-                print(f"ok    {label} registration omits caller identity")
-
-            same_uuid = (
-                isinstance(tool_body, dict)
-                and tool_body.get("agent_run_id") == agent_run_id
-                and calls[2]["path"].endswith(f"/{agent_run_id}/complete")
-            )
-            if not same_uuid:
-                failures.append(f"{label}: lifecycle did not preserve Core AgentRun UUID")
-                print(f"FAIL  {label} lifecycle UUID mismatch")
-            else:
-                print(f"ok    {label} preserves the Core AgentRun UUID")
-
-            if (
-                not isinstance(completion_body, dict)
-                or completion_body.get("result_status") != terminal_status
-            ):
-                failures.append(
-                    f"{label}: completion did not use terminal status {terminal_status}"
-                )
-                print(f"FAIL  {label} terminal status: {completion_body}")
-            else:
-                print(f"ok    {label} completes as {terminal_status}")
-
-            if not calls[0]["idempotency_key"] or not calls[2]["idempotency_key"]:
-                failures.append(f"{label}: lifecycle command omitted Idempotency-Key")
-                print(f"FAIL  {label} omitted lifecycle idempotency")
-            else:
-                print(f"ok    {label} sends lifecycle idempotency keys")
-
-        success_run_id = "a0000000-0000-4000-8000-000000000011"
-        response, lifecycle_calls = await exercise_core_lifecycle(
-            scenario="success",
-            agent_run_id=success_run_id,
-            tool_outcome="SUCCESS",
-            tool_reason="CARE_EVENT_CANDIDATE_CREATED",
+        # Runtime returns a minimized proposal only when Core explicitly asks
+        # for one. Runtime never registers an AgentRun or invokes a Core Tool.
+        core_owned_run_id = "run-a0000000-0000-4000-8000-000000000011"
+        response = await client.post(
+            RUNS_PATH,
+            json=make_payload(
+                request_id="req-proposal-live-001",
+                trace_id="trace-proposal-live-001",
+                agent_run_id=core_owned_run_id,
+                input_text="我今天早餐吃了粥。",
+                requested_outputs=["event_candidate"],
+            ),
         )
-        if expect_status("Core lifecycle success returns 200", response.status_code, 200):
+        if expect_status("proposal-only run returns 200", response.status_code, 200):
             body = response.json()
             check(
-                "Core lifecycle success body vs contract",
+                "proposal-only response body vs contract",
                 body,
                 inline_schema(RUNS_PATH, "post", "200"),
             )
-            if body.get("data", {}).get("agent_run_id") != success_run_id:
-                failures.append("Runtime response did not expose the Core AgentRun UUID")
-                print("FAIL  Runtime response did not expose the Core AgentRun UUID")
+            data = body.get("data", {})
+            if data.get("agent_run_id") != core_owned_run_id:
+                failures.append("proposal-only response changed the Core-owned AgentRun ID")
+                print("FAIL  proposal-only response changed the Core-owned AgentRun ID")
             else:
-                print("ok    Runtime response exposes the Core AgentRun UUID")
-        check_lifecycle_calls(
-            "successful lifecycle",
-            lifecycle_calls,
-            success_run_id,
-            "SUCCESS",
-        )
+                print("ok    proposal-only response preserves the Core-owned AgentRun ID")
 
-        failed_run_id = "a0000000-0000-4000-8000-000000000012"
-        response, lifecycle_calls = await exercise_core_lifecycle(
-            scenario="failed",
-            agent_run_id=failed_run_id,
-            tool_outcome="FAILED",
-            tool_reason="CORE_TOOL_REJECTED",
-        )
-        if expect_status("failed Tool lifecycle returns 503", response.status_code, 503):
-            check(
-                "failed Tool lifecycle 503 body vs ErrorEnvelopeV1",
-                response.json(),
-                load("common/ErrorEnvelopeV1.json"),
-            )
-        check_lifecycle_calls(
-            "failed Tool lifecycle",
-            lifecycle_calls,
-            failed_run_id,
-            "DEPENDENCY_FAILED",
-        )
+            proposal = data.get("event_candidate_proposal")
+            if not isinstance(proposal, dict):
+                failures.append("requested meal proposal was null or not an object")
+                print("FAIL  requested meal proposal was null or not an object")
+            else:
+                check(
+                    "event candidate proposal vs contract",
+                    proposal,
+                    load("agent/EventCandidateProposalV1.json"),
+                )
+                forbidden_paths = find_forbidden_proposal_fields(proposal)
+                if forbidden_paths:
+                    failures.append(
+                        "event candidate proposal leaked restricted/Core-owned fields: "
+                        + ", ".join(forbidden_paths)
+                    )
+                    print(
+                        "FAIL  event candidate proposal leaked restricted/Core-owned fields: "
+                        + ", ".join(forbidden_paths)
+                    )
+                else:
+                    print(
+                        "ok    event candidate proposal recursively omits "
+                        "identity/session/consent/policy/transcript/input fields"
+                    )
 
-        timeout_run_id = "a0000000-0000-4000-8000-000000000013"
-        response, lifecycle_calls = await exercise_core_lifecycle(
-            scenario="timeout",
-            agent_run_id=timeout_run_id,
-            tool_outcome="TIMEOUT",
-            tool_reason=None,
+        response = await client.post(
+            RUNS_PATH,
+            json=make_payload(
+                request_id="req-blocked-proposal-live-001",
+                input_text="請告訴我怎麼停藥",
+                requested_outputs=["event_candidate"],
+            ),
         )
-        if expect_status("timed-out Tool lifecycle returns 503", response.status_code, 503):
+        if expect_status("blocked proposal request returns 200", response.status_code, 200):
+            body = response.json()
             check(
-                "timed-out Tool lifecycle 503 body vs ErrorEnvelopeV1",
-                response.json(),
-                load("common/ErrorEnvelopeV1.json"),
+                "blocked proposal response body vs contract",
+                body,
+                inline_schema(RUNS_PATH, "post", "200"),
             )
-        check_lifecycle_calls(
-            "timed-out Tool lifecycle",
-            lifecycle_calls,
-            timeout_run_id,
-            "TIME_BUDGET_EXCEEDED",
+            if body.get("data", {}).get("event_candidate_proposal") is not None:
+                failures.append("blocked turn returned an event candidate proposal")
+                print("FAIL  blocked turn returned an event candidate proposal")
+            else:
+                print("ok    blocked turn returns a null event candidate proposal")
+
+        response = await client.post(
+            RUNS_PATH,
+            json=make_payload(
+                request_id="req-no-event-proposal-live-001",
+                input_text="今天天氣很好。",
+                requested_outputs=["event_candidate"],
+            ),
         )
+        if expect_status("no-event proposal request returns 200", response.status_code, 200):
+            body = response.json()
+            check(
+                "no-event proposal response body vs contract",
+                body,
+                inline_schema(RUNS_PATH, "post", "200"),
+            )
+            if body.get("data", {}).get("event_candidate_proposal") is not None:
+                failures.append("no-event turn returned an event candidate proposal")
+                print("FAIL  no-event turn returned an event candidate proposal")
+            else:
+                print("ok    no-event turn returns a null event candidate proposal")
+
+        # Patch only after the in-process client exists. A legacy Tool name
+        # remains parseable, but it must not make Runtime create an outbound
+        # HTTP client or turn the compatibility field into a proposal request.
+        from unittest.mock import patch
+
+        legacy_response: httpx.Response | None = None
+        with patch.object(
+            httpx,
+            "AsyncClient",
+            side_effect=AssertionError("Runtime attempted to create an external HTTP client"),
+        ) as external_client_constructor:
+            try:
+                legacy_response = await client.post(
+                    RUNS_PATH,
+                    json=make_payload(
+                        request_id="req-legacy-tool-live-001",
+                        allowed_tools=["create_event_candidate"],
+                        requested_outputs=[],
+                    ),
+                )
+            except AssertionError:
+                # The constructor call itself is asserted below so the verifier
+                # can report the contract failure instead of aborting early.
+                pass
+
+        if external_client_constructor.call_count:
+            failures.append("legacy allowed_tools path instantiated an external HTTP client")
+            print("FAIL  legacy allowed_tools path instantiated an external HTTP client")
+        else:
+            print("ok    legacy allowed_tools path creates no external HTTP client")
+
+        if legacy_response is None:
+            if not external_client_constructor.call_count:
+                failures.append("legacy allowed_tools request did not return a response")
+                print("FAIL  legacy allowed_tools request did not return a response")
+        elif expect_status(
+            "legacy allowed_tools request returns 200",
+            legacy_response.status_code,
+            200,
+        ):
+            body = legacy_response.json()
+            check(
+                "legacy allowed_tools response body vs contract",
+                body,
+                inline_schema(RUNS_PATH, "post", "200"),
+            )
+            if body.get("data", {}).get("event_candidate_proposal") is not None:
+                failures.append("legacy allowed_tools alone produced an event candidate proposal")
+                print("FAIL  legacy allowed_tools alone produced an event candidate proposal")
+            else:
+                print("ok    legacy allowed_tools alone produces no proposal")
 
     return len(failures)
 

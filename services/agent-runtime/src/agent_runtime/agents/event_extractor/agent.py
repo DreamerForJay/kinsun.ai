@@ -6,15 +6,13 @@ from agent_runtime.agents.event_extractor.models import (
     EXTRACTOR_VERSION,
     CareEventType,
     ConfidenceBand,
-    CreateCareEventCandidateRequestV1,
     EventExtractionContext,
     EventExtractorOutput,
-    EventSourceType,
     NoCandidateReason,
     NoEventCandidate,
     ReviewRequirement,
 )
-from agent_runtime.contracts.models import AgentRunRequest
+from agent_runtime.contracts.models import AgentRunRequest, EventCandidateProposal
 
 _MEDICATION_PATTERN = re.compile(
     r"(?:吃藥|服藥|藥(?:吃了|還沒吃|沒吃)|忘(?:了|記)?吃藥|" r"沒(?:有)?吃藥|停藥|改藥|藥量)"
@@ -64,10 +62,7 @@ class EventExtractorAgent:
             return NoEventCandidate(reason_codes=[NoCandidateReason.NO_SUPPORTED_EVENT])
 
         event_type, structured_payload, confidence_band = classification
-        return CreateCareEventCandidateRequestV1(
-            source_type=EventSourceType.CONVERSATION_SESSION,
-            source_id=context.source_id,
-            source_version=context.source_version,
+        return EventCandidateProposal(
             event_type=event_type,
             event_time=context.event_time,
             structured_payload=structured_payload,

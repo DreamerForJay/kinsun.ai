@@ -1,0 +1,10 @@
+{
+  "_why_invalid": "Public gate decisions must not disclose ASR confidence.",
+  "data": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "decision": "CAN_SEND_TO_AGENT",
+    "confirmation_required": false,
+    "expires_at": "2026-08-02T10:15:00Z",
+    "confidence": 0.99
+  }
+}

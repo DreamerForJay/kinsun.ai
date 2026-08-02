@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/domain/ConsumeVoiceTicketRequestV1.json",
+  "title": "ConsumeVoiceTicketRequestV1",
+  "description": "Private service-to-Core request. The opaque ticket must not enter logs, traces, metrics, events or error responses.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session_id", "voice_ticket"],
+  "properties": {
+    "session_id": {"type": "string", "format": "uuid"},
+    "voice_ticket": {"type": "string", "minLength": 32, "maxLength": 128}
+  }
+}

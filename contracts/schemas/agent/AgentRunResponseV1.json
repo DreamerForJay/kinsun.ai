@@ -112,6 +112,17 @@
         "type": "string",
         "maxLength": 64
       }
+    },
+    "event_candidate_proposal": {
+      "description": "Optional review-required proposal. Null or absent means no proposal; Core alone may turn a valid proposal into a domain Candidate after reauthorization and consent checks.",
+      "oneOf": [
+        {
+          "$ref": "https://kinsun.ai/contracts/schemas/agent/EventCandidateProposalV1.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   }
 }

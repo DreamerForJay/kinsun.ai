@@ -1,4 +1,6 @@
 import { apiFetch, createIdempotencyKey, type ApiConfig } from './client';
+import { toVoiceSessionLanguagePreference } from '../voice/language-route';
+import type { SpeechLanguage } from '../voice/speech-gateway-client';
 
 export interface VoiceSession {
   session_id: string;
@@ -48,12 +50,16 @@ export function createTextSession(config: ApiConfig, elderId: string): Promise<V
  * Core still runs its own consent check per turn; creating a session here is not
  * what authorizes recording.
  */
-export function createVoiceSession(config: ApiConfig, elderId: string): Promise<VoiceSession> {
+export function createVoiceSession(
+  config: ApiConfig,
+  elderId: string,
+  language: SpeechLanguage,
+): Promise<VoiceSession> {
   return apiFetch(config, `/api/v1/elders/${elderId}/voice-sessions`, {
     method: 'POST',
     headers: { 'Idempotency-Key': createIdempotencyKey('voice-session') },
     body: JSON.stringify({
-      language_preference: 'ZH_TW',
+      language_preference: toVoiceSessionLanguagePreference(language),
       input_mode: 'voice',
       client_timezone: 'Asia/Taipei',
       purpose: 'BASIC_VOICE',

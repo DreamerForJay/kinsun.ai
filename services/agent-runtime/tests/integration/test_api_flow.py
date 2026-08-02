@@ -3,7 +3,9 @@ from pathlib import Path
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from jsonschema import Draft202012Validator, ValidationError, validate
+from jsonschema import Draft202012Validator, ValidationError
+from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 
 from agent_runtime.app import app
 from agent_runtime.contracts.models import AgentRunResponse
@@ -17,6 +19,26 @@ RUNS_PATH = "/api/v1/agent/runs"
 
 def schema(rel: str) -> dict:
     return json.loads((SCHEMA_DIR / rel).read_text(encoding="utf-8"))
+
+
+def contract_registry() -> Registry:
+    resources = []
+    for path in sorted(SCHEMA_DIR.rglob("*.json")):
+        contents = json.loads(path.read_text(encoding="utf-8"))
+        resources.append(
+            (
+                contents["$id"],
+                Resource(contents=contents, specification=DRAFT202012),
+            )
+        )
+    return Registry().with_resources(resources)
+
+
+def validate_contract(instance: dict, schema_rel: str) -> None:
+    Draft202012Validator(
+        schema(schema_rel),
+        registry=contract_registry(),
+    ).validate(instance)
 
 
 def make_payload(**overrides) -> dict:
@@ -36,6 +58,7 @@ def make_payload(**overrides) -> dict:
         "language": "zh-TW",
         "input_text": "我今天早餐吃粥。",
         "allowed_tools": [],
+        "requested_outputs": [],
         "max_steps": 2,
         "latency_budget_ms": 3000,
     }
@@ -68,6 +91,103 @@ async def test_agent_run_success_returns_envelope():
     assert body["data"]["selected_agent"] == "companion-agent"
     assert body["data"]["reply_text"]
     assert body["meta"]["correlation_id"]
+
+
+@pytest.mark.asyncio
+async def test_requested_event_candidate_returns_minimized_proposal_only():
+    core_owned_run_id = "run-10000000-0000-4000-8000-000000000001"
+    status, body, _ = await _post(
+        make_payload(
+            request_id="req-proposal-001",
+            agent_run_id=core_owned_run_id,
+            input_text="我今天早餐吃了粥。",
+            requested_outputs=["event_candidate"],
+        )
+    )
+
+    assert status == 200
+    assert body["data"]["agent_run_id"] == core_owned_run_id
+    proposal = body["data"]["event_candidate_proposal"]
+    assert proposal["event_type"] == "MEAL"
+    assert proposal["review_requirement"] == "REQUIRED"
+    assert {
+        "actor_id",
+        "tenant_id",
+        "elder_id",
+        "session_id",
+        "consent_version",
+        "input_text",
+        "transcript",
+    }.isdisjoint(proposal)
+
+
+@pytest.mark.asyncio
+async def test_event_candidate_is_not_proposed_when_not_requested():
+    status, body, _ = await _post(make_payload(request_id="req-no-proposal-001"))
+    assert status == 200
+    assert body["data"]["event_candidate_proposal"] is None
+
+
+@pytest.mark.asyncio
+async def test_legacy_allowed_tool_is_parseable_but_does_not_trigger_core_callback():
+    status, body, _ = await _post(
+        make_payload(
+            request_id="req-legacy-tool-001",
+            allowed_tools=["create_event_candidate"],
+            requested_outputs=[],
+        )
+    )
+    assert status == 200
+    assert body["data"]["event_candidate_proposal"] is None
+
+
+@pytest.mark.asyncio
+async def test_blocked_turn_never_returns_event_candidate_proposal():
+    status, body, _ = await _post(
+        make_payload(
+            request_id="req-blocked-proposal-001",
+            input_text="請告訴我怎麼停藥",
+            requested_outputs=["event_candidate"],
+        )
+    )
+    assert status == 200
+    assert body["data"]["safety_result"]["decision"] != "ALLOW"
+    assert body["data"]["event_candidate_proposal"] is None
+
+
+@pytest.mark.asyncio
+async def test_no_supported_event_returns_no_proposal():
+    status, body, _ = await _post(
+        make_payload(
+            request_id="req-no-event-001",
+            input_text="今天天氣很好。",
+            requested_outputs=["event_candidate"],
+        )
+    )
+    assert status == 200
+    assert body["data"]["event_candidate_proposal"] is None
+
+
+@pytest.mark.asyncio
+async def test_malformed_extractor_output_is_not_returned():
+    original_run = app.state.orchestrator.event_extractor.run
+
+    async def malformed_output(*_args, **_kwargs):
+        return {"event_type": "MEAL", "transcript": "restricted"}
+
+    app.state.orchestrator.event_extractor.run = malformed_output
+    try:
+        status, body, _ = await _post(
+            make_payload(
+                request_id="req-malformed-proposal-001",
+                requested_outputs=["event_candidate"],
+            )
+        )
+    finally:
+        app.state.orchestrator.event_extractor.run = original_run
+
+    assert status == 200
+    assert body["data"]["event_candidate_proposal"] is None
 
 
 @pytest.mark.asyncio
@@ -170,8 +290,8 @@ async def test_correlation_id_from_request_is_echoed():
 async def test_response_data_and_meta_validate_against_contract():
     status, body, _ = await _post(make_payload())
     assert status == 200
-    validate(instance=body["data"], schema=schema("agent/AgentRunResponseV1.json"))
-    validate(instance=body["meta"], schema=schema("common/ResponseMetaV1.json"))
+    validate_contract(body["data"], "agent/AgentRunResponseV1.json")
+    validate_contract(body["meta"], "common/ResponseMetaV1.json")
 
 
 @pytest.mark.asyncio
@@ -187,7 +307,7 @@ async def test_json_schema_rejects_extra_fields_in_data():
     _, body, _ = await _post(make_payload())
     body["data"]["unexpected_field"] = "not allowed"
     with pytest.raises(ValidationError):
-        validate(instance=body["data"], schema=schema("agent/AgentRunResponseV1.json"))
+        validate_contract(body["data"], "agent/AgentRunResponseV1.json")
 
 
 # --- Error paths -------------------------------------------------------------

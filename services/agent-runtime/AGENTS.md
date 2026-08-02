@@ -23,16 +23,14 @@ Production 仍須正式簽署 Allowlist，並明確設定 `RAG_PRODUCTION_ENABLE
 未完成，且尚未對真實 AWS/OpenSearch 環境完成驗證，因此不得描述成已部署或可用於
 production。
 
-目前只接通一條受控 Tool 路徑：request `allowed_tools` 明確包含
-`create_event_candidate`、Safety 為 `ALLOW` 且 deterministic Event Extractor 產生 Candidate
-時，Runtime 先向 Core 註冊正式 UUID AgentRun，以同一 UUID 呼叫 Core Tool，再同步寫入終態。
-Tool `SUCCESS`／`NO_DATA`／`BLOCKED` 對應同名終態；失敗、逾時與取消分別以
-`DEPENDENCY_FAILED`、`TIME_BUDGET_EXCEEDED`、`CANCELLED` fail closed。completion 失敗不得
-回報成功。這不是通用 Tool loop；Runtime 不建立 service credential，只轉交呼叫端既有
-Authorization，由 Core 重新驗證所有正式 scope。尚未實作（不要描述成已完成）：Memory
-Candidate、Model Router、Prompt Registry、完整 Agent Trace（Core AgentRun lifecycle 以外）、
-Neptune、通用 Tool 執行迴圈、RAG／Graph Evaluation，以及能實際使用 RAG context 生成回答的
-外部 Model Provider。
+Event Candidate 採 Core-owned proposal flow：request 的 `requested_outputs` 明確包含
+`event_candidate`、Safety 為 `ALLOW` 且 deterministic Event Extractor 找到受支援事件時，
+Runtime 只回傳不含 actor／tenant／elder／session／consent／逐字稿的 typed proposal。Runtime
+不向 Core 註冊或完成 AgentRun、不呼叫 Core Tool，也不寫 domain DB；Core 才能在重新授權、
+重驗 Consent 並完成 conversation session 後建立 review-required Candidate。舊 `allowed_tools`
+欄位保留解析相容，但 canonical Core path 固定傳空陣列。尚未實作（不要描述成已完成）：
+Memory Candidate、Model Router、Prompt Registry、完整 Agent Trace、Neptune、通用 Tool 執行
+迴圈、RAG／Graph Evaluation，以及能實際使用 RAG context 生成回答的外部 Model Provider。
 
 ## 硬性規則
 
@@ -57,9 +55,9 @@ Neptune、通用 Tool 執行迴圈、RAG／Graph Evaluation，以及能實際使
   `ModelProvider` 介面與 `models/mock_provider.py`。接 Bedrock、OpenSearch、Neptune 時
   新增實作，不要把 SDK 呼叫散進 orchestration 或 agent 層。
 - Step／Tool 上限來自 `settings.py`：`MAX_AGENT_DECISIONS`、`MAX_TOOL_ROUNDS`、
-  `MAX_TOTAL_TOOLS`、`MAX_REWRITE`。目前 companion 仍只有單一模型決策；受控 Candidate
-  路徑會以 `MAX_TOOL_ROUNDS`／`MAX_TOTAL_TOOLS` 作 fail-closed gate 且最多呼叫一次 Tool。
-  `MAX_REWRITE` 尚未有程式使用，不要誤以為已實作 rewrite loop。
+  `MAX_TOTAL_TOOLS`、`MAX_REWRITE`。目前 companion 仍只有單一模型決策；Event proposal 是
+  deterministic output，不是 Tool call。`MAX_TOOL_ROUNDS`／`MAX_TOTAL_TOOLS` 保留供未來
+  受控 Tool loop，`MAX_REWRITE` 尚未有程式使用。
 
 ## 對外 API 慣例
 

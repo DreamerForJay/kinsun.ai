@@ -42,6 +42,22 @@ def _success_payload() -> dict:
     }
 
 
+def _event_candidate_proposal() -> dict:
+    return {
+        "event_type": "MEAL",
+        "event_time": None,
+        "structured_payload": {
+            "observation_basis": "ELDER_STATEMENT",
+            "meal_status": "CONSUMED",
+            "meal_period": "BREAKFAST",
+        },
+        "evidence_refs": [],
+        "confidence_band": "MEDIUM",
+        "review_requirement": "REQUIRED",
+        "extractor_version": "event-extractor-v1",
+    }
+
+
 @pytest.mark.asyncio
 async def test_agent_runtime_client_posts_contract_and_validates_response() -> None:
     captured: dict[str, object] = {}
@@ -67,6 +83,50 @@ async def test_agent_runtime_client_posts_contract_and_validates_response() -> N
         "payload": payload,
     }
     assert result.reply_text == "這是安全的合成回覆。"
+
+
+@pytest.mark.asyncio
+async def test_agent_runtime_client_accepts_minimized_event_candidate_proposal() -> None:
+    payload = _success_payload()
+    payload["data"]["event_candidate_proposal"] = _event_candidate_proposal()
+    client = AgentRuntimeClient(
+        base_url="http://agent-runtime:8001",
+        timeout_seconds=1,
+        transport=httpx.MockTransport(lambda _request: httpx.Response(200, json=payload)),
+    )
+
+    result = await client.run(request_payload={}, correlation_id="correlation-1")
+
+    assert result.event_candidate_proposal is not None
+    assert result.event_candidate_proposal.event_type == "MEAL"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda proposal: proposal.update({"elder_id": "not-runtime-authority"}),
+        lambda proposal: proposal["structured_payload"].update(
+            {"transcript": "restricted synthetic transcript"}
+        ),
+        lambda proposal: proposal["structured_payload"].update(
+            {"elder_id": "runtime-must-not-supply-scope"}
+        ),
+    ],
+)
+async def test_agent_runtime_client_rejects_proposal_scope_or_restricted_data(mutate) -> None:
+    payload = _success_payload()
+    proposal = _event_candidate_proposal()
+    mutate(proposal)
+    payload["data"]["event_candidate_proposal"] = proposal
+    client = AgentRuntimeClient(
+        base_url="http://agent-runtime:8001",
+        timeout_seconds=1,
+        transport=httpx.MockTransport(lambda _request: httpx.Response(200, json=payload)),
+    )
+
+    with pytest.raises(ServiceUnavailableError, match="Agent runtime is unavailable"):
+        await client.run(request_payload={}, correlation_id="correlation-1")
 
 
 @pytest.mark.asyncio

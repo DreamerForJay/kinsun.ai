@@ -1229,6 +1229,44 @@
         ]
       }
     },
+    "/api/v1/internal/asr-results": {
+      "post": {
+        "tags": ["voice-sessions"],
+        "summary": "Submit private ASR evidence to the Core safety gate",
+        "description": "Internal system-service route. Core independently verifies a consumed RECORDING session, live BASIC_VOICE consent and language before its threshold decision. The result is not an event and no transcript, confidence, ticket or audio is returned.",
+        "operationId": "submit_asr_result_api_v1_internal_asr_results_post",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "../schemas/domain/SubmitAsrResultRequestV1.json"}}}},
+        "responses": {
+          "200": {"description": "Safe Core gate decision.", "content": {"application/json": {"schema": {"$ref": "../schemas/common/AsrGateDecisionEnvelopeV1.json"}}}},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"$ref": "#/components/responses/NotFoundOrForbidden"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "422": {"$ref": "#/components/responses/ValidationFailed"}
+        },
+        "security": [{"bearerAuth": []}]
+      }
+    },
+    "/api/v1/voice-sessions/{session_id}/asr-confirmation": {
+      "post": {
+        "tags": ["voice-sessions"],
+        "summary": "Elder confirms or rejects a low-confidence ASR result",
+        "description": "Only the authenticated elder who owns the session may decide. The operation is idempotent and returns only a safe Gate decision; it never returns transcript, confidence, ticket or audio.",
+        "operationId": "confirm_asr_gate_api_v1_voice_sessions__session_id__asr_confirmation_post",
+        "parameters": [
+          {"name": "session_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+          {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string", "minLength": 1, "maxLength": 160}}
+        ],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "../schemas/domain/ConfirmAsrGateRequestV1.json"}}}},
+        "responses": {
+          "200": {"description": "Safe Core gate decision.", "content": {"application/json": {"schema": {"$ref": "../schemas/common/AsrGateDecisionEnvelopeV1.json"}}}},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "404": {"$ref": "#/components/responses/NotFoundOrForbidden"},
+          "409": {"$ref": "#/components/responses/Conflict"},
+          "422": {"$ref": "#/components/responses/ValidationFailed"}
+        },
+        "security": [{"bearerAuth": []}]
+      }
+    },
     "/api/v1/elders/{elder_id}/care-event-candidates": {
       "post": {
         "tags": [

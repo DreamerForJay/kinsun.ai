@@ -60,11 +60,11 @@ _CORE_TABLES = sorted(
 )
 
 #: Total number of tables after upgrading through the current head revision.
-_TOTAL_HEAD_TABLE_COUNT = 50
+_TOTAL_HEAD_TABLE_COUNT = 51
 
 #: The baseline's revision id (see the migration file's Revision ID header).
 _BASELINE_REVISION = "f393b4452ce8"
-_HEAD_REVISION = "c1a9e7f24b63"
+_HEAD_REVISION = "e4f7a9c2d1b3"
 
 
 def _get_alembic_config() -> Config:
@@ -80,7 +80,10 @@ def _get_alembic_config() -> Config:
 
 def _sync_test_database_url() -> str:
     """Async (asyncpg) TEST_DATABASE_URL converted to the sync (psycopg) URL Alembic uses."""
-    async_url = os.environ.get("TEST_DATABASE_URL", "")
+    async_url = os.environ.get(
+        "TEST_DATABASE_URL",
+        "postgresql+asyncpg://kinsun:kinsun_local_dev@localhost:5432/kinsun_test",
+    )
     return async_url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
 
 

@@ -11,7 +11,8 @@ from app.core.exceptions import ConflictError
 
 SESSION_TRANSITIONS: dict[str, frozenset[str]] = {
     "CREATED": frozenset({"RECORDING", "CANCELLED", "FAILED"}),
-    "RECORDING": frozenset({"PROCESSING", "CANCELLED", "FAILED"}),
+    "RECORDING": frozenset({"PROCESSING", "AWAITING_CONFIRMATION", "CANCELLED", "FAILED"}),
+    "AWAITING_CONFIRMATION": frozenset({"PROCESSING", "CANCELLED", "FAILED"}),
     "PROCESSING": frozenset({"RESPONDING", "CANCELLED", "FAILED"}),
     "RESPONDING": frozenset({"COMPLETED", "CANCELLED", "FAILED"}),
     "COMPLETED": frozenset(),

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/domain/ConfirmAsrGateRequestV1.json",
+  "title": "ConfirmAsrGateRequestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action"],
+  "properties": {"action": {"type": "string", "enum": ["CONFIRM", "REJECT"]}}
+}

@@ -82,27 +82,6 @@ export async function listMemories(config: ApiConfig, elderId: string): Promise<
   };
 }
 
-export async function confirmMemory(
-  config: ApiConfig,
-  elderId: string,
-  memory: MemoryView,
-): Promise<MemoryView> {
-  const result = await apiFetch<CoreMemory>(
-    config,
-    `/api/v1/elders/${elderId}/memory-candidates/${memory.memoryId}/confirm`,
-    {
-      method: 'POST',
-      headers: { 'Idempotency-Key': createIdempotencyKey('memory-confirm') },
-      body: JSON.stringify({
-        confirmation_method: 'CAREGIVER_REVIEW',
-        expected_candidate_version: memory.version,
-        consent_version: memory.consentVersion,
-      }),
-    },
-  );
-  return toMemoryView(result);
-}
-
 export function rejectMemory(
   config: ApiConfig,
   elderId: string,

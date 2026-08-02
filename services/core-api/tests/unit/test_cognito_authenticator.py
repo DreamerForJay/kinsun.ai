@@ -239,6 +239,45 @@ async def test_id_token_audience_rejection_logs_only_a_bounded_reason(
     assert "restricted-family@example.test" not in caplog.text
 
 
+async def test_id_token_accepts_small_cognito_clock_skew() -> None:
+    now = datetime.now(UTC)
+    token, cache = _signed_token(
+        claims=_claims(
+            token_use="id",
+            aud="client-id",
+            email="family@example.test",
+            email_verified=True,
+            iat=now + timedelta(seconds=4),
+        )
+    )
+
+    identity = await _verifier(cache).verify_id_token(token)
+
+    assert identity.subject == "cognito-subject"
+
+
+async def test_id_token_rejects_clock_skew_beyond_bounded_leeway(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    now = datetime.now(UTC)
+    token, cache = _signed_token(
+        claims=_claims(
+            token_use="id",
+            aud="client-id",
+            email="family@example.test",
+            email_verified=True,
+            iat=now + timedelta(seconds=30),
+        )
+    )
+    caplog.set_level(logging.WARNING, logger="app.adapters.auth.cognito")
+
+    with pytest.raises(AuthenticationError, match="Authentication required"):
+        await _verifier(cache).verify_id_token(token)
+
+    assert "reason=NOT_YET_VALID expected_token_use=id" in caplog.text
+    assert token not in caplog.text
+
+
 class _SessionContext:
     def __init__(self, session) -> None:
         self._session = session

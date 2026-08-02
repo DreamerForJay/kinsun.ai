@@ -91,6 +91,10 @@ class Settings(BaseSettings):
     voice_ticket_enabled: bool = False
     voice_ticket_hmac_secret: str = ""
     voice_ticket_ttl_seconds: int = Field(default=60, ge=15, le=120)
+    asr_gate_enabled: bool = False
+    asr_gate_hmac_secret: str = ""
+    asr_gate_confidence_threshold: float = Field(default=0.85, gt=0, le=1)
+    asr_gate_evidence_ttl_seconds: int = Field(default=900, ge=60, le=86_400)
     agent_runtime_url: str = "http://127.0.0.1:8001"
     agent_runtime_timeout_seconds: float = Field(default=10.0, gt=0, le=30)
     agent_runtime_model_id: str = Field(default="mock", min_length=1, max_length=200)
@@ -126,13 +130,13 @@ class Settings(BaseSettings):
                 "FAMILY_INVITATION_HMAC_SECRET must contain at least 32 bytes "
                 "when COGNITO_AUTH_ENABLED=true"
             )
-        if self.voice_ticket_enabled and len(
-            self.voice_ticket_hmac_secret.encode("utf-8")
-        ) < 32:
+        if self.voice_ticket_enabled and len(self.voice_ticket_hmac_secret.encode("utf-8")) < 32:
             raise ValueError(
                 "VOICE_TICKET_HMAC_SECRET must contain at least 32 bytes "
                 "when VOICE_TICKET_ENABLED=true"
             )
+        if self.asr_gate_enabled and len(self.asr_gate_hmac_secret.encode("utf-8")) < 32:
+            raise ValueError("ASR_GATE_HMAC_SECRET must contain at least 32 bytes when enabled")
         return self
 
     # ─── Secret redaction ────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@
     "target_state": {
       "enum": [
         "RECORDING",
+        "AWAITING_CONFIRMATION",
         "PROCESSING",
         "RESPONDING",
         "COMPLETED",

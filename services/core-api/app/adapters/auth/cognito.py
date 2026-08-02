@@ -19,10 +19,16 @@ import jwt
 from fastapi import Request
 from jwt.algorithms import RSAAlgorithm
 from jwt.exceptions import (
+    DecodeError,
     ExpiredSignatureError,
+    ImmatureSignatureError,
+    InvalidAlgorithmError,
     InvalidAudienceError,
+    InvalidIssuedAtError,
     InvalidIssuerError,
+    InvalidJTIError,
     InvalidSignatureError,
+    InvalidSubjectError,
     InvalidTokenError,
     MissingRequiredClaimError,
 )
@@ -36,6 +42,7 @@ from app.models.tenant import Tenant
 from app.repositories.actor_repo import ActorRepository
 
 _AUTHENTICATION_REQUIRED = "Authentication required"
+_COGNITO_CLOCK_SKEW_LEEWAY_SECONDS = 5
 logger = logging.getLogger(__name__)
 
 
@@ -49,6 +56,8 @@ def _jwt_rejection_reason(exc: Exception) -> str:
         return "HEADER"
     if isinstance(exc, ExpiredSignatureError):
         return "EXPIRED"
+    if isinstance(exc, ImmatureSignatureError):
+        return "NOT_YET_VALID"
     if isinstance(exc, InvalidAudienceError):
         return "AUDIENCE"
     if isinstance(exc, InvalidIssuerError):
@@ -57,8 +66,18 @@ def _jwt_rejection_reason(exc: Exception) -> str:
         return "SIGNATURE"
     if isinstance(exc, MissingRequiredClaimError):
         return "REQUIRED_CLAIM"
+    if isinstance(exc, InvalidIssuedAtError):
+        return "ISSUED_AT"
+    if isinstance(exc, InvalidSubjectError):
+        return "SUBJECT"
+    if isinstance(exc, InvalidJTIError):
+        return "JTI"
+    if isinstance(exc, InvalidAlgorithmError):
+        return "ALGORITHM"
     if isinstance(exc, AuthenticationError):
         return "JWKS"
+    if isinstance(exc, DecodeError):
+        return "DECODE"
     if isinstance(exc, InvalidTokenError):
         return "INVALID_TOKEN"
     return "INVALID_TOKEN"
@@ -294,6 +313,11 @@ class CognitoJwtVerifier(CognitoTokenVerifier):
             algorithms=["RS256"],
             audience=self._app_client_id if verify_audience else None,
             issuer=self._issuer,
+            # Cognito and the Core host can differ by a small number of seconds.
+            # Keep the allowance bounded so newly-issued tokens survive normal
+            # clock skew without relaxing signature, issuer, audience, or
+            # expiration validation.
+            leeway=_COGNITO_CLOCK_SKEW_LEEWAY_SECONDS,
             options={
                 "require": ["exp", "iss", "sub", "token_use"],
                 "verify_aud": verify_audience,

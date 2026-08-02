@@ -19,7 +19,6 @@ import {
   type NeedsReviewSummary,
 } from '@/lib/api/events';
 import {
-  confirmMemory,
   deleteMemory,
   listMemories,
   rejectMemory,
@@ -155,11 +154,6 @@ export default function ElderDetailPage({ params }: { params: Promise<{ elderId:
     }
   }
 
-  async function handleConfirmMemory(memory: MemoryView) {
-    await confirmMemory(apiConfig, elderId, memory);
-    loadMemories();
-  }
-
   async function handleRejectMemory(memory: MemoryView) {
     await rejectMemory(apiConfig, elderId, memory);
     loadMemories();
@@ -289,7 +283,6 @@ export default function ElderDetailPage({ params }: { params: Promise<{ elderId:
           <MemoryList
             candidates={memories.candidates}
             confirmed={memories.confirmed}
-            onConfirm={handleConfirmMemory}
             onReject={handleRejectMemory}
             onDelete={handleDeleteMemory}
           />

@@ -21,6 +21,8 @@ from app.domain.state_machine import (
     [
         ("CREATED", "RECORDING"),
         ("RECORDING", "PROCESSING"),
+        ("RECORDING", "AWAITING_CONFIRMATION"),
+        ("AWAITING_CONFIRMATION", "PROCESSING"),
         ("PROCESSING", "RESPONDING"),
         ("RESPONDING", "COMPLETED"),
         ("CREATED", "CANCELLED"),
@@ -36,6 +38,7 @@ def test_voice_session_allows_defined_transitions(current: str, target: str) -> 
         ("CREATED", "COMPLETED"),
         ("COMPLETED", "RECORDING"),
         ("CANCELLED", "PROCESSING"),
+        ("AWAITING_CONFIRMATION", "RESPONDING"),
     ],
 )
 def test_voice_session_rejects_skipped_or_terminal_transitions(

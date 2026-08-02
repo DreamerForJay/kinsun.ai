@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/domain/AsrGateDecisionV1.json",
+  "title": "AsrGateDecisionV1",
+  "description": "Safe gate result. It intentionally omits transcript, audio, confidence, ticket and digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session_id", "decision", "confirmation_required", "expires_at"],
+  "properties": {
+    "session_id": {"type": "string", "format": "uuid"},
+    "decision": {"type": "string", "enum": ["CAN_SEND_TO_AGENT", "CONFIRMATION_REQUIRED", "CANNOT_SEND_TO_AGENT"]},
+    "confirmation_required": {"type": "boolean"},
+    "expires_at": {"type": "string", "format": "date-time"}
+  }
+}

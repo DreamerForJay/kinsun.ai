@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/domain/CreateVoiceTicketRequestV1.json",
+  "title": "CreateVoiceTicketRequestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["language_preference", "input_mode"],
+  "properties": {
+    "language_preference": {"type": "string", "enum": ["ZH_TW", "NAN_TW", "HAK_TW", "EN_US", "MIXED", "UNKNOWN"]},
+    "input_mode": {"type": "string", "enum": ["voice", "voice_with_text_fallback"]},
+    "client_audio_format": {"type": ["string", "null"], "maxLength": 80},
+    "client_timezone": {"type": "string", "minLength": 1, "maxLength": 64, "default": "Asia/Taipei"},
+    "purpose": {"type": "string", "const": "BASIC_VOICE", "default": "BASIC_VOICE"}
+  }
+}

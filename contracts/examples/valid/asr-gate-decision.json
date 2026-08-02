@@ -1,0 +1,8 @@
+{
+  "data": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "decision": "CONFIRMATION_REQUIRED",
+    "confirmation_required": true,
+    "expires_at": "2026-08-02T10:15:00Z"
+  }
+}

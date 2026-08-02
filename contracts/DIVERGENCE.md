@@ -102,8 +102,10 @@ Core 已實作 Voice Session metadata、受控狀態轉移，以及 dedicated Vo
 
 目前 `SYSTEM_SERVICE` guard 已可執行，但 ADR 0009 的 production service credential mechanism
 （例如 IAM 或 mTLS）仍待 Owner 核准；因此 internal consume contract 不代表 production service
-identity 已部署。WebSocket binary/audio transport、Speech Gateway、ASR Final、低信心確認與 TTS
-仍屬尚未實作的 Speech workstream。`VoiceSessionV1.transport_status` 仍明確標示
+identity 已部署。Core 的 private ASR Final evidence 與低信心 elder confirmation 已實作：結果僅能在
+已 consume 的 `RECORDING` session 上由 `SYSTEM_SERVICE` 送入，Core 重新檢查 BASIC_VOICE、語言與
+threshold；未確認不得進入 `PROCESSING`，且原文僅在 TRANSCRIPT_STORAGE consent 有效時保存。WebSocket
+binary/audio transport、Speech Gateway 與 TTS 仍屬尚未實作的 Speech workstream。`VoiceSessionV1.transport_status` 仍明確標示
 `NOT_CONFIGURED`，Ticket 不得放在 URL；後續只能經 allowlisted header、WebSocket subprotocol
 或第一個受保護 frame 傳送。
 
@@ -127,6 +129,13 @@ Core 另提供已實作的單輪文字 fallback：`POST /api/v1/voice-sessions/{
 `services/agent-runtime` 已有 M0 HTTP API 與對應 OpenAPI，但正式跨 Agent handoff、多步 Tool 迴圈及完整 Agent Handoff Result 尚未實作。`HandoffEnvelopeV1` 目前只有 model／schema，orchestrator 不會產生它；其內嵌 `context_manifest` 的形狀也仍與文件 10 只傳 `context_manifest_id` 的設計不同。
 
 `AgentRunResponseV1` 是 Agent Runtime 的 HTTP 回應，不是文件 10 的 Handoff Result，不能用它代替 Handoff Result。現有 result status 只有 `SUCCESS`、`SAFE_FALLBACK`、`BLOCKED`、`FAILED`，尚未涵蓋文件 10 的 `NEEDS_CLARIFICATION`、`HUMAN_REVIEW`、`NO_DATA` 等狀態。
+
+Gate 1 Event Candidate 現採 Core-owned proposal boundary：Core 以可信 scope 與
+`CARE_EVENT_EXTRACTION` Consent 推導 optional `requested_outputs=["event_candidate"]`，Runtime
+只有在 Safety `ALLOW` 且 deterministic extraction 成功時回 optional
+`EventCandidateProposalV1`。Proposal 不含 actor、tenant、elder、session、consent 或逐字稿；
+Runtime 不再 register／complete Core AgentRun 或 callback Core Tool。舊 `allowed_tools` 欄位僅保留
+同 major 解析相容，canonical Core path 為空陣列。這仍不是文件 10 的正式 Handoff Result。
 
 ### Staging RAG retrieval
 

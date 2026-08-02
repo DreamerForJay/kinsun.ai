@@ -51,6 +51,7 @@ class TransitionVoiceSessionRequest(BaseModel):
 
     target_state: Literal[
         "RECORDING",
+        "AWAITING_CONFIRMATION",
         "PROCESSING",
         "RESPONDING",
         "COMPLETED",
@@ -100,6 +101,7 @@ class VoiceSessionResponse(BaseModel):
     state: Literal[
         "CREATED",
         "RECORDING",
+        "AWAITING_CONFIRMATION",
         "PROCESSING",
         "RESPONDING",
         "COMPLETED",

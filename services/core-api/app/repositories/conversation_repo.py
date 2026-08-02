@@ -30,6 +30,7 @@ class ConversationRepository(BaseRepository):
                 ConversationSession.id == session_id,
                 ConversationSession.tenant_id == self._tenant_id,
             )
+            .execution_options(populate_existing=True)
             .with_for_update()
         )
         return result.scalar_one_or_none()
@@ -43,9 +44,7 @@ class ConversationRepository(BaseRepository):
             .where(
                 ConversationSession.tenant_id == self._tenant_id,
                 ConversationSession.consent_id == consent_id,
-                ConversationSession.state.in_(
-                    {"CREATED", "RECORDING", "PROCESSING", "RESPONDING"}
-                ),
+                ConversationSession.state.in_({"CREATED", "RECORDING", "PROCESSING", "RESPONDING"}),
             )
             .with_for_update()
         )

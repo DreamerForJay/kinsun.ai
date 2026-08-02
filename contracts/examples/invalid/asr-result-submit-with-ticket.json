@@ -1,0 +1,11 @@
+{
+  "_why_invalid": "The ticket was consumed before ASR submission and must never be carried here.",
+  "data": {
+    "session_id": "00000000-0000-4000-8000-000000000001",
+    "language_route": "ZH_TW",
+    "asr_model_version": "synthetic-v1",
+    "confidence": 0.42,
+    "transcript": "synthetic utterance",
+    "voice_ticket": "must-not-appear"
+  }
+}

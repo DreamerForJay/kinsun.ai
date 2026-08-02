@@ -9,27 +9,24 @@ info:
     `services/agent-runtime`. The default local profile uses a deterministic
     Mock provider, and unconfigured retrieval fails closed with an explicit
     no-guess fallback, so no-Tool turns and failure paths can be exercised with
-    no database, AWS credentials or network access. A requested Event Candidate
-    write additionally requires a reachable Core API and its database; a
-    successful AWS-backed retrieval or Bedrock reply requires separately
-    supplied staging configuration and credentials.
+    no database, AWS credentials or network access. A successful AWS-backed
+    retrieval or Bedrock reply requires separately supplied staging
+    configuration and credentials.
 
-    This service implements one bounded Tool path, not a generic Tool engine.
-    When Safety allows the turn, `allowed_tools` explicitly includes
-    `create_event_candidate`, and the deterministic Event Extractor finds a
-    Candidate, the Runtime registers a Core-owned AgentRun, calls the
-    allowlisted Core Tool, and completes that same run. It does not yet create
-    memory candidates, query Neptune, run a general multi-Tool loop, or hand off
-    between agents. `HandoffEnvelopeV1` and legacy `ToolResponseV1` remain
-    target shapes and are deliberately absent from executable paths here.
+    This service does not write Core domain state. The canonical Core caller
+    derives `requested_outputs`; when it asks for `event_candidate`, Safety
+    allows the turn, and deterministic extraction finds a supported event,
+    Runtime returns an `EventCandidateProposalV1`. The proposal intentionally
+    excludes actor, tenant, elder, session, authorization, consent, and
+    transcript facts. Core supplies those facts, reauthorizes, rechecks active
+    consent, and alone decides whether to create a review-required Candidate.
 
-    The bounded Tool lifecycle currently forwards the inbound Authorization
-    value; this contract does not yet define canonical Core-to-Runtime service
-    authentication, server-derived Tool scope, or a single AgentRun ownership
-    model shared with the Core companion path. Direct Runtime lifecycle tests
-    therefore are not evidence of the complete BFF -> Core -> Runtime -> Core
-    Gate 1 flow. Browsers must not call this private service directly or supply
-    credentials that the Runtime can elevate to SYSTEM_SERVICE permission.
+    `allowed_tools` remains parseable for wire compatibility but is not a domain
+    write grant. The canonical Core path sends an empty list. Runtime does not
+    register or complete Core AgentRuns and does not call Core Tool endpoints.
+    It does not yet create memory candidates, query Neptune, run a general
+    multi-Tool loop, or hand off between agents. Browsers must not call this
+    private service directly.
 
     The Agent Run request can carry the elder's current-turn text. Production
     use additionally requires an approved private Restricted Data transport
@@ -118,26 +115,15 @@ paths:
         `MAX_AGENT_DECISIONS`; asking for more is a 422, not a silent clamp.
         The companion decision always spends exactly one model step.
 
-        When `allowed_tools` explicitly includes `create_event_candidate`, a
-        safety-allowed turn may run one deterministic extraction. Only if a
-        Candidate exists does the Runtime register a Core-owned AgentRun, use
-        that UUID in the allowlisted Core Tool request, and synchronously
-        complete the same run. Tool `SUCCESS`, `NO_DATA`, and `BLOCKED` map to
-        the matching terminal status; Tool `FAILED` and dependency failures map
-        to `DEPENDENCY_FAILED`, while timeout and cancellation map to
-        `TIME_BUDGET_EXCEEDED` and `CANCELLED`.
+        When `requested_outputs` includes `event_candidate`, a safety-allowed
+        turn may run one deterministic extraction. A supported event is returned
+        only as a minimized, review-required proposal. Blocked turns, unsupported
+        events, and malformed extraction results return no proposal. Runtime
+        makes no Core callback and performs no domain write.
 
-        The caller's existing Authorization value is forwarded unchanged to
-        every Core call; the Runtime does not create credentials or trust
-        actor/tenant fields in the body. Missing Core configuration, rejected
-        registration, Tool transport/protocol failure, or terminal-completion
-        failure returns a sanitized 503 and never falls back to a local UUID.
-        Known Tool failures are completed best-effort before returning 503.
-
-        Tool execution additionally requires UUID-form `session_id` and
-        `elder_id`, plus a positive-integer string `consent_version`; Core
-        revalidates SYSTEM_SERVICE identity, tenant/elder/session/policy scope,
-        active consent, authorization, idempotency, and Tool allowlisting.
+        `agent_run_id` is optional for compatibility. The canonical Core path
+        supplies a Core-owned identifier and Runtime echoes it unchanged;
+        direct callers that omit it receive an ephemeral response identifier.
 
         The request body carries elder transcript. It is never echoed back in
         error responses and never written to general logs.
@@ -185,6 +171,17 @@ paths:
                   step_count: 1
                   result_status: SUCCESS
                   reason_codes: [ALLOW]
+                  event_candidate_proposal:
+                    event_type: MEAL
+                    event_time: null
+                    structured_payload:
+                      observation_basis: ELDER_STATEMENT
+                      meal_status: CONSUMED
+                      meal_period: BREAKFAST
+                    evidence_refs: []
+                    confidence_band: MEDIUM
+                    review_requirement: REQUIRED
+                    extractor_version: event-extractor-v1
                 meta:
                   correlation_id: 4d9f2a71-6c38-4e5b-9a02-1f7d3e8c5b64
                   timestamp: "2026-07-31T04:12:09.482714Z"
@@ -192,23 +189,6 @@ paths:
           $ref: "#/components/responses/ValidationFailed"
         "500":
           $ref: "#/components/responses/InternalError"
-        "503":
-          description: |
-            A requested Candidate write could not safely register its Core
-            AgentRun or complete the Core Tool gate. No write is attempted with
-            a locally generated run ID.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelopeV1"
-              example:
-                error:
-                  code: service_unavailable
-                  message: Core Tool execution is unavailable
-                  correlation_id: 4d9f2a71-6c38-4e5b-9a02-1f7d3e8c5b64
-                  reason_code: CORE_EXECUTION_UNAVAILABLE
-                  retryable: true
-                  details: null
 
   /api/v1/rag/retrievals:
     post:
@@ -337,6 +317,8 @@ components:
       $ref: "../schemas/agent/AgentRunRequestV1.json"
     AgentRunResponseV1:
       $ref: "../schemas/agent/AgentRunResponseV1.json"
+    EventCandidateProposalV1:
+      $ref: "../schemas/agent/EventCandidateProposalV1.json"
     RetrievalRequestV1:
       $ref: "../schemas/rag/retrieval-request.schema.json"
     RetrievalResponseV1:

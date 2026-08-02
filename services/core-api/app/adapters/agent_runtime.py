@@ -2,13 +2,61 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from datetime import datetime
+from typing import Annotated, Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError, field_validator
 
 from app.core.config import get_settings
 from app.core.exceptions import ServiceUnavailableError
+
+_RESTRICTED_PROPOSAL_KEYS = frozenset(
+    {
+        "actor_id",
+        "actor_role",
+        "agent_run_id",
+        "asr_confidence",
+        "audio",
+        "audio_uri",
+        "consent_id",
+        "consent_version",
+        "elder_id",
+        "full_prompt",
+        "input_text",
+        "policy_version",
+        "prompt",
+        "request_id",
+        "secret",
+        "session_id",
+        "source_id",
+        "source_type",
+        "source_version",
+        "tenant_id",
+        "token",
+        "trace_id",
+        "transcript",
+        "transcript_text",
+    }
+)
+_EVIDENCE_REF_PATTERN = (
+    r"^evidence:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+EvidenceReference = Annotated[
+    str,
+    Field(min_length=45, max_length=45, pattern=_EVIDENCE_REF_PATTERN),
+]
+
+
+def _contains_restricted_proposal_key(value: JsonValue) -> bool:
+    if isinstance(value, dict):
+        return any(
+            key.casefold() in _RESTRICTED_PROPOSAL_KEYS or _contains_restricted_proposal_key(item)
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(_contains_restricted_proposal_key(item) for item in value)
+    return False
 
 
 class AgentSafetyResult(BaseModel):
@@ -20,6 +68,41 @@ class AgentSafetyResult(BaseModel):
     reason_codes: list[str]
     matched_terms: list[str]
     safe_reply: str | None
+
+
+class AgentEventCandidateProposal(BaseModel):
+    """Minimized untrusted output; it deliberately contains no scope facts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event_type: Literal[
+        "MEAL",
+        "ACTIVITY",
+        "SLEEP",
+        "MEDICATION_STATEMENT",
+        "EMOTION_EXPRESSION",
+        "SOCIAL_CONTACT",
+        "EXPECTED_CONTACT_MISSED",
+        "ACTIVITY_PARTICIPATION",
+        "ACTIVITY_CANCELLED",
+        "COMPANIONSHIP_NEED",
+    ]
+    event_time: datetime | None
+    structured_payload: dict[str, JsonValue]
+    evidence_refs: list[EvidenceReference] = Field(max_length=16)
+    confidence_band: Literal["LOW", "MEDIUM", "HIGH"]
+    review_requirement: Literal["REQUIRED"]
+    extractor_version: str = Field(min_length=1, max_length=80)
+
+    @field_validator("structured_payload")
+    @classmethod
+    def reject_restricted_payload_keys(
+        cls,
+        payload: dict[str, JsonValue],
+    ) -> dict[str, JsonValue]:
+        if _contains_restricted_proposal_key(payload):
+            raise ValueError("structured_payload contains a restricted field")
+        return payload
 
 
 class AgentRunResult(BaseModel):
@@ -37,6 +120,7 @@ class AgentRunResult(BaseModel):
     step_count: int
     result_status: Literal["SUCCESS", "BLOCKED", "SAFE_FALLBACK", "FAILED"]
     reason_codes: list[str]
+    event_candidate_proposal: AgentEventCandidateProposal | None = None
 
 
 class _AgentResponseMeta(BaseModel):

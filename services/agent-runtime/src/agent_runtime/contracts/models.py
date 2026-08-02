@@ -10,6 +10,9 @@ SCHEMA_VERSION = "1.0.0"
 ID_REGEX = r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
 LANGUAGE_REGEX = r"^[a-z]{2,3}(?:-[A-Za-z]{2})?$"
 TOOL_NAME_REGEX = r"^[a-z][a-z0-9_]{1,40}$"
+EVIDENCE_REF_REGEX = (
+    r"^evidence:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 TOOL_RESTRICTED_PARAMETER_KEYS = frozenset(
     {
         "audio",
@@ -22,9 +25,32 @@ TOOL_RESTRICTED_PARAMETER_KEYS = frozenset(
         "transcript_text",
     }
 )
+EVENT_PROPOSAL_RESTRICTED_KEYS = TOOL_RESTRICTED_PARAMETER_KEYS | {
+    "actor_id",
+    "actor_role",
+    "agent_run_id",
+    "asr_confidence",
+    "consent_id",
+    "consent_version",
+    "elder_id",
+    "input_text",
+    "policy_version",
+    "request_id",
+    "session_id",
+    "source_id",
+    "source_type",
+    "source_version",
+    "tenant_id",
+    "trace_id",
+}
 
 SchemaVersion = Literal["1.0.0"]
 ToolName = Annotated[str, Field(pattern=TOOL_NAME_REGEX)]
+RequestedOutput = Literal["event_candidate"]
+EvidenceReference = Annotated[
+    str,
+    Field(min_length=45, max_length=45, pattern=EVIDENCE_REF_REGEX),
+]
 
 # JSON Schema declares these as plain strings drawn from an enum, so the contract models
 # must accept that wire form. Strict mode is kept for every other field.
@@ -59,6 +85,17 @@ def _contains_restricted_tool_key(value: JsonValue) -> bool:
         )
     if isinstance(value, list):
         return any(_contains_restricted_tool_key(item) for item in value)
+    return False
+
+
+def _contains_restricted_event_key(value: JsonValue) -> bool:
+    if isinstance(value, dict):
+        return any(
+            key.casefold() in EVENT_PROPOSAL_RESTRICTED_KEYS or _contains_restricted_event_key(item)
+            for key, item in value.items()
+        )
+    if isinstance(value, list):
+        return any(_contains_restricted_event_key(item) for item in value)
     return False
 
 
@@ -172,6 +209,12 @@ class AgentRunRequest(ContractBaseModel):
     schema_version: SchemaVersion = Field(default=SCHEMA_VERSION)
     request_id: str = Field(pattern=ID_REGEX, min_length=2, max_length=128)
     trace_id: str | None = Field(default=None, pattern=ID_REGEX, min_length=2, max_length=128)
+    agent_run_id: str | None = Field(
+        default=None,
+        pattern=ID_REGEX,
+        min_length=2,
+        max_length=128,
+    )
     session_id: str = Field(pattern=ID_REGEX, min_length=2, max_length=128)
     actor_id: str = Field(pattern=ID_REGEX, min_length=2, max_length=128)
     actor_role: ActorRoleField
@@ -183,8 +226,42 @@ class AgentRunRequest(ContractBaseModel):
     language: str = Field(pattern=LANGUAGE_REGEX, min_length=2, max_length=10)
     input_text: str = Field(min_length=1, max_length=4000)
     allowed_tools: list[ToolName] = Field(default_factory=list)
+    requested_outputs: list[RequestedOutput] = Field(default_factory=list, max_length=1)
     max_steps: int = Field(default=3, ge=1, le=20)
     latency_budget_ms: int = Field(ge=100, le=300000)
+
+
+class EventCandidateProposal(ContractBaseModel):
+    """Untrusted proposal only; Core supplies every scope and source fact."""
+
+    event_type: Literal[
+        "MEAL",
+        "ACTIVITY",
+        "SLEEP",
+        "MEDICATION_STATEMENT",
+        "EMOTION_EXPRESSION",
+        "SOCIAL_CONTACT",
+        "EXPECTED_CONTACT_MISSED",
+        "ACTIVITY_PARTICIPATION",
+        "ACTIVITY_CANCELLED",
+        "COMPANIONSHIP_NEED",
+    ]
+    event_time: datetime | None = None
+    structured_payload: dict[str, JsonValue]
+    evidence_refs: list[EvidenceReference] = Field(default_factory=list, max_length=16)
+    confidence_band: Literal["LOW", "MEDIUM", "HIGH"]
+    review_requirement: Literal["REQUIRED"] = "REQUIRED"
+    extractor_version: str = Field(min_length=1, max_length=80)
+
+    @field_validator("structured_payload")
+    @classmethod
+    def reject_restricted_payload_keys(
+        cls,
+        payload: dict[str, JsonValue],
+    ) -> dict[str, JsonValue]:
+        if _contains_restricted_event_key(payload):
+            raise ValueError("structured_payload contains a restricted field")
+        return payload
 
 
 class AgentRunResponse(ContractBaseModel):
@@ -200,3 +277,4 @@ class AgentRunResponse(ContractBaseModel):
     step_count: int = Field(ge=1, le=20)
     result_status: ResultStatusField
     reason_codes: list[str] = Field(default_factory=list)
+    event_candidate_proposal: EventCandidateProposal | None = None

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapters.agent_runtime import AgentRuntimeClient, get_agent_runtime_client
 from app.api.responses import get_correlation_id, success
 from app.core.config import get_settings
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import AuthenticationError, ConflictError, NotFoundError
 from app.db.session import get_db_session
 from app.middleware.actor_guard import (
     require_active_actor,
@@ -18,6 +18,7 @@ from app.middleware.actor_guard import (
 )
 from app.middleware.auth import ActorContext
 from app.repositories.idempotency_repo import IdempotencyRepository
+from app.schemas.asr_gate import ConfirmAsrGateRequest, SubmitAsrResultRequest
 from app.schemas.conversation import (
     CompanionTurnRequest,
     ConsumeVoiceTicketRequest,
@@ -27,6 +28,7 @@ from app.schemas.conversation import (
     VoiceSessionResponse,
     VoiceTicketIssuedResponse,
 )
+from app.services.asr_gate_service import AsrGateService
 from app.services.authorization_service import authorize_elder
 from app.services.companion_service import CompanionService
 from app.services.conversation_service import ConversationService
@@ -37,6 +39,19 @@ from app.services.voice_ticket_codec import (
 )
 
 router = APIRouter(prefix="/api/v1", tags=["voice-sessions"])
+
+
+def _asr_gate_service(session: AsyncSession, tenant_id: UUID) -> AsrGateService:
+    settings = get_settings()
+    if not settings.asr_gate_enabled:
+        raise AuthenticationError("ASR gate is unavailable")
+    return AsrGateService(
+        session,
+        tenant_id,
+        digest_secret=settings.asr_gate_hmac_secret,
+        confidence_threshold=settings.asr_gate_confidence_threshold,
+        evidence_ttl_seconds=settings.asr_gate_evidence_ttl_seconds,
+    )
 
 
 def _response(conversation) -> dict:
@@ -171,6 +186,60 @@ async def consume_voice_ticket(
         codec=codec,
     )
     return success(_response(conversation))
+
+
+@router.post("/internal/asr-results")
+async def submit_asr_result(
+    request: SubmitAsrResultRequest,
+    actor_context: ActorContext = Depends(require_system_service_actor),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Accept a final ASR result only for a consumed, recording ticket session."""
+    decision = await _asr_gate_service(session, actor_context.tenant_id).submit(
+        request=request,
+        actor_id=actor_context.actor_id,
+    )
+    return success(decision.model_dump(mode="json"))
+
+
+@router.post("/voice-sessions/{session_id}/asr-confirmation")
+async def confirm_asr_gate(
+    request: ConfirmAsrGateRequest,
+    session_id: UUID = Path(...),
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    actor_context: ActorContext = Depends(require_active_actor),
+    session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """The authenticated elder alone may make the low-confidence decision."""
+    if actor_context.actor_role != "ELDER":
+        raise NotFoundError("Resource not found")
+    idem = IdempotencyRepository(session, actor_context.tenant_id, actor_context.actor_id)
+    replay = await idem.begin(
+        key=idempotency_key,
+        operation="confirm_asr_gate",
+        payload={"session_id": session_id, "action": request.action},
+    )
+    service = _asr_gate_service(session, actor_context.tenant_id)
+    if replay.replayed:
+        decision = await service.confirm(
+            session_id=session_id,
+            actor_id=actor_context.actor_id,
+            action=request.action,
+        )
+    else:
+        decision = await service.confirm(
+            session_id=session_id,
+            actor_id=actor_context.actor_id,
+            action=request.action,
+        )
+        await idem.complete(
+            key=idempotency_key,
+            resource_type="asr_gate_evidence",
+            resource_id=session_id,
+            response_status=200,
+            response_body=decision.model_dump(mode="json"),
+        )
+    return success(decision.model_dump(mode="json"))
 
 
 @router.get("/voice-sessions/{session_id}")

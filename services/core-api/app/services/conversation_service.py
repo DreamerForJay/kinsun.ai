@@ -28,6 +28,10 @@ class ConversationService:
     async def get(self, session_id: UUID) -> ConversationSession | None:
         return await self._repository.get_by_id(session_id)
 
+    async def get_for_update(self, session_id: UUID) -> ConversationSession | None:
+        """Lock and refresh the tenant-scoped session before a turn mutates it."""
+        return await self._repository.get_by_id_for_update(session_id)
+
     async def create(
         self,
         *,

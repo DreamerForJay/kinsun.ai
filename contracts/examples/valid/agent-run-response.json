@@ -22,7 +22,20 @@
     "result_status": "SUCCESS",
     "reason_codes": [
       "ALLOW"
-    ]
+    ],
+    "event_candidate_proposal": {
+      "event_type": "MEAL",
+      "event_time": null,
+      "structured_payload": {
+        "observation_basis": "ELDER_STATEMENT",
+        "meal_status": "CONSUMED",
+        "meal_period": "BREAKFAST"
+      },
+      "evidence_refs": [],
+      "confidence_band": "MEDIUM",
+      "review_requirement": "REQUIRED",
+      "extractor_version": "event-extractor-v1"
+    }
   },
   "meta": {
     "correlation_id": "4d9f2a71-6c38-4e5b-9a02-1f7d3e8c5b64",

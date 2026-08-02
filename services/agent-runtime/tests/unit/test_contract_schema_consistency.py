@@ -12,6 +12,7 @@ from agent_runtime.contracts.models import (
     AgentRunRequest,
     AgentRunResponse,
     ContextManifest,
+    EventCandidateProposal,
     HandoffEnvelope,
     SafetyEvaluation,
 )
@@ -78,6 +79,7 @@ def test_every_schema_file_is_a_valid_draft_2020_12_schema(path):
     [
         ("agent-run-request.json", "agent/AgentRunRequestV1.json"),
         ("agent-run-response.json", "agent/AgentRunResponseV1.json"),
+        ("event-candidate-proposal.json", "agent/EventCandidateProposalV1.json"),
     ],
 )
 def test_valid_examples_pass_json_schema(example_name, schema_name):
@@ -89,6 +91,7 @@ def test_valid_examples_pass_json_schema(example_name, schema_name):
     [
         ("agent-run-request.json", AgentRunRequest),
         ("agent-run-response.json", AgentRunResponse),
+        ("event-candidate-proposal.json", EventCandidateProposal),
     ],
 )
 def test_valid_examples_pass_pydantic_models(example_name, model):
@@ -137,6 +140,25 @@ def test_invalid_examples_rejected_by_pydantic(example_name):
     """`additionalProperties: false` must be mirrored by `extra="forbid"` on the model."""
     with pytest.raises(PydanticValidationError):
         AgentRunRequest.model_validate(load_example(EXAMPLE_DIR / "invalid" / example_name))
+
+
+def test_event_candidate_proposal_rejects_nested_transcript() -> None:
+    payload = load_example(
+        EXAMPLE_DIR / "invalid" / "event-candidate-proposal-with-transcript.json"
+    )
+    with pytest.raises(ValidationError):
+        validator_for("agent/EventCandidateProposalV1.json").validate(payload)
+    with pytest.raises(PydanticValidationError):
+        EventCandidateProposal.model_validate(payload)
+
+
+def test_event_candidate_proposal_rejects_nested_scope_identity() -> None:
+    payload = load_example(EXAMPLE_DIR / "valid" / "event-candidate-proposal.json")
+    payload["structured_payload"]["elder_id"] = "runtime-must-not-supply-scope"
+    with pytest.raises(ValidationError):
+        validator_for("agent/EventCandidateProposalV1.json").validate(payload)
+    with pytest.raises(PydanticValidationError):
+        EventCandidateProposal.model_validate(payload)
 
 
 def test_context_manifest_model_output_matches_schema():
@@ -188,6 +210,7 @@ def test_handoff_envelope_model_output_matches_schema():
     [
         (AgentRunRequest, "agent/AgentRunRequestV1.json"),
         (AgentRunResponse, "agent/AgentRunResponseV1.json"),
+        (EventCandidateProposal, "agent/EventCandidateProposalV1.json"),
         (ContextManifest, "agent/ContextManifestV1.json"),
         (SafetyEvaluation, "agent/SafetyEvaluationV1.json"),
         (HandoffEnvelope, "agent/HandoffEnvelopeV1.json"),
@@ -213,6 +236,13 @@ def test_actor_role_enum_is_enforced_by_model():
 def test_allowed_tools_pattern_is_enforced_by_model():
     with pytest.raises(PydanticValidationError):
         AgentRunRequest.model_validate({**make_request_payload(), "allowed_tools": ["NOT A TOOL!"]})
+
+
+def test_requested_outputs_are_closed_to_known_proposals() -> None:
+    with pytest.raises(PydanticValidationError):
+        AgentRunRequest.model_validate(
+            {**make_request_payload(), "requested_outputs": ["formal_event"]}
+        )
 
 
 def test_trace_id_is_optional_on_both_sides():

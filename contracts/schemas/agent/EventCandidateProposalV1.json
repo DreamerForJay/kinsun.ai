@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/agent/EventCandidateProposalV1.json",
+  "title": "EventCandidateProposalV1",
+  "description": "A review-required care-event proposal produced by Agent Runtime. Core supplies and revalidates all actor, tenant, elder, session, authorization, and consent facts before creating a domain Candidate.",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "SafeJsonValue": {
+      "anyOf": [
+        {
+          "type": ["string", "number", "boolean", "null"]
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SafeJsonValue"
+          }
+        },
+        {
+          "$ref": "#/$defs/SafeObject"
+        }
+      ]
+    },
+    "SafeObject": {
+      "type": "object",
+      "propertyNames": {
+        "not": {
+          "enum": [
+            "actor_id",
+            "actor_role",
+            "agent_run_id",
+            "audio",
+            "audio_uri",
+            "consent_id",
+            "consent_version",
+            "elder_id",
+            "transcript",
+            "transcript_text",
+            "input_text",
+            "prompt",
+            "full_prompt",
+            "policy_version",
+            "request_id",
+            "secret",
+            "session_id",
+            "source_id",
+            "source_type",
+            "source_version",
+            "tenant_id",
+            "token",
+            "trace_id",
+            "asr_confidence"
+          ]
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/SafeJsonValue"
+      }
+    }
+  },
+  "required": [
+    "event_type",
+    "event_time",
+    "structured_payload",
+    "evidence_refs",
+    "confidence_band",
+    "review_requirement",
+    "extractor_version"
+  ],
+  "properties": {
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "MEAL",
+        "ACTIVITY",
+        "SLEEP",
+        "MEDICATION_STATEMENT",
+        "EMOTION_EXPRESSION",
+        "SOCIAL_CONTACT",
+        "EXPECTED_CONTACT_MISSED",
+        "ACTIVITY_PARTICIPATION",
+        "ACTIVITY_CANCELLED",
+        "COMPANIONSHIP_NEED"
+      ]
+    },
+    "event_time": {
+      "oneOf": [
+        {
+          "type": "string",
+          "format": "date-time"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "structured_payload": {
+      "$ref": "#/$defs/SafeObject"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "string",
+        "minLength": 45,
+        "maxLength": 45,
+        "pattern": "^evidence:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      }
+    },
+    "confidence_band": {
+      "type": "string",
+      "enum": ["LOW", "MEDIUM", "HIGH"]
+    },
+    "review_requirement": {
+      "type": "string",
+      "const": "REQUIRED"
+    },
+    "extractor_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    }
+  }
+}

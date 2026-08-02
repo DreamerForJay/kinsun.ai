@@ -42,7 +42,7 @@ class TenantScopedTestEntity(BaseModel, TenantScopedMixin):
 
 _TEST_DB_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://kinsun:kinsun_dev@localhost:5432/kinsun_test",
+    "postgresql+asyncpg://kinsun:kinsun_local_dev@localhost:5432/kinsun_test",
 )
 
 # NullPool: `_run_async` opens a fresh event loop per Hypothesis example (see

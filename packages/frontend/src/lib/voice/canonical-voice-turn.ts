@@ -98,11 +98,11 @@ export async function speakTurn(
   apiConfig: ApiConfig,
   elderId: string,
   confirmedText: string,
-  language: SpeechLanguage = 'zh-TW',
+  language: SpeechLanguage,
 ): Promise<VoiceTurnReply> {
   let sessionId: string;
   try {
-    sessionId = (await createVoiceSession(apiConfig, elderId)).session_id;
+    sessionId = (await createVoiceSession(apiConfig, elderId, language)).session_id;
   } catch {
     throw new VoiceTurnError('session', 'could not start a voice session');
   }

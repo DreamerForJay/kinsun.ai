@@ -127,7 +127,7 @@ export function VoiceInteractionPanel({
     async (confirmedText: string) => {
       setState('generating');
       try {
-        const reply = await speakTurn(apiConfig, elderId, confirmedText);
+        const reply = await speakTurn(apiConfig, elderId, confirmedText, language);
         setDisplayText(reply.replyText);
 
         if (reply.textOnlyByLanguage) {
@@ -154,7 +154,7 @@ export function VoiceInteractionPanel({
         setState('idle');
       }
     },
-    [apiConfig, elderId],
+    [apiConfig, elderId, language],
   );
 
   const beginRecording = useCallback(async () => {

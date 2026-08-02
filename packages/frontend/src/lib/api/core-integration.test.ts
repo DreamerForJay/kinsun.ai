@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError, apiFetch, type ApiConfig } from './client';
-import { createTextSession, runCompanionTurn } from './companion';
+import { createTextSession, createVoiceSession, runCompanionTurn } from './companion';
 import {
   activeBasicVoiceConsent,
   activeFamilySharingConsent,
@@ -219,5 +219,32 @@ describe('Core API integration clients', () => {
     expect(turnRequest).toEqual({ input_text: '合成測試文字' });
     expect(turnRequest).not.toHaveProperty('actor_id');
     expect(turnRequest).not.toHaveProperty('tenant_id');
+  });
+
+  it('sends the selected spoken language as Core\'s voice-session route', async () => {
+    vi.stubGlobal('crypto', { randomUUID: () => '00000000-0000-4000-8000-000000000004' });
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      success({
+        session_id: '51000000-0000-4000-8000-000000000004',
+        elder_id: '40000000-0000-4000-8000-000000000001',
+        state: 'CREATED',
+        language_route: 'HAK_TW',
+        consent_version: 1,
+        policy_version: 'demo-consent-v1',
+        transport_status: 'NOT_CONFIGURED',
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await createVoiceSession(config, '40000000-0000-4000-8000-000000000001', 'hak-TW');
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe('/backend/core/api/v1/elders/40000000-0000-4000-8000-000000000001/voice-sessions');
+    expect(JSON.parse(String(init?.body))).toEqual({
+      language_preference: 'HAK_TW',
+      input_mode: 'voice',
+      client_timezone: 'Asia/Taipei',
+      purpose: 'BASIC_VOICE',
+    });
   });
 });

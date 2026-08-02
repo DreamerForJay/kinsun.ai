@@ -29,6 +29,7 @@
       "enum": [
         "CREATED",
         "RECORDING",
+        "AWAITING_CONFIRMATION",
         "PROCESSING",
         "RESPONDING",
         "COMPLETED",

@@ -11,7 +11,9 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config import get_settings
 from app.models.actor import Actor
+from app.models.asr_gate import AsrGateEvidence
 from app.models.care_assignment import CareAssignment
 from app.models.care_unit import CareUnit
 from app.models.consent import ConsentGrant
@@ -24,6 +26,15 @@ from app.services.voice_ticket_codec import VoiceTicketCodec, get_voice_ticket_c
 from tests.integration import test_identity_api as identity_api_tests
 
 SECRET = "integration-voice-ticket-secret-material-32-bytes"
+
+
+@pytest.fixture(autouse=True)
+def enable_asr_gate(monkeypatch):
+    monkeypatch.setenv("ASR_GATE_ENABLED", "true")
+    monkeypatch.setenv("ASR_GATE_HMAC_SECRET", SECRET)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture
@@ -492,3 +503,147 @@ async def test_expired_assignment_issue_has_zero_session_or_outbox_side_effect(
     assert denied.status_code == 404
     assert denied.json()["error"]["reason_code"] == "RESOURCE_NOT_FOUND"
     assert await _counts(test_engine) == before
+
+
+async def _consume_for_asr(test_engine, ids, codec, key: str) -> dict:
+    elder_app = _app(test_engine, ids, role="ELDER", codec=codec)
+    async with AsyncClient(
+        transport=ASGITransport(app=elder_app), base_url="http://test"
+    ) as client:
+        issued = await _issue(client, ids["elder_id"], key)
+    data = issued.json()["data"]
+    system_app = _app(test_engine, ids, role="SYSTEM_SERVICE", codec=codec)
+    async with AsyncClient(
+        transport=ASGITransport(app=system_app), base_url="http://test"
+    ) as client:
+        consumed = await client.post(
+            "/api/v1/internal/voice-tickets/consume",
+            json={
+                "session_id": data["voice_session"]["session_id"],
+                "voice_ticket": data["voice_ticket"],
+            },
+        )
+    assert consumed.status_code == 200
+    return data
+
+
+async def _submit_asr(app, payload: dict):
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        return await client.post("/api/v1/internal/asr-results", json=payload)
+
+
+@pytest.mark.asyncio
+async def test_low_confidence_requires_elder_confirmation_and_never_returns_restricted_data(
+    test_engine, voice_data
+) -> None:
+    ids = voice_data
+    codec = VoiceTicketCodec(SECRET)
+    ticket = await _consume_for_asr(test_engine, ids, codec, "asr-low")
+    system_app = _app(test_engine, ids, role="SYSTEM_SERVICE", codec=codec)
+    transcript = "synthetic low-confidence utterance"
+    payload = {
+        "session_id": ticket["voice_session"]["session_id"],
+        "language_route": "ZH_TW",
+        "asr_model_version": "synthetic-asr-v1",
+        "confidence": 0.42,
+        "transcript": transcript,
+    }
+    submitted = await _submit_asr(system_app, payload)
+    replayed = await _submit_asr(system_app, payload)
+    assert submitted.status_code == replayed.status_code == 200
+    assert submitted.json()["data"]["decision"] == "CONFIRMATION_REQUIRED"
+    assert transcript not in submitted.text
+    assert "confidence" not in submitted.json()["data"]
+
+    factory = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
+    async with factory() as session:
+        evidence = await session.scalar(select(AsrGateEvidence))
+        conversation = await session.get(ConversationSession, UUID(payload["session_id"]))
+        assert evidence is not None
+        assert evidence.transcript is None
+        assert evidence.transcript_digest != transcript
+        assert conversation is not None and conversation.state == "AWAITING_CONFIRMATION"
+
+    elder_app = _app(test_engine, ids, role="ELDER", codec=codec)
+    async with AsyncClient(
+        transport=ASGITransport(app=elder_app), base_url="http://test"
+    ) as client:
+        confirmed = await client.post(
+            f"/api/v1/voice-sessions/{payload['session_id']}/asr-confirmation",
+            headers={"Idempotency-Key": "asr-confirm-1"},
+            json={"action": "CONFIRM"},
+        )
+        confirmed_replay = await client.post(
+            f"/api/v1/voice-sessions/{payload['session_id']}/asr-confirmation",
+            headers={"Idempotency-Key": "asr-confirm-1"},
+            json={"action": "CONFIRM"},
+        )
+    assert confirmed.status_code == confirmed_replay.status_code == 200
+    assert confirmed.json()["data"]["decision"] == "CAN_SEND_TO_AGENT"
+
+
+@pytest.mark.asyncio
+async def test_asr_gate_rejects_wrong_language_wrong_elder_and_revoked_consent(
+    test_engine, voice_data
+) -> None:
+    ids = voice_data
+    codec = VoiceTicketCodec(SECRET)
+    ticket = await _consume_for_asr(test_engine, ids, codec, "asr-negative")
+    system_app = _app(test_engine, ids, role="SYSTEM_SERVICE", codec=codec)
+    payload = {
+        "session_id": ticket["voice_session"]["session_id"],
+        "language_route": "NAN_TW",
+        "asr_model_version": "synthetic-asr-v1",
+        "confidence": 0.99,
+        "transcript": "synthetic wrong language",
+    }
+    wrong_language = await _submit_asr(system_app, payload)
+    assert wrong_language.status_code == 401
+
+    payload["language_route"] = "ZH_TW"
+    cross_tenant_app = _app(
+        test_engine,
+        ids,
+        role="SYSTEM_SERVICE",
+        tenant_key="tenant_b_id",
+        codec=codec,
+    )
+    cross_tenant = await _submit_asr(cross_tenant_app, payload)
+    assert cross_tenant.status_code == 401
+
+    payload["confidence"] = 0.1
+    low = await _submit_asr(system_app, payload)
+    assert low.status_code == 200
+    wrong_elder_app = _app(
+        test_engine,
+        ids,
+        role="ELDER",
+        actor_key="no_consent_actor_id",
+        codec=codec,
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=wrong_elder_app), base_url="http://test"
+    ) as client:
+        wrong_elder = await client.post(
+            f"/api/v1/voice-sessions/{payload['session_id']}/asr-confirmation",
+            headers={"Idempotency-Key": "asr-wrong-elder"},
+            json={"action": "CONFIRM"},
+        )
+    assert wrong_elder.status_code == 404
+
+    elder_app = _app(test_engine, ids, role="ELDER", codec=codec)
+    async with AsyncClient(
+        transport=ASGITransport(app=elder_app), base_url="http://test"
+    ) as client:
+        revoked = await client.post(
+            f"/api/v1/elders/{ids['elder_id']}/consents/{ids['consent_id']}/revoke",
+            headers={"Idempotency-Key": "asr-revoke"},
+            json={"reason_code": "ELDER_REQUEST", "request_deletion": False, "revoke_scope": []},
+        )
+        after_revoke = await client.post(
+            f"/api/v1/voice-sessions/{payload['session_id']}/asr-confirmation",
+            headers={"Idempotency-Key": "asr-after-revoke"},
+            json={"action": "CONFIRM"},
+        )
+    assert revoked.status_code == 200
+    assert after_revoke.status_code == 401

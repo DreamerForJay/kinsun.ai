@@ -34,6 +34,11 @@
       "type": ["string", "null"],
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
     },
+    "agent_run_id": {
+      "description": "Optional Core-owned run identifier. The canonical Core path supplies it before invoking Runtime; direct compatibility callers may omit it.",
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
     "session_id": {
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
@@ -77,12 +82,23 @@
       "maxLength": 4000
     },
     "allowed_tools": {
-      "description": "Explicit per-run allowlist. Only create_event_candidate currently executes; it registers a Core-owned AgentRun before the Tool request, uses that same UUID through terminal completion, and fails closed rather than substituting a local run ID or leaving a known Tool failure as a successful run.",
+      "description": "Legacy per-run Tool allowlist retained for wire compatibility. The canonical Core companion path sends an empty list; Runtime does not use this field to write Core domain state.",
       "type": "array",
       "items": {
         "type": "string",
         "pattern": "^[a-z][a-z0-9_]{1,40}$"
       },
+      "default": []
+    },
+    "requested_outputs": {
+      "description": "Optional Core-derived proposal outputs. This is not an authorization grant and never permits Runtime to write domain state.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["event_candidate"]
+      },
+      "maxItems": 1,
+      "uniqueItems": true,
       "default": []
     },
     "max_steps": {

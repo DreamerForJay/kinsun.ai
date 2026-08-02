@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import Field, JsonValue, field_validator, model_validator
 
-from agent_runtime.contracts.models import ContractBaseModel
+from agent_runtime.contracts.models import ContractBaseModel, EventCandidateProposal
 
 EXTRACTOR_VERSION = "event-extractor-v1"
 EVIDENCE_REF_PATTERN = (
@@ -73,10 +73,8 @@ EvidenceReference = Annotated[
 
 
 class EventExtractionContext(ContractBaseModel):
-    """Opaque source metadata supplied by the caller, never inferred from input text."""
+    """Optional opaque evidence metadata; Core remains source authority."""
 
-    source_id: UUID
-    source_version: int = Field(default=1, ge=1)
     event_time: datetime | None = None
     evidence_refs: list[EvidenceReference] = Field(default_factory=list, max_length=16)
 
@@ -123,4 +121,4 @@ class NoEventCandidate(ContractBaseModel):
     reason_codes: list[NoCandidateReasonField] = Field(min_length=1, max_length=8)
 
 
-type EventExtractorOutput = CreateCareEventCandidateRequestV1 | NoEventCandidate
+type EventExtractorOutput = EventCandidateProposal | NoEventCandidate

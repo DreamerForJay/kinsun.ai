@@ -16,8 +16,13 @@ export type SpeechLanguage = 'zh-TW' | 'en-US' | 'nan-TW' | 'hak-TW';
  *  is deployed yet, so those replies are shown as text. */
 export type SynthesisLanguage = 'zh-TW' | 'en-US';
 
+const SYNTHESIS_LANGUAGE_ALLOWLIST: ReadonlySet<SpeechLanguage> = new Set([
+  'zh-TW',
+  'en-US',
+]);
+
 export function canSynthesize(language: SpeechLanguage): language is SynthesisLanguage {
-  return language === 'zh-TW' || language === 'en-US';
+  return SYNTHESIS_LANGUAGE_ALLOWLIST.has(language);
 }
 
 export interface TranscriptionResult {

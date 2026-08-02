@@ -1,0 +1,15 @@
+{
+  "data": {
+    "event_type": "MEAL",
+    "event_time": null,
+    "structured_payload": {
+      "observation_basis": "ELDER_STATEMENT",
+      "meal_status": "CONSUMED",
+      "meal_period": "BREAKFAST"
+    },
+    "evidence_refs": [],
+    "confidence_band": "MEDIUM",
+    "review_requirement": "REQUIRED",
+    "extractor_version": "event-extractor-v1"
+  }
+}

@@ -7,6 +7,7 @@ metadata when the application or Alembic imports this package.
 from app.models import enums  # noqa: F401
 from app.models.actor import Actor  # noqa: F401
 from app.models.agent import AgentRun, AgentToolCall  # noqa: F401
+from app.models.asr_gate import AsrGateEvidence  # noqa: F401
 from app.models.care_assignment import CareAssignment  # noqa: F401
 from app.models.care_event import CareEvent, CareEventVersion, ReviewDecision  # noqa: F401
 from app.models.care_relationship import CareRelationship  # noqa: F401

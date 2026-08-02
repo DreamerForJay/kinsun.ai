@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kinsun.ai/contracts/schemas/domain/VoiceTicketIssuedV1.json",
+  "title": "VoiceTicketIssuedV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["voice_session", "voice_ticket", "expires_at", "transport_status"],
+  "properties": {
+    "voice_session": {"$ref": "https://kinsun.ai/contracts/schemas/domain/VoiceSessionV1.json"},
+    "voice_ticket": {"type": "string", "minLength": 32, "maxLength": 128},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "transport_status": {"type": "string", "const": "TICKET_ISSUED"}
+  }
+}

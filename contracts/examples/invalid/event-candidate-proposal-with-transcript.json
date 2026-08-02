@@ -1,0 +1,15 @@
+{
+  "_why_invalid": "Agent proposals may contain only minimized structured observations. A transcript nested in structured_payload is Restricted Data and must be rejected before the proposal reaches Core.",
+  "data": {
+    "event_type": "MEAL",
+    "event_time": null,
+    "structured_payload": {
+      "observation_basis": "ELDER_STATEMENT",
+      "transcript": "合成逐字稿也不得出現在 proposal"
+    },
+    "evidence_refs": [],
+    "confidence_band": "MEDIUM",
+    "review_requirement": "REQUIRED",
+    "extractor_version": "event-extractor-v1"
+  }
+}
