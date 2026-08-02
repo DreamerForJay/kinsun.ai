@@ -8,8 +8,23 @@
 }
 
 .label {
+  flex: none;
+  inline-size: 8ch;
+  text-align: end;
   color: var(--color-muted-foreground);
   font-size: var(--text-xs);
+}
+
+.label[data-visually-hidden='true'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .options {
@@ -30,6 +45,7 @@
   color: var(--color-primary-text);
   font-family: inherit;
   font-size: var(--text-sm);
+  font-weight: 700;
   line-height: var(--leading-body);
   cursor: pointer;
   transition: background var(--motion-fast) var(--ease-out);
@@ -48,9 +64,14 @@
 .option[aria-pressed='true'] {
   background: var(--color-primary-weak);
   color: var(--color-primary-text);
-  font-weight: 700;
 }
 
 .check {
+  display: inline-block;
   margin-right: var(--space-1);
+  visibility: hidden;
+}
+
+.check[data-visible='true'] {
+  visibility: visible;
 }

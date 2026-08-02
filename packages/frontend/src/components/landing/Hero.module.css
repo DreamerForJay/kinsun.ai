@@ -1,0 +1,92 @@
+/* Hero — design-system/MASTER.md §7.3 public surface. Tokens only (§14). */
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-4);
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-4) var(--space-8);
+}
+
+.mascot {
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-1);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-body);
+  color: var(--color-foreground);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+/* Label is --text-lg (24px) bold — clears the large-text 3:1 bar, so
+   --color-primary (3.68:1) is allowed here (MASTER.md §4.1, §13). */
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-rec);
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  text-decoration: none;
+  transition: background var(--motion-fast) var(--ease-out);
+}
+
+.primary:hover,
+.primary:focus-visible {
+  background: var(--color-primary-strong);
+}
+
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-rec);
+  padding: 0 var(--space-6);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-primary-text);
+  font-size: var(--text-base);
+  font-weight: 700;
+  text-decoration: none;
+  transition: background var(--motion-fast) var(--ease-out);
+}
+
+.secondary:hover,
+.secondary:focus-visible {
+  background: var(--color-primary-weak);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary,
+  .secondary {
+    transition: none;
+  }
+}

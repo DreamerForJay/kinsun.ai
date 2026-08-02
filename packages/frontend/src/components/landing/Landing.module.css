@@ -1,0 +1,42 @@
+.closing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-10) var(--space-4) var(--space-12);
+  text-align: center;
+}
+
+.closingTitle {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+.closingBody {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+}
+
+/* Plain link, not a filled button — Hero already owns the one filled action
+   allowed per screen (MASTER.md §8.1). */
+.closingCta {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  margin-top: var(--space-2);
+  color: var(--color-primary-text);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.closingCta:hover,
+.closingCta:focus-visible {
+  text-decoration: underline;
+}
