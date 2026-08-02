@@ -33,7 +33,7 @@ from app.models.report import FamilyRelationship, FamilyReport, ReportVersion  #
 from app.models.summary import DailySummary, SummaryVersion  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 
-EXPECTED_REVISION = "c1a9e7f24b63"
+EXPECTED_REVISION = "9b2e4c6d8f10"
 MANIFEST_PATH = REPO_ROOT / "data" / "seed" / "demo_ids.json"
 ALLOWED_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 E2E_DATABASE_PREFIX = "kinsun_frontend_e2e_"
@@ -260,7 +260,6 @@ async def _seed(session: AsyncSession, manifest: dict) -> None:
         "care_event:review",
         "memory:candidate:create",
         "memory:candidate:read",
-        "memory:confirm",
         "memory:reject",
         "memory:defer",
         "memory:read",

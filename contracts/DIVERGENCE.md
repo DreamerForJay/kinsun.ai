@@ -11,7 +11,7 @@
 - 所有業務 API 成功回應都使用 `SuccessEnvelope`，並帶 `meta.schema_version = "1.0"`；`/health`、`/ready` 保持運維探針格式。
 - 所有錯誤回應都使用 `ErrorEnvelope`，並帶穩定的 `reason_code` 與 `retryable`。
 - Elder、Consent、Voice Session metadata、Care Event、Memory、Daily Summary、Family Report、Assignment、Deletion status 與受控 Tool endpoint 已列入 OpenAPI。
-- Care Event 一般讀取只回傳 `VERIFIED`／`CORRECTED`，Daily Summary 一般讀取只回傳 `READY`／`PUBLISHED`；明確要求其他可覆核狀態時必須額外通過對應 review scope，長者本人不得取得照護者 review scope，單筆拒絕維持不可探測 404，`DELETED` Care Event 不會由讀取 API 回傳。
+- Care Event 一般讀取只回傳 `VERIFIED`／`CORRECTED`，Daily Summary 一般讀取只回傳 `READY`／`PUBLISHED`；明確要求其他可覆核狀態時必須額外通過對應 review scope，長者本人不得取得照護者 review scope，單筆拒絕維持不可探測 404，`DELETED` Care Event 不會由讀取 API 回傳。Care Event 的 `event_type`、`date_from`、`date_to` 會在 tenant／elder scope 內、opaque cursor 分頁之前由 repository 過濾；日期以 UTC `COALESCE(event_time, created_at)` 且含首尾日。
 - JSON Schema 頂層採 `additionalProperties: false`；Care Event、Tool 與 Domain Event 會拒絕 transcript、audio、prompt、secret、token 等 Restricted Data 欄位。
 - 新增 Domain Event Envelope、AsyncAPI 與 provider-neutral publisher／consumer failure contract；Outbox relay 與 Consumer 的 idempotent foundation 會在處理前重查 Consent、tenant scope、aggregate state 與通用 hash Tombstone，並以穩定 `reason_code`、`retryable`、attempt limit 與 `RETRY`／`DEAD_LETTER` 表達失敗，不保存原始 exception message。
 - Contract validator 驗證 JSON Schema、OpenAPI、AsyncAPI、正常與刻意錯誤範例；live verifier 比對 runtime 與 contract operation，並抽查 GET endpoint 的 fail-closed 行為。
@@ -77,6 +77,15 @@ Core 已實作 Cognito JWT verifier，且以兩條明確分離的路徑使用：
 
 目前 contract 不代表 staging Cognito domain、Google provider secret、callback URL 或正式
 Refresh Token rotation 已部署／驗證；這些仍須由環境設定與部署證據確認。
+
+### Memory confirmation authority
+
+目前 `POST /api/v1/elders/{elder_id}/memory-candidates/{memory_id}/confirm` 只有通過
+server-side elder-self authorization 的 `ELDER_UI` 可使 Candidate 成為 `ACTIVE`。Core 由
+request trace 產生 opaque `confirmation_evidence_ref`，不接受 client 提供 actor、elder 或
+confirmation authority。`CAREGIVER_REVIEW` 與 `LEGAL_REPRESENTATIVE` 僅為同一 major 的
+相容解析值，執行時一律以不可探測回應 fail closed，且不得留下 formal write／outbox；後續
+major 才移除。`VOICE` 仍需 candidate-specific affirmative evidence，因此尚不可用。
 
 ### Voice transport
 

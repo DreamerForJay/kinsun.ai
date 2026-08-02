@@ -311,9 +311,16 @@ async def main() -> int:
         )
         for path in protected_gets:
             url = re.sub(r"\{[^}]+\}", sample_uuid, path)
-            params = (
-                {"mode": "daycare"} if path == "/api/v1/me/authorized-elders" else None
-            )
+            if path == "/api/v1/me/authorized-elders":
+                params = {"mode": "daycare"}
+            elif path == "/api/v1/elders/{elder_id}/care-events":
+                params = {
+                    "event_type": "MEAL",
+                    "date_from": "2026-08-01",
+                    "date_to": "2026-08-02",
+                }
+            else:
+                params = None
             response = await client.get(url, params=params)
             label = f"GET {path} fails closed"
             if response.status_code != 401:
