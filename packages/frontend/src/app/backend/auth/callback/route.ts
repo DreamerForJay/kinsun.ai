@@ -31,8 +31,9 @@ function sameOriginRedirect(location: string): NextResponse {
   return new NextResponse(null, { status: 303, headers: { Location: location } });
 }
 
-function failedCallback(): Response {
-  return clearTransaction(noStore(sameOriginRedirect('/sign-in?error=oauth_failed')));
+function failedCallback(clearCurrentTransaction = true): Response {
+  const response = noStore(sameOriginRedirect('/sign-in?error=oauth_failed'));
+  return clearCurrentTransaction ? clearTransaction(response) : response;
 }
 
 const LOGGABLE_OAUTH_ERROR_CODES = new Set([
@@ -66,6 +67,16 @@ export async function GET(request: NextRequest): Promise<Response> {
   const codes = request.nextUrl.searchParams.getAll('code');
   const states = request.nextUrl.searchParams.getAll('state');
   const errors = request.nextUrl.searchParams.getAll('error');
+  const transactionCookie = request.cookies.get(oauthTransactionCookieName())?.value;
+  const transaction = parseOAuthTransaction(transactionCookie);
+  const callbackOwnsCurrentTransaction =
+    transaction !== null &&
+    states.length === 1 &&
+    stateMatches(transaction, states[0] ?? null);
+  /* A missing/invalid cookie is safe to expire. A valid cookie is cleared only
+     when this callback proves ownership with its state. Otherwise a delayed
+     callback from login A could erase the newer transaction for login B. */
+  const clearCurrentTransaction = transaction === null || callbackOwnsCurrentTransaction;
   /* These two branches used to return without logging anything, which made a
      failed second sign-in indistinguishable from a failed first one: the user
      saw "這次登入沒有完成" and the server said nothing at all. Both are now
@@ -75,28 +86,29 @@ export async function GET(request: NextRequest): Promise<Response> {
       stage: 'provider_error',
       oauth_error: safeOAuthErrorCode(errors.length === 1 ? (errors[0] ?? null) : null),
       error_count: errors.length,
+      current_transaction_preserved: !clearCurrentTransaction,
     });
-    return failedCallback();
+    return failedCallback(clearCurrentTransaction);
   }
   if (codes.length !== 1 || states.length !== 1) {
     console.error('[auth] OAuth callback failed', {
       stage: 'malformed_redirect',
       code_count: codes.length,
       state_count: states.length,
+      current_transaction_preserved: !clearCurrentTransaction,
     });
-    return failedCallback();
+    return failedCallback(clearCurrentTransaction);
   }
 
-  const transactionCookie = request.cookies.get(oauthTransactionCookieName())?.value;
-  const transaction = parseOAuthTransaction(transactionCookie);
-  if (!transaction || !stateMatches(transaction, states[0] ?? null)) {
+  if (!transaction || !callbackOwnsCurrentTransaction) {
     console.error('[auth] OAuth callback failed', {
       stage: 'transaction',
       cookie_present: Boolean(transactionCookie),
       transaction_valid: Boolean(transaction),
-      state_matches: transaction ? stateMatches(transaction, states[0] ?? null) : false,
+      state_matches: false,
+      current_transaction_preserved: !clearCurrentTransaction,
     });
-    return failedCallback();
+    return failedCallback(clearCurrentTransaction);
   }
 
   let stage: 'token_exchange' | 'core_onboarding' = 'token_exchange';

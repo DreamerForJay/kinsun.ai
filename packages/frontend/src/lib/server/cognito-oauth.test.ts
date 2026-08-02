@@ -162,6 +162,7 @@ describe('Cognito OAuth BFF routes', () => {
       stage: 'provider_error',
       oauth_error: 'access_denied',
       error_count: 1,
+      current_transaction_preserved: false,
     });
     const serializedLog = JSON.stringify(errorSpy.mock.calls);
     expect(serializedLog).not.toContain('synthetic-provider-description-secret');
@@ -181,6 +182,7 @@ describe('Cognito OAuth BFF routes', () => {
       stage: 'provider_error',
       oauth_error: 'unrecognised',
       error_count: 2,
+      current_transaction_preserved: false,
     });
     expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('attacker_chosen_log_value');
   });
@@ -199,6 +201,7 @@ describe('Cognito OAuth BFF routes', () => {
       stage: 'malformed_redirect',
       code_count: 2,
       state_count: 1,
+      current_transaction_preserved: false,
     });
     expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('synthetic-code-one');
     expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('synthetic-state');
@@ -217,10 +220,114 @@ describe('Cognito OAuth BFF routes', () => {
       cookie_present: false,
       transaction_valid: false,
       state_matches: false,
+      current_transaction_preserved: false,
     });
     const serializedLog = JSON.stringify(errorSpy.mock.calls);
     expect(serializedLog).not.toContain('synthetic-code-secret');
     expect(serializedLog).not.toContain('synthetic-state-secret');
+  });
+
+  it('preserves a newer login transaction when an older callback arrives late', async () => {
+    configureOAuth();
+    const beginStaffLogin = () =>
+      login(
+        request('/backend/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Origin: 'http://localhost:3000',
+          },
+          body: new URLSearchParams({ intent: 'STAFF', returnTo: '/onboarding/resolve' }),
+        }),
+      );
+    const firstLogin = await beginStaffLogin();
+    const firstTransaction = parseOAuthTransaction(
+      cookieValue(firstLogin, oauthTransactionCookieName()),
+    );
+    expect(firstTransaction).not.toBeNull();
+
+    const logoutResponse = logout(
+      request('/backend/auth/logout', {
+        method: 'POST',
+        headers: { Origin: 'http://localhost:3000' },
+      }),
+    );
+    expect(cookieValue(logoutResponse, oauthTransactionCookieName())).toBe('');
+
+    const secondLogin = await beginStaffLogin();
+    const secondCookie = cookieValue(secondLogin, oauthTransactionCookieName());
+    const secondTransaction = parseOAuthTransaction(secondCookie);
+    expect(secondTransaction).not.toBeNull();
+    expect(secondTransaction?.state).not.toBe(firstTransaction?.state);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const staleResponse = await callback(
+      request(
+        `/backend/auth/callback?code=stale-code&state=${encodeURIComponent(firstTransaction?.state ?? '')}`,
+        { headers: { Cookie: `${oauthTransactionCookieName()}=${secondCookie}` } },
+      ),
+    );
+    expect(staleResponse.headers.get('location')).toBe('/sign-in?error=oauth_failed');
+    expect(setCookieHeader(staleResponse)).not.toContain(`${oauthTransactionCookieName()}=`);
+    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
+      stage: 'transaction',
+      cookie_present: true,
+      transaction_valid: true,
+      state_matches: false,
+      current_transaction_preserved: true,
+    });
+
+    const fetchMock = vi.fn(async (): Promise<Response> =>
+      Response.json({
+        access_token: 'synthetic-second-access-token',
+        expires_in: 3600,
+        id_token: idToken(secondTransaction?.nonce ?? ''),
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const secondCallback = await callback(
+      request(
+        `/backend/auth/callback?code=second-code&state=${encodeURIComponent(secondTransaction?.state ?? '')}`,
+        { headers: { Cookie: `${oauthTransactionCookieName()}=${secondCookie}` } },
+      ),
+    );
+    expect(secondCallback.headers.get('location')).toBe('/onboarding/resolve');
+    expect(cookieValue(secondCallback, 'kinsun_access_token')).toBe(
+      'synthetic-second-access-token',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not erase a newer family invitation transaction on a stale provider error', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const staleTransaction = createOAuthTransaction('/onboarding/resolve', 'FAMILY');
+    const currentTransaction = createOAuthTransaction(
+      '/onboarding/resolve',
+      'FAMILY',
+      'family-invite-code',
+    );
+
+    const response = await callback(
+      request(
+        `/backend/auth/callback?error=access_denied&state=${encodeURIComponent(staleTransaction.state)}`,
+        {
+          headers: {
+            Cookie: `${oauthTransactionCookieName()}=${serializeOAuthTransaction(currentTransaction)}`,
+          },
+        },
+      ),
+    );
+
+    expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
+    expect(setCookieHeader(response)).not.toContain(`${oauthTransactionCookieName()}=`);
+    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
+      stage: 'provider_error',
+      oauth_error: 'access_denied',
+      error_count: 1,
+      current_transaction_preserved: true,
+    });
+    expect(currentTransaction.invitationCode).toBe('family-invite-code');
   });
 
   it('exchanges a matching callback code without exposing tokens in the redirect', async () => {
