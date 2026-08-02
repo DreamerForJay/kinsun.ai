@@ -35,17 +35,69 @@ function failedCallback(): Response {
   return clearTransaction(noStore(sameOriginRedirect('/sign-in?error=oauth_failed')));
 }
 
+const LOGGABLE_OAUTH_ERROR_CODES = new Set([
+  'access_denied',
+  'account_selection_required',
+  'consent_required',
+  'interaction_required',
+  'invalid_request',
+  'invalid_request_object',
+  'invalid_request_uri',
+  'invalid_scope',
+  'login_required',
+  'request_not_supported',
+  'request_uri_not_supported',
+  'server_error',
+  'temporarily_unavailable',
+  'unauthorized_client',
+  'unsupported_response_type',
+]);
+
+/**
+ * Only standard OAuth/OIDC error identifiers are safe to log. Unknown values
+ * collapse to one bounded label so an attacker cannot inject free text or
+ * create unbounded log cardinality. `error_description` is never read here.
+ */
+function safeOAuthErrorCode(value: string | null): string {
+  return value !== null && LOGGABLE_OAUTH_ERROR_CODES.has(value) ? value : 'unrecognised';
+}
+
 export async function GET(request: NextRequest): Promise<Response> {
   const codes = request.nextUrl.searchParams.getAll('code');
   const states = request.nextUrl.searchParams.getAll('state');
-  if (codes.length !== 1 || states.length !== 1 || request.nextUrl.searchParams.has('error')) {
+  const errors = request.nextUrl.searchParams.getAll('error');
+  /* These two branches used to return without logging anything, which made a
+     failed second sign-in indistinguishable from a failed first one: the user
+     saw "這次登入沒有完成" and the server said nothing at all. Both are now
+     reported, because which one fires is the whole diagnosis. */
+  if (errors.length > 0) {
+    console.error('[auth] OAuth callback failed', {
+      stage: 'provider_error',
+      oauth_error: safeOAuthErrorCode(errors.length === 1 ? (errors[0] ?? null) : null),
+      error_count: errors.length,
+    });
+    return failedCallback();
+  }
+  if (codes.length !== 1 || states.length !== 1) {
+    console.error('[auth] OAuth callback failed', {
+      stage: 'malformed_redirect',
+      code_count: codes.length,
+      state_count: states.length,
+    });
     return failedCallback();
   }
 
-  const transaction = parseOAuthTransaction(
-    request.cookies.get(oauthTransactionCookieName())?.value,
-  );
-  if (!transaction || !stateMatches(transaction, states[0] ?? null)) return failedCallback();
+  const transactionCookie = request.cookies.get(oauthTransactionCookieName())?.value;
+  const transaction = parseOAuthTransaction(transactionCookie);
+  if (!transaction || !stateMatches(transaction, states[0] ?? null)) {
+    console.error('[auth] OAuth callback failed', {
+      stage: 'transaction',
+      cookie_present: Boolean(transactionCookie),
+      transaction_valid: Boolean(transaction),
+      state_matches: transaction ? stateMatches(transaction, states[0] ?? null) : false,
+    });
+    return failedCallback();
+  }
 
   let stage: 'token_exchange' | 'core_onboarding' = 'token_exchange';
   try {

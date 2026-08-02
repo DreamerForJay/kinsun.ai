@@ -143,6 +143,86 @@ describe('Cognito OAuth BFF routes', () => {
     expect(cookieValue(response, oauthTransactionCookieName())).toBeUndefined();
   });
 
+  it('logs only an allowlisted provider error identifier', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const query = new URLSearchParams({
+      error: 'access_denied',
+      error_description: 'synthetic-provider-description-secret',
+      code: 'synthetic-authorization-code-secret',
+      state: 'synthetic-state-secret',
+    });
+
+    const response = await callback(request(`/backend/auth/callback?${query.toString()}`));
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
+      stage: 'provider_error',
+      oauth_error: 'access_denied',
+      error_count: 1,
+    });
+    const serializedLog = JSON.stringify(errorSpy.mock.calls);
+    expect(serializedLog).not.toContain('synthetic-provider-description-secret');
+    expect(serializedLog).not.toContain('synthetic-authorization-code-secret');
+    expect(serializedLog).not.toContain('synthetic-state-secret');
+  });
+
+  it('collapses attacker-controlled provider errors to one bounded log value', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await callback(
+      request('/backend/auth/callback?error=attacker_chosen_log_value&error=access_denied'),
+    );
+
+    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
+      stage: 'provider_error',
+      oauth_error: 'unrecognised',
+      error_count: 2,
+    });
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('attacker_chosen_log_value');
+  });
+
+  it('logs only counts for a malformed redirect', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await callback(
+      request(
+        '/backend/auth/callback?code=synthetic-code-one&code=synthetic-code-two&state=synthetic-state',
+      ),
+    );
+
+    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
+      stage: 'malformed_redirect',
+      code_count: 2,
+      state_count: 1,
+    });
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('synthetic-code-one');
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('synthetic-state');
+  });
+
+  it('logs only transaction booleans when state validation fails', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await callback(
+      request('/backend/auth/callback?code=synthetic-code-secret&state=synthetic-state-secret'),
+    );
+
+    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
+      stage: 'transaction',
+      cookie_present: false,
+      transaction_valid: false,
+      state_matches: false,
+    });
+    const serializedLog = JSON.stringify(errorSpy.mock.calls);
+    expect(serializedLog).not.toContain('synthetic-code-secret');
+    expect(serializedLog).not.toContain('synthetic-state-secret');
+  });
+
   it('exchanges a matching callback code without exposing tokens in the redirect', async () => {
     configureOAuth();
     vi.stubEnv('CORE_ONBOARDING_REDEEM_URL', 'http://127.0.0.1:8000/api/v1/onboarding/resolve');
@@ -222,6 +302,7 @@ describe('Cognito OAuth BFF routes', () => {
 
   it('does not send an ID token to a cross-origin onboarding endpoint', async () => {
     configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.stubEnv('CORE_ONBOARDING_REDEEM_URL', 'https://attacker.example/api/v1/onboarding/resolve');
     const transaction = createOAuthTransaction('/onboarding/resolve', 'ELDER');
     const fetchMock = vi.fn(async (): Promise<Response> =>
@@ -247,6 +328,9 @@ describe('Cognito OAuth BFF routes', () => {
     expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(cookieValue(response, 'kinsun_access_token')).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalledWith('[auth] OAuth callback failed', {
+      stage: 'core_onboarding',
+    });
   });
 
   it('clears the local session before redirecting through Cognito logout', () => {
