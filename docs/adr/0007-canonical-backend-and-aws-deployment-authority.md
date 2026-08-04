@@ -123,8 +123,9 @@ app-client reference 修正為 `kinsun-web-bff-staging`；canonical parameter �
   `desiredCount=0`，staging 每個 service 上限 1 task、每個 task 0.5 vCPU／1 GiB。部署前仍須
   完成 ECR immutable digest preflight、foundation runtime DB Secret／migration repository update、
   migration、synthetic consent bootstrap、Cognito callback 與 smoke gates。
-- Next.js 14 已不在目前 upstream security release 的修補線；在新 ADR 選定並驗證受支援
-  major version前，禁止公開部署 Frontend 或把 service scale 到 1。
+- Frontend 已由 [ADR 0008](0008-next-16-supported-release-upgrade.md) 升至 Next.js 16／React 19，
+  production dependency audit、Linux image build 與 runtime smoke 已通過。這只解除原本的
+  framework blocker；ECR digest、Cognito callback、migration、內部 smoke 與 scale gates 仍未完成。
 - staging 月費上限、24/7 或 demo-hours、production
   account／region、正式 Bedrock model／Guardrail、retention 與 voice performance gate 仍需
   Owner 決策。Aurora foundation 已固定 min 0／max 1 ACU、15 分鐘 auto-pause。

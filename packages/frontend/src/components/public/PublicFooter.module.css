@@ -1,0 +1,40 @@
+/* PublicFooter — design-system/MASTER.md §7.3. Not sticky; carries legal links
+   only, never voice interaction or anything requiring Core authorization. */
+
+.footer {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4) var(--space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  color: var(--color-primary-text);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.link:hover,
+.link:focus-visible {
+  text-decoration: underline;
+}
+
+.note {
+  margin: 0;
+  color: var(--color-muted-foreground);
+  font-size: var(--text-xs);
+  line-height: var(--leading-body);
+}

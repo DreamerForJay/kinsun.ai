@@ -45,7 +45,9 @@ DATA_SCHEMA_FOR = {
     "agent-run-registration-with-identity.json": "domain/RegisterAgentRunRequestV1.json",
     "agent-run-completion-request.json": "domain/CompleteAgentRunRequestV1.json",
     "agent-run-completion-response.json": "domain/AgentRunCompletionV1.json",
-    "agent-run-completion-running-status.json": ("domain/CompleteAgentRunRequestV1.json"),
+    "agent-run-completion-running-status.json": (
+        "domain/CompleteAgentRunRequestV1.json"
+    ),
     "tool-response.json": "tools/ToolResponseV1.json",
     "tool-request-missing-consent-version.json": "tools/ToolRequestV1.json",
     "tool-response-missing-retryable.json": "tools/ToolResponseV1.json",
@@ -55,6 +57,13 @@ DATA_SCHEMA_FOR = {
     "companion-turn-response.json": "domain/CompanionTurnV1.json",
     "companion-turn-request-extra-field.json": "domain/CompanionTurnRequestV1.json",
     "companion-turn-response-with-input.json": "domain/CompanionTurnV1.json",
+    "voice-ticket-issue-request.json": "domain/CreateVoiceTicketRequestV1.json",
+    "voice-ticket-issued-response.json": "domain/VoiceTicketIssuedV1.json",
+    "voice-ticket-consume-request.json": "domain/ConsumeVoiceTicketRequestV1.json",
+    "voice-ticket-issue-with-client-scope.json": (
+        "domain/CreateVoiceTicketRequestV1.json"
+    ),
+    "voice-ticket-consume-with-actor.json": ("domain/ConsumeVoiceTicketRequestV1.json"),
     "care-event-candidate.json": "domain/CreateCareEventCandidateRequestV1.json",
     "care-event-candidate-with-transcript.json": "domain/CreateCareEventCandidateRequestV1.json",
     "care-event-candidate-evidence-must-be-opaque.json": (
@@ -62,7 +71,7 @@ DATA_SCHEMA_FOR = {
     ),
     "memory-candidate.json": "domain/CreateMemoryCandidateRequestV1.json",
     "memory-candidate-without-source.json": "domain/CreateMemoryCandidateRequestV1.json",
-    "memory-confirm-caregiver.json": "domain/ConfirmMemoryRequestV1.json",
+    "memory-confirm-elder-ui.json": "domain/ConfirmMemoryRequestV1.json",
     "memory-confirm-voice-without-evidence.json": "domain/ConfirmMemoryRequestV1.json",
     "summary-draft.json": "domain/CreateSummaryDraftRequestV1.json",
     "summary-draft-without-evidence-or-gap.json": "domain/CreateSummaryDraftRequestV1.json",
@@ -88,6 +97,7 @@ DATA_SCHEMA_FOR = {
     "retrieval-request-top-k-ten.json": "rag/retrieval-request.schema.json",
     "retrieval-response.json": "rag/retrieval-response.schema.json",
     "retrieval-response-missing-source-url.json": "rag/retrieval-response.schema.json",
+    "retrieval-response-half-populated-page-range.json": "rag/retrieval-response.schema.json",
     "onboarding-resolve-elder-request.json": "domain/ResolveOnboardingRequestV1.json",
     "onboarding-resolve-family-request.json": "domain/ResolveOnboardingRequestV1.json",
     "onboarding-resolve-response.json": "domain/ResolveOnboardingV1.json",

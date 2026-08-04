@@ -1,0 +1,20 @@
+{
+  "data": {
+    "voice_session": {
+      "session_id": "53000000-0000-4000-8000-000000000001",
+      "elder_id": "30000000-0000-4000-8000-000000000001",
+      "state": "CREATED",
+      "language_route": "ZH_TW",
+      "consent_version": 1,
+      "policy_version": "demo-consent-v1",
+      "started_at": "2026-08-02T09:00:00Z",
+      "ended_at": null,
+      "transport_status": "NOT_CONFIGURED",
+      "websocket_url": null,
+      "connection_token": null
+    },
+    "voice_ticket": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "expires_at": "2026-08-02T09:01:00Z",
+    "transport_status": "TICKET_ISSUED"
+  }
+}

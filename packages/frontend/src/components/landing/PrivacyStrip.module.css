@@ -1,0 +1,67 @@
+/* PrivacyStrip — tokens only (§14). Left border marks this as a trust/notice
+   block without repurposing the §4.2 workflow-state colour pairs. */
+
+.section {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4);
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+.subtitle {
+  max-width: 720px;
+  margin: 0 0 var(--space-6);
+  color: var(--color-muted-foreground);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+}
+
+.list {
+  max-width: 720px;
+  margin: 0 0 var(--space-6);
+  padding: var(--card-pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  list-style: none;
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-1);
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  color: var(--color-foreground);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+}
+
+.icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--color-primary-text);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min);
+  color: var(--color-primary-text);
+  font-size: var(--text-base);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.cta:hover,
+.cta:focus-visible {
+  text-decoration: underline;
+}

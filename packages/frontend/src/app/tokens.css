@@ -166,3 +166,23 @@
   --card-pad: var(--space-6);
   --block-gap: var(--space-8);
 }
+
+/* ---- surface: public (signed-out landing + legal pages). Audience is
+       unknown — could be the elder, a family member, or a care worker
+       (MASTER.md §5.1's rationale for sign-in applies here too) — so the
+       scale sits between voice and family rather than matching either. ---- */
+[data-surface='public'] {
+  --color-background: var(--cyan-25);
+  --text-xs: 14px;
+  --text-sm: 16px;
+  --text-base: 20px;
+  --text-lg: 24px;
+  --text-xl: 30px;
+  --text-2xl: 38px;
+  --text-3xl: 48px;
+  --leading-body: 1.7;
+  --touch-min: 56px;
+  --touch-rec: 56px;
+  --card-pad: var(--space-6);
+  --block-gap: var(--space-10);
+}

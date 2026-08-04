@@ -11,6 +11,7 @@ import logging
 from collections.abc import AsyncGenerator
 
 from fastapi import Depends
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ServiceUnavailableError
@@ -51,6 +52,8 @@ async def get_db_session(
       check before raising ``ServiceUnavailableError`` (HTTP 503).
     - Auto-commits on success.
     - Auto-rolls back on exception, then re-raises.
+    - Converts an invalidated database connection to a controlled 503 without
+      retrying the request transaction.
 
     Usage as a FastAPI dependency::
 
@@ -73,6 +76,17 @@ async def get_db_session(
         try:
             yield session
             await session.commit()
-        except Exception:
-            await session.rollback()
+        except Exception as exc:
+            try:
+                await session.rollback()
+            except Exception:
+                # A disconnected session often cannot roll back. Preserve the
+                # original failure and avoid logging driver text, which can
+                # contain connection metadata.
+                logger.warning("Database session rollback failed")
+
+            if isinstance(exc, DBAPIError) and exc.connection_invalidated:
+                db_engine.mark_unready()
+                logger.warning("Database connection invalidated during request")
+                raise ServiceUnavailableError("Database is unavailable") from None
             raise

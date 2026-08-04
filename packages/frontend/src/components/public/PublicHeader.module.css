@@ -1,0 +1,200 @@
+/* PublicHeader — design-system/MASTER.md §7.3 (public surface), §8.1 (single
+   filled action per screen: the sign-in link), §8.4 (icon + text discipline).
+   Tokens only, no raw hex (§14). */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-4);
+}
+
+.brand {
+  flex: 0 0 23rem;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-foreground);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.brandCompact {
+  display: none;
+}
+
+.brand:hover,
+.brand:focus-visible {
+  color: var(--color-primary-text);
+}
+
+/* Hidden ≥768px — the panel renders inline instead (§7.1 tablet is primary). */
+.menuToggle {
+  display: none;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 9.25rem;
+  min-height: var(--touch-min);
+  padding: 0 var(--space-3);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.panel {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.nav {
+  display: grid;
+  grid-template-columns: 4.5rem 7rem 11.25rem;
+  gap: var(--space-3);
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  color: var(--color-foreground);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: border-color var(--motion-fast) var(--ease-out);
+}
+
+.navLink:hover,
+.navLink:focus-visible {
+  border-bottom-color: var(--color-primary);
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.authAction {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 7rem;
+}
+
+/* Label sits at --text-sm (16px on this surface), under the 24px large-text
+   bar, so the fill must be primary-strong (5.36:1) rather than primary
+   (3.68:1) — MASTER.md §4.1. */
+.signIn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-min);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-strong);
+  color: var(--color-on-primary);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* Tablet keeps the full navigation visible as required by MASTER.md §7.3,
+   but always uses the same two-row structure in both locales. */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .bar {
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    flex: 1 0 100%;
+  }
+
+  .panel {
+    flex: 1 0 100%;
+    justify-content: space-between;
+    width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  .bar {
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    flex: 1 1 auto;
+  }
+
+  .brandFull {
+    display: none;
+  }
+
+  .brandCompact {
+    display: inline;
+  }
+
+  .menuToggle {
+    display: inline-flex;
+  }
+
+  .panel {
+    display: none;
+    flex: none;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .panel[data-open='true'] {
+    display: flex;
+  }
+
+  .nav {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .authAction {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navLink {
+    transition: none;
+  }
+}

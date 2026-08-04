@@ -1,0 +1,76 @@
+/* ModuleCards — status badges use icon + text + colour together (§4.2's
+   colour-not-only principle, applied here to feature status rather than a
+   workflow state). Tokens only, no raw hex (§14). */
+
+.section {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4);
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+.subtitle {
+  max-width: 720px;
+  margin: 0 0 var(--space-6);
+  color: var(--color-muted-foreground);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--card-pad);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-1);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-foreground);
+}
+
+.status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.available {
+  color: var(--color-accent-text);
+}
+
+.partial {
+  color: var(--color-primary-text);
+}
+
+.planned {
+  color: var(--color-muted-foreground);
+}
+
+.cardBody {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}

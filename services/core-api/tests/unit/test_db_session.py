@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy.exc import DBAPIError
 
 from app.core.exceptions import ServiceUnavailableError
 from app.db.engine import DatabaseEngine
@@ -71,3 +72,61 @@ async def test_ready_engine_does_not_probe_connectivity() -> None:
         await anext(dependency)
 
     engine.recover_connectivity.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_invalidated_connection_returns_service_unavailable_and_marks_engine() -> None:
+    engine, session = _mock_engine(ready=True)
+    dependency = get_db_session(engine)
+    assert await anext(dependency) is session
+    disconnect = DBAPIError(
+        "SELECT synthetic",
+        {},
+        RuntimeError("synthetic connection closed"),
+        connection_invalidated=True,
+    )
+
+    with pytest.raises(ServiceUnavailableError, match="Database is unavailable"):
+        await dependency.athrow(disconnect)
+
+    session.rollback.assert_awaited_once()
+    engine.mark_unready.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_non_disconnect_database_error_is_not_reclassified() -> None:
+    engine, session = _mock_engine(ready=True)
+    dependency = get_db_session(engine)
+    assert await anext(dependency) is session
+    database_error = DBAPIError(
+        "SELECT synthetic",
+        {},
+        RuntimeError("synthetic statement failure"),
+        connection_invalidated=False,
+    )
+
+    with pytest.raises(DBAPIError) as exc_info:
+        await dependency.athrow(database_error)
+
+    assert exc_info.value is database_error
+    session.rollback.assert_awaited_once()
+    engine.mark_unready.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_rollback_failure_does_not_hide_invalidated_connection() -> None:
+    engine, session = _mock_engine(ready=True)
+    session.rollback.side_effect = RuntimeError("synthetic rollback failure")
+    dependency = get_db_session(engine)
+    assert await anext(dependency) is session
+    disconnect = DBAPIError(
+        "SELECT synthetic",
+        {},
+        RuntimeError("synthetic connection closed"),
+        connection_invalidated=True,
+    )
+
+    with pytest.raises(ServiceUnavailableError, match="Database is unavailable"):
+        await dependency.athrow(disconnect)
+
+    engine.mark_unready.assert_called_once_with()

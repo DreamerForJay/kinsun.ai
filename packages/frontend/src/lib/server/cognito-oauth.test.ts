@@ -41,9 +41,9 @@ function configureOAuth(): void {
   vi.stubEnv('CORE_ONBOARDING_REDEEM_URL', '');
 }
 
-function idToken(nonce: string): string {
+function idToken(nonce: string, claims: Record<string, unknown> = {}): string {
   const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
-  const payload = Buffer.from(JSON.stringify({ nonce })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ nonce, ...claims })).toString('base64url');
   return `${header}.${payload}.signature`;
 }
 
@@ -152,6 +152,201 @@ describe('Cognito OAuth BFF routes', () => {
     expect(cookieValue(response, oauthTransactionCookieName())).toBeUndefined();
   });
 
+  it('logs only an allowlisted provider error identifier', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const query = new URLSearchParams({
+      error: 'access_denied',
+      error_description: 'synthetic-provider-description-secret',
+      code: 'synthetic-authorization-code-secret',
+      state: 'synthetic-state-secret',
+    });
+
+    const response = await callback(request(`/backend/auth/callback?${query.toString()}`));
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"provider_error","oauth_error":"access_denied","error_count":1,"current_transaction_preserved":false}',
+    );
+    const serializedLog = JSON.stringify(errorSpy.mock.calls);
+    expect(serializedLog).not.toContain('synthetic-provider-description-secret');
+    expect(serializedLog).not.toContain('synthetic-authorization-code-secret');
+    expect(serializedLog).not.toContain('synthetic-state-secret');
+  });
+
+  it('collapses attacker-controlled provider errors to one bounded log value', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await callback(
+      request('/backend/auth/callback?error=attacker_chosen_log_value&error=access_denied'),
+    );
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"provider_error","oauth_error":"unrecognised","error_count":2,"current_transaction_preserved":false}',
+    );
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('attacker_chosen_log_value');
+  });
+
+  it('logs only counts for a malformed redirect', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await callback(
+      request(
+        '/backend/auth/callback?code=synthetic-code-one&code=synthetic-code-two&state=synthetic-state',
+      ),
+    );
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"malformed_redirect","code_count":2,"state_count":1,"current_transaction_preserved":false}',
+    );
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('synthetic-code-one');
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain('synthetic-state');
+  });
+
+  it('logs only transaction booleans when state validation fails', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await callback(
+      request('/backend/auth/callback?code=synthetic-code-secret&state=synthetic-state-secret'),
+    );
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"transaction","cookie_present":false,"transaction_valid":false,"state_matches":false,"current_transaction_preserved":false}',
+    );
+    const serializedLog = JSON.stringify(errorSpy.mock.calls);
+    expect(serializedLog).not.toContain('synthetic-code-secret');
+    expect(serializedLog).not.toContain('synthetic-state-secret');
+  });
+
+  it('preserves a newer login transaction when an older callback arrives late', async () => {
+    configureOAuth();
+    const beginStaffLogin = () =>
+      login(
+        request('/backend/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Origin: 'http://localhost:3000',
+          },
+          body: new URLSearchParams({ intent: 'STAFF', returnTo: '/onboarding/resolve' }),
+        }),
+      );
+    const firstLogin = await beginStaffLogin();
+    const firstTransaction = parseOAuthTransaction(
+      cookieValue(firstLogin, oauthTransactionCookieName()),
+    );
+    expect(firstTransaction).not.toBeNull();
+
+    const logoutResponse = logout(
+      request('/backend/auth/logout', {
+        method: 'POST',
+        headers: { Origin: 'http://localhost:3000' },
+      }),
+    );
+    expect(cookieValue(logoutResponse, oauthTransactionCookieName())).toBe('');
+
+    const secondLogin = await beginStaffLogin();
+    const secondCookie = cookieValue(secondLogin, oauthTransactionCookieName());
+    const secondTransaction = parseOAuthTransaction(secondCookie);
+    expect(secondTransaction).not.toBeNull();
+    expect(secondTransaction?.state).not.toBe(firstTransaction?.state);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const staleResponse = await callback(
+      request(
+        `/backend/auth/callback?code=stale-code&state=${encodeURIComponent(firstTransaction?.state ?? '')}`,
+        { headers: { Cookie: `${oauthTransactionCookieName()}=${secondCookie}` } },
+      ),
+    );
+    expect(staleResponse.headers.get('location')).toBe('/sign-in?error=oauth_failed');
+    expect(setCookieHeader(staleResponse)).not.toContain(`${oauthTransactionCookieName()}=`);
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"transaction","cookie_present":true,"transaction_valid":true,"state_matches":false,"current_transaction_preserved":true}',
+    );
+
+    const fetchMock = vi.fn(async (): Promise<Response> =>
+      Response.json({
+        access_token: 'synthetic-second-access-token',
+        expires_in: 3600,
+        id_token: idToken(secondTransaction?.nonce ?? ''),
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const secondCallback = await callback(
+      request(
+        `/backend/auth/callback?code=second-code&state=${encodeURIComponent(secondTransaction?.state ?? '')}`,
+        { headers: { Cookie: `${oauthTransactionCookieName()}=${secondCookie}` } },
+      ),
+    );
+    expect(secondCallback.headers.get('location')).toBe('/onboarding/resolve');
+    expect(cookieValue(secondCallback, 'kinsun_access_token')).toBe(
+      'synthetic-second-access-token',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not erase a newer family invitation transaction on a stale provider error', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const staleTransaction = createOAuthTransaction('/onboarding/resolve', 'FAMILY');
+    const currentTransaction = createOAuthTransaction(
+      '/onboarding/resolve',
+      'FAMILY',
+      'family-invite-code',
+    );
+
+    const response = await callback(
+      request(
+        `/backend/auth/callback?error=access_denied&state=${encodeURIComponent(staleTransaction.state)}`,
+        {
+          headers: {
+            Cookie: `${oauthTransactionCookieName()}=${serializeOAuthTransaction(currentTransaction)}`,
+          },
+        },
+      ),
+    );
+
+    expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
+    expect(setCookieHeader(response)).not.toContain(`${oauthTransactionCookieName()}=`);
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"provider_error","oauth_error":"access_denied","error_count":1,"current_transaction_preserved":true}',
+    );
+    expect(currentTransaction.invitationCode).toBe('family-invite-code');
+  });
+
+  it('bounds token exchange request diagnostics without logging the thrown value', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const transaction = createOAuthTransaction('/onboarding/resolve', 'ELDER');
+    const requestError = new Error('synthetic-network-detail-secret');
+    requestError.name = 'AttackerControlledErrorName';
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(requestError)));
+
+    const response = await callback(
+      request(
+        `/backend/auth/callback?code=authorization-code&state=${encodeURIComponent(transaction.state)}`,
+        {
+          headers: {
+            Cookie: `${oauthTransactionCookieName()}=${serializeOAuthTransaction(transaction)}`,
+          },
+        },
+      ),
+    );
+
+    expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] Cognito token exchange request failed {"error_type":"UnknownError"}',
+    );
+    const serializedLog = JSON.stringify(errorSpy.mock.calls);
+    expect(serializedLog).not.toContain('AttackerControlledErrorName');
+    expect(serializedLog).not.toContain('synthetic-network-detail-secret');
+  });
+
   it('exchanges a matching callback code without exposing tokens in the redirect', async () => {
     configureOAuth();
     vi.stubEnv('CORE_ONBOARDING_REDEEM_URL', 'http://127.0.0.1:8000/api/v1/onboarding/resolve');
@@ -229,8 +424,61 @@ describe('Cognito OAuth BFF routes', () => {
     expect(String(init?.body)).toContain('family-invite-code');
   });
 
+  it('logs a readable Core rejection without logging identity or token values', async () => {
+    configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.stubEnv('CORE_ONBOARDING_REDEEM_URL', 'http://127.0.0.1:8000/api/v1/onboarding/resolve');
+    const transaction = createOAuthTransaction('/onboarding/resolve', 'ELDER');
+    const sensitiveEmail = 'restricted-family@example.test';
+    const syntheticIdToken = idToken(transaction.nonce, {
+      aud: 'web-client-id',
+      token_use: 'id',
+      email: sensitiveEmail,
+      email_verified: true,
+      name: 'Restricted Family',
+    });
+    const fetchMock = vi
+      .fn(async (): Promise<Response> => Response.json({}))
+      .mockResolvedValueOnce(
+        Response.json({
+          access_token: 'synthetic-access-token',
+          expires_in: 3600,
+          id_token: syntheticIdToken,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json(
+          { error: { reason_code: 'AUTHENTICATION_FAILED' } },
+          { status: 401 },
+        ),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await callback(
+      request(
+        `/backend/auth/callback?code=authorization-code&state=${encodeURIComponent(transaction.state)}`,
+        {
+          headers: {
+            Cookie: `${oauthTransactionCookieName()}=${serializeOAuthTransaction(transaction)}`,
+          },
+        },
+      ),
+    );
+
+    expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
+    expect(cookieValue(response, 'kinsun_access_token')).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] Core onboarding rejected {"status":401,"reason_code":"AUTHENTICATION_FAILED","payload_valid":true,"audience_matches":true,"token_use_is_id":true,"email_present":true,"email_verified_type":"boolean","email_verified_true":true,"name_present":true}',
+    );
+    const serializedLog = JSON.stringify(errorSpy.mock.calls);
+    expect(serializedLog).not.toContain(syntheticIdToken);
+    expect(serializedLog).not.toContain(sensitiveEmail);
+    expect(serializedLog).not.toContain('Restricted Family');
+  });
+
   it('does not send an ID token to a cross-origin onboarding endpoint', async () => {
     configureOAuth();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.stubEnv('CORE_ONBOARDING_REDEEM_URL', 'https://attacker.example/api/v1/onboarding/resolve');
     const transaction = createOAuthTransaction('/onboarding/resolve', 'ELDER');
     const fetchMock = vi.fn(async (): Promise<Response> =>
@@ -256,6 +504,9 @@ describe('Cognito OAuth BFF routes', () => {
     expect(response.headers.get('location')).toBe('/sign-in?error=oauth_failed');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(cookieValue(response, 'kinsun_access_token')).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[auth] OAuth callback failed {"stage":"core_onboarding"}',
+    );
   });
 
   it('clears the local session before redirecting through Cognito logout', () => {

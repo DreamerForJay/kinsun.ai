@@ -2,7 +2,9 @@
   "additionalProperties": false,
   "properties": {
     "confirmation_method": {
+      "description": "Only ELDER_UI can activate a candidate. CAREGIVER_REVIEW and LEGAL_REPRESENTATIVE remain parseable during deprecation but fail closed at Core authorization. VOICE is unavailable until candidate-specific affirmative evidence exists.",
       "enum": [
+        "ELDER_UI",
         "CAREGIVER_REVIEW",
         "LEGAL_REPRESENTATIVE"
       ],

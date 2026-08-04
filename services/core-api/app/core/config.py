@@ -113,6 +113,9 @@ class Settings(BaseSettings):
     line_daily_notification_send_time: str = Field(default="08:00", max_length=5)
 
     # ─── Internal service adapters ───────────────────────────────────────────────
+    voice_ticket_enabled: bool = False
+    voice_ticket_hmac_secret: str = ""
+    voice_ticket_ttl_seconds: int = Field(default=60, ge=15, le=120)
     agent_runtime_url: str = "http://127.0.0.1:8001"
     agent_runtime_timeout_seconds: float = Field(default=10.0, gt=0, le=30)
     agent_runtime_model_id: str = Field(default="mock", min_length=1, max_length=200)
@@ -217,6 +220,11 @@ class Settings(BaseSettings):
                 raise ValueError("LINE_DAILY_NOTIFICATION_SEND_TIME must use HH:MM")
             if self.line_daily_notification_send_time != "08:00":
                 raise ValueError("LINE_DAILY_NOTIFICATION_SEND_TIME must remain 08:00")
+        if self.voice_ticket_enabled and len(self.voice_ticket_hmac_secret.encode("utf-8")) < 32:
+            raise ValueError(
+                "VOICE_TICKET_HMAC_SECRET must contain at least 32 bytes "
+                "when VOICE_TICKET_ENABLED=true"
+            )
         return self
 
     # ─── Secret redaction ────────────────────────────────────────────────────────

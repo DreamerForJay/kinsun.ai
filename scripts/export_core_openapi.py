@@ -19,6 +19,8 @@ os.environ.setdefault("APP_ENV", "development")
 from app.main import create_app  # noqa: E402
 
 MODEL_FILES = {
+    "RegisterAgentRunRequest": "domain/RegisterAgentRunRequestV1.json",
+    "CompleteAgentRunRequest": "domain/CompleteAgentRunRequestV1.json",
     "ResolveOnboardingRequest": "domain/ResolveOnboardingRequestV1.json",
     "CreateFamilyInvitationRequest": "domain/CreateFamilyInvitationRequestV1.json",
     "CreateLineLinkChallengeRequest": "domain/CreateLineLinkChallengeRequestV1.json",
@@ -26,6 +28,8 @@ MODEL_FILES = {
     "CreateConsentRequest": "domain/CreateConsentRequestV1.json",
     "RevokeConsentRequest": "domain/RevokeConsentRequestV1.json",
     "CreateVoiceSessionRequest": "domain/CreateVoiceSessionRequestV1.json",
+    "CreateVoiceTicketRequest": "domain/CreateVoiceTicketRequestV1.json",
+    "ConsumeVoiceTicketRequest": "domain/ConsumeVoiceTicketRequestV1.json",
     "TransitionVoiceSessionRequest": "domain/TransitionVoiceSessionRequestV1.json",
     "CompanionTurnRequest": "domain/CompanionTurnRequestV1.json",
     "CreateCareEventCandidateRequest": "domain/CreateCareEventCandidateRequestV1.json",
@@ -48,6 +52,12 @@ MODEL_FILES = {
 }
 
 SUCCESS_ENVELOPE_BY_OPERATION = {
+    "register_agent_run_api_v1_internal_agent_runs_post": (
+        "AgentRunRegistrationEnvelopeV1"
+    ),
+    "complete_agent_run_api_v1_internal_agent_runs__agent_run_id__complete_post": (
+        "AgentRunCompletionEnvelopeV1"
+    ),
     "resolve_onboarding_api_v1_onboarding_resolve_post": "ResolveOnboardingEnvelopeV1",
     "create_family_invitation_api_v1_elders__elder_id__family_invitations_post": (
         "FamilyInvitationCreatedEnvelopeV1"
@@ -84,7 +94,15 @@ SUCCESS_ENVELOPE_BY_OPERATION = {
     "get_deletion_request_api_v1_elders__elder_id__deletion_requests__deletion_request_id__get": (
         "DeletionRequestEnvelopeV1"
     ),
-    "create_voice_session_api_v1_elders__elder_id__voice_sessions_post": "VoiceSessionEnvelopeV1",
+    "create_voice_session_api_v1_elders__elder_id__voice_sessions_post": (
+        "VoiceSessionEnvelopeV1"
+    ),
+    "issue_voice_ticket_api_v1_elders__elder_id__voice_tickets_post": (
+        "VoiceTicketIssuedEnvelopeV1"
+    ),
+    "consume_voice_ticket_api_v1_internal_voice_tickets_consume_post": (
+        "VoiceSessionEnvelopeV1"
+    ),
     "get_voice_session_api_v1_voice_sessions__session_id__get": "VoiceSessionEnvelopeV1",
     "cancel_voice_session_api_v1_voice_sessions__session_id__cancel_post": (
         "VoiceSessionEnvelopeV1"
@@ -150,7 +168,9 @@ SUCCESS_ENVELOPE_BY_OPERATION = {
     "get_family_report_api_v1_family_reports__report_id__get": "FamilyReportEnvelopeV1",
     "create_assignment_api_v1_internal_home_care_assignments_post": "CareAssignmentEnvelopeV1",
     "list_assignments_api_v1_home_care_assignments_get": "CareAssignmentListEnvelopeV1",
-    "get_assignment_api_v1_home_care_assignments__assignment_id__get": ("CareAssignmentEnvelopeV1"),
+    "get_assignment_api_v1_home_care_assignments__assignment_id__get": (
+        "CareAssignmentEnvelopeV1"
+    ),
     "confirm_assignment_api_v1_internal_home_care_assignments__assignment_id__confirm_post": (
         "CareAssignmentEnvelopeV1"
     ),
@@ -370,7 +390,9 @@ def main() -> None:
         encoding="utf-8",
         newline="\n",
     )
-    print(f"wrote {contract_path.relative_to(ROOT)} with {len(document['paths'])} paths")
+    print(
+        f"wrote {contract_path.relative_to(ROOT)} with {len(document['paths'])} paths"
+    )
 
 
 if __name__ == "__main__":

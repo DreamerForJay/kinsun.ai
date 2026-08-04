@@ -23,6 +23,20 @@ info:
     between agents. `HandoffEnvelopeV1` and legacy `ToolResponseV1` remain
     target shapes and are deliberately absent from executable paths here.
 
+    The bounded Tool lifecycle currently forwards the inbound Authorization
+    value; this contract does not yet define canonical Core-to-Runtime service
+    authentication, server-derived Tool scope, or a single AgentRun ownership
+    model shared with the Core companion path. Direct Runtime lifecycle tests
+    therefore are not evidence of the complete BFF -> Core -> Runtime -> Core
+    Gate 1 flow. Browsers must not call this private service directly or supply
+    credentials that the Runtime can elevate to SYSTEM_SERVICE permission.
+
+    The Agent Run request can carry the elder's current-turn text. Production
+    use additionally requires an approved private Restricted Data transport
+    contract (service authentication, encryption, minimization, bounded
+    retention/cleanup, and audit) or a reference-based replacement; safe error
+    handling alone does not establish that boundary.
+
     `POST /api/v1/rag/retrievals` is staging-only. When its Bedrock and
     OpenSearch adapters are configured it retrieves approved chunks; when they
     are unavailable it returns HTTP 200 with `data.status = FAILED`, no partial

@@ -8,9 +8,11 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError
+from app.domain.state_machine import require_session_transition
 from app.events.outbox_writer import write_outbox_entry
 from app.models.consent import ConsentGrant
 from app.repositories.consent_repo import ConsentRepository
+from app.repositories.conversation_repo import ConversationRepository
 from app.repositories.policy_repo import PolicyRepository
 from app.schemas.consent import (
     ConsentPurpose,
@@ -42,6 +44,22 @@ class ConsentService:
 
     async def get_by_id(self, elder_id: UUID, consent_id: UUID) -> ConsentGrant | None:
         return await self._consents.get_by_id(elder_id, consent_id)
+
+    async def _cancel_active_basic_voice_sessions(
+        self,
+        consent: ConsentGrant,
+        now: datetime,
+    ) -> None:
+        if consent.purpose_code != ConsentPurpose.BASIC_VOICE.value:
+            return
+        conversations = await ConversationRepository(
+            self._session,
+            self._tenant_id,
+        ).list_active_for_consent_for_update(consent.id)
+        for conversation in conversations:
+            require_session_transition(conversation.state, "CANCELLED")
+            conversation.state = "CANCELLED"
+            conversation.ended_at = now
 
     async def require_active(
         self,
@@ -87,6 +105,7 @@ class ConsentService:
             if active is not None:
                 active.status = "REVOKED"
                 active.revoked_at = now
+                await self._cancel_active_basic_voice_sessions(active, now)
                 await self._session.flush()
                 await write_outbox_entry(
                     self._session,
@@ -172,6 +191,7 @@ class ConsentService:
 
         consent.status = "REVOKED"
         consent.revoked_at = effective_at
+        await self._cancel_active_basic_voice_sessions(consent, now)
         await self._session.flush()
         await write_outbox_entry(
             self._session,

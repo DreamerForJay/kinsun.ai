@@ -29,6 +29,23 @@ class CreateVoiceSessionRequest(BaseModel):
     purpose: Literal["BASIC_VOICE"] = "BASIC_VOICE"
 
 
+class CreateVoiceTicketRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    language_preference: LanguageRoute
+    input_mode: Literal["voice", "voice_with_text_fallback"]
+    client_audio_format: str | None = Field(default=None, max_length=80)
+    client_timezone: str = Field(default="Asia/Taipei", min_length=1, max_length=64)
+    purpose: Literal["BASIC_VOICE"] = "BASIC_VOICE"
+
+
+class ConsumeVoiceTicketRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: UUID
+    voice_ticket: str = Field(min_length=32, max_length=128)
+
+
 class TransitionVoiceSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -97,3 +114,12 @@ class VoiceSessionResponse(BaseModel):
     transport_status: Literal["NOT_CONFIGURED", "AVAILABLE"] = "NOT_CONFIGURED"
     websocket_url: str | None = None
     connection_token: str | None = None
+
+
+class VoiceTicketIssuedResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    voice_session: VoiceSessionResponse
+    voice_ticket: str = Field(min_length=32, max_length=128)
+    expires_at: datetime
+    transport_status: Literal["TICKET_ISSUED"] = "TICKET_ISSUED"

@@ -1,0 +1,8 @@
+{
+  "_why_invalid": "The internal consumer identity is resolved by Core and must not be supplied in the request body.",
+  "data": {
+    "session_id": "53000000-0000-4000-8000-000000000001",
+    "voice_ticket": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "actor_id": "21000000-0000-4000-8000-000000000001"
+  }
+}

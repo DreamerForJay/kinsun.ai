@@ -33,8 +33,13 @@ class CreateMemoryCandidateRequest(BaseModel):
 class ConfirmMemoryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    confirmation_method: Literal["CAREGIVER_REVIEW", "LEGAL_REPRESENTATIVE"] = Field(
-        description="VOICE unavailable until candidate-specific affirmative evidence exists."
+    confirmation_method: Literal["ELDER_UI", "CAREGIVER_REVIEW", "LEGAL_REPRESENTATIVE"] = Field(
+        description=(
+            "Only ELDER_UI can activate a candidate. Legacy caregiver and legal "
+            "representative values remain parseable during deprecation but fail "
+            "closed at the Core authorization gate. VOICE remains unavailable "
+            "until candidate-specific affirmative evidence exists."
+        )
     )
     expected_candidate_version: int = Field(ge=1)
     consent_version: int = Field(ge=1)

@@ -11,12 +11,16 @@ import styles from './LanguageSwitch.module.css';
  * here changes display language only. It never touches the elder's spoken
  * language preference or any other domain state.
  */
-export function LanguageSwitch() {
+export function LanguageSwitch({ compactLabel = false }: { compactLabel?: boolean }) {
   const { locale, setLocale, t } = useLocale();
 
   return (
     <div className={styles.group}>
-      <span className={styles.label} id="language-switch-label">
+      <span
+        className={styles.label}
+        id="language-switch-label"
+        data-visually-hidden={compactLabel}
+      >
         {t('lang.label')}
       </span>
       <div className={styles.options} role="group" aria-labelledby="language-switch-label">
@@ -30,12 +34,12 @@ export function LanguageSwitch() {
               aria-pressed={selected}
               onClick={() => setLocale(option)}
             >
-              {/* Selected state is conveyed by text as well as colour (§4.2). */}
-              {selected && (
-                <span aria-hidden="true" className={styles.check}>
-                  ✓
-                </span>
-              )}
+              {/* Keep the check slot in both options so changing locale never
+                  changes the control's measured width. Visibility, text and
+                  aria-pressed still convey the selected state (§4.2). */}
+              <span aria-hidden="true" className={styles.check} data-visible={selected}>
+                ✓
+              </span>
               {t(option === 'en' ? 'lang.en' : 'lang.zh-Hant')}
             </button>
           );

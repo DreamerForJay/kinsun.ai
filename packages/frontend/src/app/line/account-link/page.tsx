@@ -9,17 +9,18 @@ export const dynamic = 'force-dynamic';
 
 const ERRORS = new Set(['invalid_link', 'link_expired', 'link_failed', 'service_unavailable']);
 
-export default function LineAccountLinkPage({
+export default async function LineAccountLinkPage({
   searchParams,
 }: {
-  searchParams: { error?: string; status?: string };
+  searchParams: Promise<{ error?: string; status?: string }>;
 }) {
+  const [{ error, status }, cookieStore] = await Promise.all([searchParams, cookies()]);
   const hasPendingLinkToken =
-    normalizeLineLinkToken(cookies().get(lineLinkCookieName())?.value) !== null;
-  const initialError = ERRORS.has(searchParams.error ?? '')
-    ? (searchParams.error as 'invalid_link' | 'link_expired' | 'link_failed' | 'service_unavailable')
+    normalizeLineLinkToken(cookieStore.get(lineLinkCookieName())?.value) !== null;
+  const initialError = ERRORS.has(error ?? '')
+    ? (error as 'invalid_link' | 'link_expired' | 'link_failed' | 'service_unavailable')
     : undefined;
-  const initialNotice = searchParams.status === 'already_linked' ? 'already_linked' : undefined;
+  const initialNotice = status === 'already_linked' ? 'already_linked' : undefined;
   return (
     <LineAccountLinkClient
       hasPendingLinkToken={hasPendingLinkToken}

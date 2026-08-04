@@ -1718,7 +1718,7 @@
           "care-events"
         ],
         "summary": "List Care Events",
-        "description": "List formal events by default; expose review states only to reviewers.",
+        "description": "List tenant-scoped events with status, event_type, and inclusive UTC date filters applied before opaque-cursor pagination. Non-formal states remain reviewer-only.",
         "operationId": "list_care_events_api_v1_elders__elder_id__care_events_get",
         "parameters": [
           {
@@ -1759,6 +1759,74 @@
               "title": "Status"
             },
             "description": "Defaults to formal VERIFIED and CORRECTED events. Any supported explicit non-formal status additionally requires care_event:review. DELETED events are never returned."
+          },
+          {
+            "name": "event_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "MEAL",
+                    "ACTIVITY",
+                    "SLEEP",
+                    "MEDICATION_STATEMENT",
+                    "EMOTION_EXPRESSION",
+                    "SOCIAL_CONTACT",
+                    "EXPECTED_CONTACT_MISSED",
+                    "ACTIVITY_PARTICIPATION",
+                    "ACTIVITY_CANCELLED",
+                    "COMPANIONSHIP_NEED"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exact event type filter applied before cursor pagination.",
+              "title": "Event Type"
+            },
+            "description": "Exact event type filter applied before cursor pagination."
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive UTC date for COALESCE(event_time, created_at), applied before pagination.",
+              "title": "Date From"
+            },
+            "description": "Inclusive UTC date for COALESCE(event_time, created_at), applied before pagination."
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive UTC date for COALESCE(event_time, created_at), applied before pagination.",
+              "title": "Date To"
+            },
+            "description": "Inclusive UTC date for COALESCE(event_time, created_at), applied before pagination."
           },
           {
             "name": "cursor",
@@ -2235,6 +2303,7 @@
           "memories"
         ],
         "summary": "Confirm Memory",
+        "description": "Only the authenticated elder self may activate a candidate with ELDER_UI. Caregiver or legal-representative confirmation attempts fail closed without creating formal state or outbox side effects.",
         "operationId": "confirm_memory_api_v1_elders__elder_id__memory_candidates__memory_id__confirm_post",
         "parameters": [
           {

@@ -45,9 +45,9 @@ Browser
 | --- | --- | --- |
 | Frontend／BFF | 單一 Next.js PWA、server-side OAuth、Core proxy、Voice UI state | canonical Voice Ticket、可信 session state、低信心確認 UI 與 failure recovery |
 | Core | Auth、tenant/elder policy、Consent、Voice metadata、AgentRun／Tool、outbox foundation | purpose-aware voice gate、review/confirm commands、formal state＋outbox、Context retrieval |
-| Agent Runtime | bounded Companion、Safety、Context、Mock／Bedrock adapter、Event Candidate Tool | voice-confirmed turn integration、Memory Candidate proposal、trace/eval evidence |
+| Agent Runtime | bounded Companion、Safety、Context、Mock／Bedrock adapter、隔離測試已覆蓋 Event Candidate Tool lifecycle | voice-confirmed turn、Core↔Agent service identity、server-derived Tool scope、唯一 AgentRun authority、Memory proposal、trace/eval evidence |
 | Speech | 尚無 canonical runtime | provider-neutral adapter、ASR final／confidence、TTS fallback；先經 Owner decision |
-| Projection | relay／consumer foundation，正式 Graph slice 尚缺 | idempotent Event／Memory projection、tombstone/replay suppression、authorized reuse |
+| Projection | transactional outbox foundation 已存在；relay／projection consumer 尚未實作，`projection-worker` 仍是空殼 | idempotent Event／Memory projection、tombstone/replay suppression、authorized reuse |
 | Summary | Core contract/API 基礎，generation worker 尚缺 | verified-event-only generation、source evidence、review/rebuild |
 | Quality | service unit／contract tests | cross-service E2E、failure matrix、five-run evidence、CI gate |
 
@@ -66,7 +66,9 @@ Browser
 - 驗證 RBAC＋ABAC、tenant、elder、care unit、assignment、relationship/share scope、purpose、
   consent version、resource state、time 與 idempotency。
 - 核發短效、單次 Voice Ticket，保存 Voice Session metadata 與可信狀態轉換。
-- 組合給 Agent 的可信 context 與 allowlisted Tool scope。
+- 組合給 Agent 的可信 context，並 server-side 推導 allowlisted Tool scope。
+- 與 Agent Runtime 建立經核准的雙向 service identity；browser credential 不得升格為 service permission。
+- 為 Tool-enabled turn 選定唯一 AgentRun authority，避免 Core 與 Runtime 重複建立／完成正式 run。
 - 實作 Event review、Memory confirm／reject／defer／deactivate／delete Command Gate。
 - 在同一 transaction 寫入正式狀態與 outbox。
 - 對 Projection retrieval 再次授權；不從 Graph／Search 反推正式狀態。
@@ -74,15 +76,18 @@ Browser
 ### 5.3 Agent Runtime
 
 - 執行 bounded Companion model decision 與 deterministic Safety。
-- 只接收 Core 已建立的可信 context；不把 request body 的 actor／tenant 欄位視為授權。
+- 只接收經 service authentication 的 Core request；不把 request body 的 actor／tenant 欄位或
+  caller credential 視為 `SYSTEM_SERVICE` 授權。
+- current turn 使用經核准的 Restricted Data transport／reference，遵守最小化與 bounded cleanup。
 - Event／Memory 只能提出 Candidate 或 Tool Command，不得宣告人工確認完成。
-- Tool 僅來自 allowlist 且有 schema/version；Core 必須重新授權。
+- Tool 僅來自 Core server-derived allowlist 且有 schema/version；Core 必須重新授權。
 - 無資料、依賴失敗或 Safety block 時 fail closed，不猜測。
 - 保存 bounded Agent／Prompt／Model route／Policy／Tool／Context version metadata。
 
 ### 5.4 Speech Boundary（Target，尚未實作）
 
-- 驗證 Core 簽發的 Voice Ticket，再接受 audio/session event。
+- 驗證 Core 簽發的 Voice Ticket，再接受 audio/session event；consume 時重新檢查 `BASIC_VOICE`。
+- 監聽／查核 active session consent；核發後撤回時使未使用 ticket 失效並立即取消 active session。
 - 將音訊送往經 Owner 核准的 ASR adapter，回傳 final transcript、confidence band 與版本。
 - 低信心時只建立 confirmation state，不觸發 Candidate side effect。
 - 將安全文字回覆送往 TTS；TTS failure 不得重跑 Agent 或 Domain command。
@@ -168,11 +173,16 @@ sequenceDiagram
     C->>C: Auth + assignment + BASIC_VOICE consent
     C-->>B: Short-lived single-use ticket
     B->>S: Open session with ticket
-    S->>S: Validate ticket and run ASR
-    alt low confidence
+    S->>C: Consume ticket + recheck BASIC_VOICE
+    C-->>S: Accept single-use session
+    S->>S: Run ASR
+    alt consent revoked at any active stage
+        C-->>S: Revoke ticket / cancel session
+        S-->>E: Stop ASR/TTS/retry and end safely
+    else low confidence
         S-->>E: Ask to confirm or repeat
         E->>S: Confirm / reject / cancel
-        S->>C: Record trusted confirmation outcome
+        S->>C: Recheck consent + record trusted outcome
     else accepted final transcript
         S->>C: Final transcript reference + bounded metadata
         C->>C: Recheck purpose-specific consent
@@ -195,10 +205,11 @@ sequenceDiagram
     participant W as Care Worker UI
     participant DB as Aurora + Outbox
 
-    C->>A: Agent turn + allowlisted create_event_candidate
-    A->>C: Register Core-owned AgentRun
-    A->>C: ToolRequest(Event Candidate)
-    C->>C: Reauthorize scope + CARE_EVENT_EXTRACTION + idempotency
+    C->>C: Derive Tool scope from trusted context
+    C->>A: Authenticated Agent turn + server-derived allowlist
+    A->>C: Register or reuse the single authoritative AgentRun
+    A->>C: Authenticated ToolRequest(Event Candidate)
+    C->>C: Verify service identity + scope + consent + idempotency
     C->>DB: Write CANDIDATE (no verified projection)
     A->>C: Complete AgentRun
     W->>C: Verify / correct / reject command
@@ -206,7 +217,10 @@ sequenceDiagram
     C->>DB: Formal review transition + outbox in one transaction
 ```
 
-未覆核 Candidate 不進 Context、Summary、Graph、Family response。
+在實作前必須由 Task 1.4 固定唯一 AgentRun authority：若 Core pre-register，Runtime 只能 reuse；若
+Runtime register，Core companion path 不得再為同一 turn 建立第二個正式 run。雙向 service
+identity 與 server-derived Tool scope 完成前，現有 register→Tool→complete 隔離測試不能作為
+canonical E2E 證據。未覆核 Candidate 不進 Context、Summary、Graph、Family response。
 
 ### 7.3 Memory Candidate and Elder Confirmation
 
@@ -285,8 +299,12 @@ Core 排除，再交給 Agent。Context Manifest 本體若含 Restricted Data，
 
 - Core policy 採 deny by default；route 只負責 HTTP 邊界，service 協調 policy/repository/outbox。
 - Repository query 明確攜帶 `tenant_id`，單一資源 unauthorized／nonexistent 使用一致回應。
-- Voice Ticket 綁 actor、tenant、elder、purpose、expiry、nonce；成功使用後失效。
-- Agent Tool 每次由 Core 重新驗證，不使用模型宣稱的 permission scope。
+- Voice Ticket 綁 actor、tenant、elder、purpose、expiry、nonce；成功使用後失效；consent 撤回會
+  使未使用 ticket 與 active session 立即失效。
+- Core↔Agent 使用雙向 service identity；Agent Tool 每次由 Core 重新驗證，不使用模型宣稱的
+  permission scope，也不轉送 browser credential 成為 system-service permission。
+- Executable Agent Run 的 current turn 使用 reference 或經核准的 Restricted Data service contract，
+  並定義加密、最小化、bounded retention／cleanup 與 audit。
 - Error／log 不回填完整 transcript、audio、prompt、token、未覆核事件或 family-restricted data。
 - Family path 不在本 Gate 1；任何 Draft Summary 都不可視為 Published Family Report。
 
@@ -327,7 +345,8 @@ Core 排除，再交給 Agent。Context Manifest 本體若含 Restricted Data，
 ### 12.2 Integration Tests
 
 - Core transaction：formal state＋outbox同成同敗。
-- Core↔Agent：register→Tool→complete、failure terminal state、authorization forwarding。
+- Core↔Agent：雙向 service identity、server-derived Tool scope、唯一 AgentRun authority、
+  register/reuse→Tool→complete、failure terminal state；使用真實 Core guard，不只 MockTransport。
 - BFF↔Core：server-side token、header allowlist、cookie 不下送。
 - Projection：formal event→scoped projection→authorized reuse。
 - Summary：verified-only source、evidence link、rebuild after correction。
@@ -336,7 +355,8 @@ Core 排除，再交給 Agent。Context Manifest 本體若含 Restricted Data，
 
 - Cross-tenant、cross-elder、expired assignment、revoked share／consent。
 - Unconfirmed Memory、unreviewed Event、Draft Report 不可讀取或投影。
-- Unauthorized／nonexistent response equivalence。
+- Unauthorized／nonexistent response equivalence；browser direct Agent access 與未驗證 service caller 拒絕。
+- Executable current-turn transport 的 auth、加密、cleanup 與 audit，不只 Handoff reference。
 - Error、log、metric、trace 不含 Restricted Data。
 - Delete／revoke 後 retry、DLQ replay、rebuild、restore 不可復活。
 
@@ -370,5 +390,7 @@ Daily Summary。至少連續五次，另跑拒絕、撤回、Graph failure 與 r
 3. Gate 1 Graph slice 與 Neptune／替代 staging adapter、成本及 rebuild boundary。
 4. Bedrock model／inference profile、Guardrails、fallback 與 cost ceiling。
 5. Event 自動 VERIFIED 是否永遠禁用或於未來另開低風險 Policy；Gate 1 預設全人工。
+6. Core↔Agent 雙向 service identity、唯一 AgentRun authority、server-derived Tool scope，以及
+   executable current-turn Restricted Data transport／retention contract。
 
 未決事項的暫時方案若被核准，必須標示 Owner、Expiry、Fallback 與移除條件。

@@ -17,13 +17,14 @@ const errors: Record<string, string> = {
 
 export const dynamic = 'force-dynamic';
 
-export default function SignInMethodsPage({
+export default async function SignInMethodsPage({
   searchParams,
 }: {
-  searchParams: { error?: string; status?: string };
+  searchParams: Promise<{ error?: string; status?: string }>;
 }) {
-  const notice = searchParams.status ? notices[searchParams.status] : undefined;
-  const error = searchParams.error ? errors[searchParams.error] : undefined;
+  const params = await searchParams;
+  const notice = params.status ? notices[params.status] : undefined;
+  const error = params.error ? errors[params.error] : undefined;
 
   return (
     <main style={{ margin: '0 auto', maxWidth: 620, padding: 24 }}>

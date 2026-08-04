@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ApiConfig } from './client';
-import { summariseNeedsReview } from './events';
+import { listEvents, summariseNeedsReview } from './events';
 
 const config: ApiConfig = { apiBaseUrl: '/backend/core/' };
 
@@ -39,6 +39,31 @@ function event(overrides: Record<string, unknown> = {}) {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe('listEvents', () => {
+  it('sends date and event-type filters to Core before cursor pagination', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      success({ items: [], next_cursor: null, has_more: false }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await listEvents(config, 'elder-1', {
+      dateFrom: '2026-08-01',
+      dateTo: '2026-08-02',
+      eventType: 'MEAL',
+      status: 'VERIFIED',
+      cursor: 'opaque-cursor',
+    });
+
+    const [url] = fetchMock.mock.calls[0];
+    const parsed = new URL(String(url), 'http://frontend.test');
+    expect(parsed.searchParams.get('date_from')).toBe('2026-08-01');
+    expect(parsed.searchParams.get('date_to')).toBe('2026-08-02');
+    expect(parsed.searchParams.get('event_type')).toBe('MEAL');
+    expect(parsed.searchParams.get('status')).toBe('VERIFIED');
+    expect(parsed.searchParams.get('cursor')).toBe('opaque-cursor');
+  });
 });
 
 describe('summariseNeedsReview', () => {

@@ -225,7 +225,11 @@ def build_index_document(chunk: ValidatedChunk, vector: Sequence[float]) -> dict
     section = _first_string(data, metadata, "section")
     if section is None:
         raise BulkIngestionError(f"section is unavailable for {chunk.chunk_id}")
-    if page_start is None or page_end is None or page_start < 1 or page_end < page_start:
+    # A web page has no pagination, and source_locator carries the position
+    # instead. Both or neither: a half-populated range points nowhere.
+    if (page_start is None) != (page_end is None):
+        raise BulkIngestionError(f"page range is half-populated for {chunk.chunk_id}")
+    if page_start is not None and page_end is not None and page_end < page_start:
         raise BulkIngestionError(f"page range is invalid for {chunk.chunk_id}")
     if source_url is None:
         raise BulkIngestionError(f"source URL is unavailable for {chunk.chunk_id}")

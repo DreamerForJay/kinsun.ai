@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 
 from app.models.care_event import CareEvent, CareEventVersion, ReviewDecision
 from app.repositories.base import BaseRepository
@@ -64,6 +64,9 @@ class CareEventRepository(BaseRepository):
         *,
         elder_id: UUID,
         statuses: list[str] | None,
+        event_type: str | None,
+        event_time_from: datetime | None,
+        event_time_to: datetime | None,
         limit: int,
         cursor: tuple[datetime, UUID] | None,
     ) -> list[CareEvent]:
@@ -73,6 +76,13 @@ class CareEventRepository(BaseRepository):
         )
         if statuses:
             stmt = stmt.where(CareEvent.status.in_(statuses))
+        if event_type is not None:
+            stmt = stmt.where(CareEvent.event_type == event_type)
+        effective_event_time = func.coalesce(CareEvent.event_time, CareEvent.created_at)
+        if event_time_from is not None:
+            stmt = stmt.where(effective_event_time >= event_time_from)
+        if event_time_to is not None:
+            stmt = stmt.where(effective_event_time <= event_time_to)
         if cursor:
             created_at, event_id = cursor
             stmt = stmt.where(

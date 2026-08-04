@@ -93,7 +93,7 @@ function toEventView(event: CoreCareEvent): EventView {
   };
 }
 
-/** Core supports status/cursor server-side; date and type are safe client-side view filters. */
+/** Core applies every filter before opaque-cursor pagination. */
 export async function listEvents(
   config: ApiConfig,
   elderId: string,
@@ -101,6 +101,9 @@ export async function listEvents(
 ): Promise<ListEventsResult> {
   const params = new URLSearchParams();
   if (filters.status) params.append('status', filters.status);
+  if (filters.eventType) params.set('event_type', filters.eventType);
+  if (filters.dateFrom) params.set('date_from', filters.dateFrom);
+  if (filters.dateTo) params.set('date_to', filters.dateTo);
   if (filters.cursor) params.set('cursor', filters.cursor);
   params.set('limit', '100');
 
@@ -108,13 +111,10 @@ export async function listEvents(
     config,
     `/api/v1/elders/${elderId}/care-events?${params.toString()}`,
   );
-  const items = result.items
-    .map(toEventView)
-    .filter((event) => !filters.eventType || event.eventType === filters.eventType)
-    .filter((event) => !filters.dateFrom || event.eventDate >= filters.dateFrom)
-    .filter((event) => !filters.dateTo || event.eventDate <= filters.dateTo);
-
-  return { items, nextCursor: result.next_cursor };
+  return {
+    items: result.items.map(toEventView),
+    nextCursor: result.next_cursor,
+  };
 }
 
 export interface NeedsReviewSummary {
@@ -134,9 +134,8 @@ export interface NeedsReviewSummary {
  * Counts the care events waiting on this caregiver, for MASTER.md §10.2's
  * Needs Review state ("顯示數量與原因").
  *
- * Filters server-side on status only: `listEvents` narrows type and date in the
- * browser, so passing those here would count one page of a filtered view rather
- * than the queue.
+ * Requests only the review status: date and type filters are valid server-side
+ * view filters, but applying them here would undercount the whole review queue.
  */
 export async function summariseNeedsReview(
   config: ApiConfig,
