@@ -8,6 +8,31 @@
 
 智慧長照 AI 陪伴系統。設計文件在 [`docs/`](docs/)。
 
+## 開發理念
+
+- **人機協作，不取代照護**：AI 負責陪伴、記錄與整理，最終判斷與照護行動仍由家屬、
+  照服員與專業人員決定；系統不提供醫療診斷或治療建議。
+- **AI 生成內容先是候選，經確認才算數**：對話擷取的照護事件、長者記憶與每日摘要一律
+  先是候選／草稿，須經長者本人確認或人工覆核才成為正式紀錄；家屬只看得到已發布的報表。
+- **預設拒絕，每次請求重新驗證**：Core 對每個請求重新檢查身分、租戶、長者授權與同意，
+  不做跨請求快取；查無資源與無權限一律回同一個 404，避免探測他人資料是否存在。
+- **Fail closed，不假裝成功**：AWS 憑證、模型 provider、RAG Allowlist 簽署或
+  LINE／Speech Gateway 設定不完整時，系統回報明確錯誤或 fallback，不會靜默生成內容
+  冒充已完成。
+- **展示資料一律合成**：Demo 與測試只使用模擬或去識別化資料，不使用真實長者個資。
+
+## 核心功能
+
+對應競賽命題必做模組，以下為目前實際可執行的狀態：
+
+| 模組 | 內容 | 狀態 |
+| --- | --- | --- |
+| Module A．語音互動陪伴 | 國語／英語語音辨識與合成（Amazon Transcribe／Polly）；台語／客語語音辨識（自建 SageMaker ASR）。陪伴對話由 Agent Runtime 生成，Safety Evaluator 攔截停藥、改藥、診斷等高風險內容並改回安全訊息 | 可執行；台語／客語目前只有辨識、尚無語音合成，回覆會顯示文字 |
+| Module B．生活記錄與智慧摘要 | 照護事件與長者記憶皆先成為候選，經長者確認或人工覆核才成為正式紀錄；每日摘要以 Draft／Review／Published 狀態機管理，內容可追溯回原始事件 ID | 狀態機與 API 可執行 |
+| Module C．照護者資訊介面 | 照護者後台（`/dashboard`）顯示長者列表、長者詳情、AI 每日摘要與互動統計；家屬報表（`/family`）僅顯示已發布內容 | 可執行 |
+| 家屬推播通知（選做） | LINE 官方帳號每日 08:00（Asia/Taipei）推播已發布家屬報表的更新提示，不含長者姓名或報表內容 | 程式與 contract 已實作，外部排程尚未部署（見「LINE 整合」） |
+| 知識庫（選做） | RAG 檢索：一般資訊／法規類問題會附上 3–5 筆完整引用來源，查無資料時明確回報，不由模型猜測 | staging-only，需簽署 Allowlist 才可用於 production |
+
 ## 小暖｜陪伴角色
 
 小暖是外型約 10–12 歲的中性 AI 數位孫輩，胸前佩戴的小葉子徽章象徵長者每天累積的
@@ -136,15 +161,12 @@ Agent 閉環：`POST /api/v1/agent/runs` → contract 驗證 → Orchestrator �
 Agent → Safety Evaluator → 回應；模型仍走 `MockModelProvider`。另有
 `POST /api/v1/rag/retrievals` 的 Bedrock query embedding／OpenSearch Hybrid Search adapter；
 `general_information`／`legal_reference` Agent Run 會把 3～5 個完整引用 chunk 放入
-Context Manifest，查無資料時不呼叫模型猜測。沒有 provider 設定時會回明確 fallback。
-supplied Allowlist 尚未簽署，Human Review 也尚未完成。僅在 staging 明確設定
-`RAG_REQUIRE_OWNER_SIGNATURE=false` 時，才可使用 unsigned development override；即使啟用
-override，外部提供且完全相符的 `RAG_ALLOWLIST_EXPECTED_SHA256`，以及來源、Chunk、數量與
-完整 Allowlist 驗證仍是不可略過的 hard gate。Receipt 與 log 必須記錄
-`governance_status=UNSIGNED_DEVELOPMENT_OVERRIDE`、`production_approved=false`。
-此 override 不適用 production；production 必須有正式簽署，且
-`RAG_PRODUCTION_ENABLED=true` 必須被明確啟用。目前沒有 AWS staging 連線資訊，因此尚未
-建立或驗證外部 index、embedding、alias，也未接 Neptune。
+Context Manifest，查無資料時不呼叫模型猜測，沒有 provider 設定時回明確 fallback。
+
+RAG Allowlist 目前尚未正式簽署、Human Review 未完成，只能在 staging 明確設定
+`RAG_REQUIRE_OWNER_SIGNATURE=false` 時使用 unsigned development override，且雜湊與內容
+驗證仍是不可略過的 hard gate；production 需要正式簽署並開啟 `RAG_PRODUCTION_ENABLED=true`。
+目前沒有可用的 AWS staging 連線，尚未建立或驗證真實 OpenSearch index。
 
 回應與 core-api 用同一組 envelope（`{"data", "meta"}` / `{"error"}`），
 見 [ADR 0005](docs/adr/0005-agent-runtime-api-conventions.md)。
@@ -234,13 +256,8 @@ Cognito domain、Secrets Manager 值、固定 HTTPS origin、外部 Scheduler �
 完整威脅模型、加密邊界與尚未完成事項見 [`contracts/DIVERGENCE.md`](contracts/DIVERGENCE.md)。
 排程呼叫的介面說明見
 [`services/notification-worker/README.md`](services/notification-worker/README.md)。
-
-## 其他服務（尚未完整實作）
-
-- [`services/rag-ingestion/`](services/rag-ingestion/)：離線、staging-only 的 RAG chunk
-  ingestion pipeline（Bedrock Cohere Embed v4 → OpenSearch），已有可執行程式與測試。
-- `services/projection-worker/`、`services/report-worker/`：目前只是目錄骨架
-  （`.gitkeep`），尚未選定 worker framework 或實作內容。
+知識庫的 ingestion pipeline（Bedrock Cohere Embed v4 → OpenSearch）在
+[`services/rag-ingestion/`](services/rag-ingestion/)，離線、staging-only，已有可執行程式與測試。
 
 ## API Contract
 
