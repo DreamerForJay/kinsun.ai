@@ -1,6 +1,26 @@
 # kinsun.ai
 
+<p align="center">
+  <img src="packages/frontend/public/mascot.png" alt="小暖" width="220" />
+</p>
+
+<p align="center"><i>「小暖陪你聊生活，也陪你安心過每一天。」</i></p>
+
 智慧長照 AI 陪伴系統。設計文件在 [`docs/`](docs/)。
+
+## 小暖｜陪伴角色
+
+小暖是外型約 10–12 歲的中性 AI 數位孫輩，胸前佩戴的小葉子徽章象徵長者每天累積的
+生活記憶與健康習慣。產品內的 `CompanionCharacter` 元件（見
+[`packages/frontend/src/components/voice/CompanionCharacter.tsx`](packages/frontend/src/components/voice/CompanionCharacter.tsx)）
+依對話狀態切換對應的動態影片，靜止狀態則回退到上方靜態圖：
+
+| idle 待機 | listening 聆聽 | processing 思考 | speaking 回應 | sleeping 休息 |
+| :---: | :---: | :---: | :---: | :---: |
+| <video src="packages/frontend/public/video/happy.mp4" width="160" controls></video> | <video src="packages/frontend/public/video/listen.mp4" width="160" controls></video> | <video src="packages/frontend/public/video/remind.mp4" width="160" controls></video> | <video src="packages/frontend/public/video/encourage.mp4" width="160" controls></video> | <video src="packages/frontend/public/video/comfort.mp4" width="160" controls></video> |
+
+角色設計探索過程見 [`pic/`](pic/)；`prefers-reduced-motion` 使用者會看到影片第一幀
+而非播放中的動畫，資訊不因此遺失。
 
 ## Kiro 開發與架構設計
 
@@ -139,25 +159,95 @@ Safety Evaluator 目前是 deterministic 的關鍵字規則（停藥、改藥、
 
 兩個服務各自維護 `pyproject.toml` 與 `uv.lock`，不共用虛擬環境。
 
-## Frontend → Core → Agent 文字閉環
+## Frontend
 
-目前可執行的前端是 [`packages/frontend/`](packages/frontend/)。瀏覽器只呼叫
-Next.js 的同源 `/backend/core/*`；BFF 從 `HttpOnly` Cookie 取得 Access Token，才在
-伺服器端轉成 Core API 要求的 Bearer Header。瀏覽器 JavaScript 不讀取 Token，寫入
-請求另有同源 Origin／CSRF gate。Core 會從可信認證 context 取得 actor／tenant，重新檢查 elder scope 與 `BASIC_VOICE` consent，建立
-Voice Session，才以 server-to-server 方式呼叫 Agent Runtime `:8001`。Agent 的
-安全結果由 Core 寫入稽核 metadata，再以統一 envelope 回給前端。
+程式在 [`packages/frontend/`](packages/frontend/)：Next.js 16（Turbopack）＋ React 19 的
+multi-role PWA，同時服務長者、家屬與照服員三種身分，並兼任 Cognito／Core API 的 BFF。
+版本與升級理由見 [ADR 0006](docs/adr/0006-frontend-stack-and-app-topology.md)、
+[ADR 0008](docs/adr/0008-next-16-supported-release-upgrade.md)。
 
-這一條目前是 **TEXT_ONLY fallback**。麥克風、ASR、WebSocket 與 TTS 尚未實作，
-前端會明確顯示不可用，不會把文字輸入冒充成語音辨識結果。設定、啟動方式、
-安全邊界與 E2E 證據見
-[`docs/handover/2026-08-01-frontend-core-agent-integration.md`](docs/handover/2026-08-01-frontend-core-agent-integration.md)。
+```powershell
+cd packages/frontend
+npm install         # 於 repo 根目錄執行即可（workspaces）
+npm run dev         # http://localhost:3000
+npm run typecheck   # next typegen && tsc --noEmit
+npm run build
+npm test
+```
+
+未登入時看到的是公開 landing page（`/`，含產品介紹、隱私權政策、服務條款、資料權利、
+無障礙聲明），介面文字支援中文（zh-Hant）／英文切換。登入後依角色分流到
+`/`（長者陪伴對話）、`/dashboard`（照服員／照護者後台）、`/family`（家屬報表）。
+
+登入支援 Google 與 LINE Login 兩種 Cognito federated provider（`LINE_LOGIN_ENABLED`
+關閉時 UI 不顯示 LINE 選項，安全門檻在伺服器端強制執行，不只是隱藏按鈕）。瀏覽器只呼叫
+Next.js 的同源 `/backend/*`；BFF 從 `HttpOnly` Cookie 取得 Access Token，才在伺服器端轉成
+Core API 要求的 Bearer Header，瀏覽器 JavaScript 不讀取 Token，寫入請求另有同源
+Origin／CSRF gate。
+
+長者的陪伴對話走 Core 的**文字**單輪 companion-turn（`transport_status = TEXT_ONLY`）：
+Core 從可信認證 context 取得 actor／tenant，重新檢查 elder scope 與 `BASIC_VOICE`
+consent、建立 Voice Session，才以 server-to-server 方式呼叫 Agent Runtime `:8001`；
+Agent 的安全結果由 Core 寫入稽核 metadata，再以統一 envelope 回給前端。語音輸入輸出
+另見下方「語音（Speech Gateway）」——兩者是分開的關注點：Core 決定「可不可以說、
+說了什麼算數」，Speech Gateway 只負責音訊轉文字／文字轉音訊，本身不留狀態。
+
+設定、啟動方式、安全邊界與 E2E 證據見
+[`docs/handover/2026-08-01-frontend-core-agent-integration.md`](docs/handover/2026-08-01-frontend-core-agent-integration.md)
+（文字閉環部分仍準確；語音已如下方所述進一步接上 Speech Gateway）。
+
+## 語音（Speech Gateway）
+
+程式在 [`services/speech-gateway/`](services/speech-gateway/)：獨立的 FastAPI 服務，
+只做「音訊轉文字、文字轉音訊」，不儲存逐字稿、不判斷 consent、不擷取事件——這些一律
+留給 Core。國語／英語辨識走 Amazon Transcribe，台語／客語辨識走自建 SageMaker ASR
+endpoint；語音合成走 Amazon Polly，目前尚未部署台語／客語的 TTS endpoint，因此那兩種
+語言的回覆只顯示文字，不會播放語音（前端會明確說明，不會假裝播放失敗）。
+
+```powershell
+cd services/speech-gateway
+uv sync --extra test --extra dev
+uv run pytest
+uvicorn speech_gateway.app:app --reload --port 8002
+```
+
+這條路徑是**逐輪呼叫**，不是即時串流 WebSocket：瀏覽器錄一段音訊、上傳給 Speech
+Gateway 轉文字、把確認後的文字送進 Core 的文字 companion-turn、拿到回覆文字再送回
+Speech Gateway 合成語音。沒有設定 AWS 憑證／SageMaker endpoint 時會 fail closed
+（回傳明確錯誤，不是靜默假成功）。前端串接與語言路由邏輯見
+`packages/frontend/src/lib/voice/canonical-voice-turn.ts`。
+
+## LINE 整合
+
+專案裡有兩套彼此獨立、不可互相比較 subject 的 LINE 身分：
+
+- **LINE Login**：Cognito federated OAuth provider，用來登入既有帳號（需先以 Google
+  登入過並完成連結），走 `/account/sign-in-methods` 與 `/backend/auth/identities/line/*`。
+- **LINE 官方帳號 Account Linking**：長者／家屬把 Core Actor 與 LINE Messaging API
+  的 `external_identity` 綁定，用於每日家屬報表推播（`POST
+  /api/v1/internal/notification-jobs/line-daily`，08:00 Asia/Taipei，只推播已 `PUBLISHED`
+  的正式報表，不含長者姓名或報表內容），走 `/line/account-link` 與
+  `/backend/line/account-link/*`。
+
+兩者都是 **feature-gated、尚未有 staging 部署證據**的程式／synth 層實作（對應的
+Cognito domain、Secrets Manager 值、固定 HTTPS origin、外部 Scheduler 均待補），
+完整威脅模型、加密邊界與尚未完成事項見 [`contracts/DIVERGENCE.md`](contracts/DIVERGENCE.md)。
+排程呼叫的介面說明見
+[`services/notification-worker/README.md`](services/notification-worker/README.md)。
+
+## 其他服務（尚未完整實作）
+
+- [`services/rag-ingestion/`](services/rag-ingestion/)：離線、staging-only 的 RAG chunk
+  ingestion pipeline（Bedrock Cohere Embed v4 → OpenSearch），已有可執行程式與測試。
+- `services/projection-worker/`、`services/report-worker/`：目前只是目錄骨架
+  （`.gitkeep`），尚未選定 worker framework 或實作內容。
 
 ## API Contract
 
 [`contracts/`](contracts/) 放 OpenAPI 3.1、AsyncAPI 3.0 與 JSON Schema。core-api 合約涵蓋
-目前 runtime 的 52 個 operations；agent-runtime 另有 `/health` 與
-`POST /api/v1/agent/runs` 的 executable OpenAPI。Handoff、Context Manifest、Safety
+目前 runtime 的 57 個 operations（含 Voice Ticket、LINE Login federation、LINE Account
+Linking 與每日通知 job）；agent-runtime 另有 `/health`、`POST /api/v1/agent/runs` 與
+`POST /api/v1/rag/retrievals` 的 executable OpenAPI。Handoff、Context Manifest、Safety
 Evaluation 與 Tool schema 中仍有尚未接上 executable endpoint 的目標形狀，邊界見
 [`contracts/README.md`](contracts/README.md) 與 [`contracts/DIVERGENCE.md`](contracts/DIVERGENCE.md)。
 
