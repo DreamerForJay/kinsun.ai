@@ -1,7 +1,7 @@
 # kinsun.ai
 
 <p align="center">
-  <img src="packages/frontend/public/mascot.png" alt="小暖" width="400" />
+  <img src="packages/frontend/public/mascot.png" alt="小暖" width="1080" />
 </p>
 
 <p align="center"><i>「小暖陪你聊生活，也陪你安心過每一天。」</i></p>
